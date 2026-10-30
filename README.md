@@ -5,7 +5,7 @@
 Nightmare 58 es un souls-like 3D low poly ambientado en una Venezuela distópica
 entre 2015 y 2018. El protagonista recorre un país golpeado por los apagones, la
 escasez y la hiperinflación, y se enfrenta a leyendas urbanas venezolanas como
-El Silbón. El nombre viene del +58, el código telefónico de Venezuela.
+El Silbón.
 
 Es el proyecto de Programación 3 (Estructuras de Datos): las estructuras de
 DeSiGNAR sostienen los sistemas del juego, como la IA de los enemigos, el árbol
