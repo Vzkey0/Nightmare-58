@@ -4,8 +4,7 @@
 
 Nightmare 58 es un souls-like 3D low poly ambientado en una Venezuela distópica
 entre 2015 y 2018. El protagonista recorre un país golpeado por los apagones, la
-escasez y la hiperinflación, y se enfrenta a leyendas urbanas venezolanas como
-El Silbón. El nombre viene del +58, el código telefónico de Venezuela.
+escasez y la hiperinflación, y se enfrenta a leyendas urbanas venezolanas
 
 Es el proyecto de Programación 3 (Estructuras de Datos): las estructuras de
 DeSiGNAR sostienen los sistemas del juego, como la IA de los enemigos, el árbol
@@ -35,7 +34,6 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 | Árboles balanceados | `avltree.hpp`, `rbtree.hpp` |
 | Heaps | `heap.hpp`, `fibonacciheap.hpp` |
 | Tablas hash | `chainedhash.hpp`, `openhash.hpp` |
-| Grafos | `graph.hpp`, `graphalgorithms.hpp` |
 
 ## Requisitos
 
