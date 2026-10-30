@@ -142,15 +142,14 @@ docs/
 | Blender | Modelado y animación low poly |
 | Git + GitHub | Versiones y compilación por plataforma |
 
-Godot y `godot-cpp` todavía no están integrados: hoy el repo solo compila un
-ejecutable de consola con DeSiGNAR.
+Versiones: Godot 4.7.2 y `godot-cpp` 10.0.0, con la API 4.7.
 
 ## 8. Riesgos
 
 | Riesgo | Mitigación |
 |---|---|
 | Integrar DeSiGNAR con `godot-cpp` | Hacer una prueba mínima antes de nada más (fase 0) |
-| DeSiGNAR lanza excepciones y `godot-cpp` las desactiva por defecto | Activarlas en la compilación o validar antes de llamar |
+| DeSiGNAR lanza excepciones y `godot-cpp` las desactiva por defecto | Resuelto: activadas en CMake |
 | Mezclar compiladores entre plataformas | Compilar en CI para cada sistema |
 | Alcance demasiado grande | Jefe primero; todo lo demás es recortable |
 | Animaciones 3D consumen más tiempo que el código | Modelos simples, recursos libres si hace falta |
