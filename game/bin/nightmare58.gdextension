@@ -1,0 +1,8 @@
+[configuration]
+entry_symbol = "nightmare58_init"
+compatibility_minimum = "4.7"
+
+[libraries]
+windows.x86_64 = "res://bin/nightmare58.windows.template_debug.x86_64.dll"
+linux.x86_64 = "res://bin/nightmare58.linux.template_debug.x86_64.so"
+macos = "res://bin/nightmare58.macos.template_debug.universal.dylib"
