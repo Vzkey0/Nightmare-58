@@ -1,4 +1,4 @@
-# proyectopr3
+# Nightmare 58
 
 ## Resumen
 
@@ -47,11 +47,11 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
    no se descarga DeSiGNAR) y compila:
 
    ```bash
-   git clone --recursive https://github.com/Vzkey0/proyectopr3.git
-   cd proyectopr3
+   git clone --recursive https://github.com/Vzkey0/Nightmare-58.git
+   cd Nightmare-58
    cmake -S . -B build -G Ninja
    cmake --build build
-   ./build/proyectopr3.exe
+   ./build/Nightmare58.exe
    ```
 
 ## Compilar en Linux (Ubuntu/Debian)
@@ -59,11 +59,11 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 ```bash
 sudo apt update
 sudo apt install build-essential cmake ninja-build git
-git clone --recursive https://github.com/Vzkey0/proyectopr3.git
-cd proyectopr3
+git clone --recursive https://github.com/Vzkey0/Nightmare-58.git
+cd Nightmare-58
 cmake -S . -B build -G Ninja
 cmake --build build
-./build/proyectopr3
+./build/Nightmare58
 ```
 
 Si ya clonaste sin `--recursive`: `git submodule update --init`.

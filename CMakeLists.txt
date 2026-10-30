@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(proyectopr3 CXX)
+project(Nightmare58 CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,5 +12,5 @@ set(DESIGNAR_BUILD_SAMPLES OFF)
 set(DESIGNAR_BUILD_TESTS OFF)
 add_subdirectory(extern/DeSiGNAR)
 
-add_executable(proyectopr3 src/main.cpp)
-target_link_libraries(proyectopr3 PRIVATE Designar::Designar)
+add_executable(Nightmare58 src/main.cpp)
+target_link_libraries(Nightmare58 PRIVATE Designar::Designar)
