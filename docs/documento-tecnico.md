@@ -6,7 +6,7 @@
 
 ## Marco teórico
 
-Estructuras de DeSiGNAR utilizadas y por qué.
+Estructuras de DeSiGNAR utilizadas
 
 ## Arquitectura y decisiones técnicas
 

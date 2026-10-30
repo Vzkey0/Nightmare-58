@@ -35,7 +35,6 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 | Árboles balanceados | `avltree.hpp`, `rbtree.hpp` |
 | Heaps | `heap.hpp`, `fibonacciheap.hpp` |
 | Tablas hash | `chainedhash.hpp`, `openhash.hpp` |
-| Grafos | `graph.hpp`, `graphalgorithms.hpp` |
 
 ## Requisitos
 
@@ -43,6 +42,8 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 - CMake 3.20 o superior
 - Ninja (o make)
 - Git
+- Python 3 (lo usa `godot-cpp` al compilar)
+- [Godot 4.7.2](https://godotengine.org/download/archive/4.7.2-stable/), la misma versión para todos
 
 ## Compilar en Windows
 
@@ -50,7 +51,7 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 2. Abre la terminal **MSYS2 UCRT64** e instala las herramientas:
 
    ```bash
-   pacman -S --needed git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+   pacman -S --needed git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python
    ```
 
 3. En esa misma terminal, clona el repositorio **con** `--recursive` (sin eso
@@ -68,7 +69,7 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake ninja-build git
+sudo apt install build-essential cmake ninja-build git python3
 git clone --recursive https://github.com/Vzkey0/Nightmare-58.git
 cd Nightmare-58
 cmake -S . -B build -G Ninja
@@ -76,16 +77,42 @@ cmake --build build
 ./build/Nightmare58
 ```
 
-Si ya clonaste sin `--recursive`: `git submodule update --init`.
+Si ya clonaste sin `--recursive`: `git submodule update --init --recursive`.
+
+## Probar y abrir el juego
+
+La primera compilación tarda varios minutos porque también compila `godot-cpp`.
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+Después abre `game/project.godot` con Godot y pulsa F5. Cada cambio en C++ requiere
+volver a compilar y reiniciar el editor.
+
+## Estructura
+
+| Carpeta | Contenido |
+|---|---|
+| `src/core/` | Lógica sin Godot: se prueba desde la terminal |
+| `src/game/` | Clases C++ registradas en Godot |
+| `tests/` | Pruebas de `src/core/` |
+| `game/` | Proyecto de Godot: escenas, modelos y audio |
+| `extern/` | DeSiGNAR y `godot-cpp` |
+| `docs/` | PDD, [guía](docs/guia.md), [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
 
 ## Flujo de trabajo
 
 `main` ← `development` ← `feature/*`. Cada característica se hace en su propia
 rama `feature/nombre` salida de `development`. Nunca se hacen commits directos
-sobre `main`.
+sobre `main`: los cambios llegan por pull request, y GitHub Actions debe compilar y
+pasar las pruebas. Al fusionar usen **Merge** o **Rebase**, no **Squash**, para
+conservar los commits de cada integrante.
 
 ## Créditos
 
-Pendiente: integrantes del grupo.
+- Juan Daniel Mendoza Sanchez
+- Juan Enrique Uzcategui Zambrano
+- Jeison David Hernandez Peraza
 
 Estructuras de datos: DeSiGNAR, de Alejandro J. Mujica (licencia MIT).
