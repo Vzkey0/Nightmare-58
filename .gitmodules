@@ -1,0 +1,3 @@
+[submodule "extern/DeSiGNAR"]
+	path = extern/DeSiGNAR
+	url = https://github.com/R3mmurd/DeSiGNAR.git
