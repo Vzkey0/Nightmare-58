@@ -2,7 +2,17 @@
 
 ## Resumen
 
-Pendiente: describir el proyecto cuando la idea esté aprobada.
+Nightmare 58 es un souls-like 3D low poly ambientado en una Venezuela distópica
+entre 2015 y 2018. El protagonista recorre un país golpeado por los apagones, la
+escasez y la hiperinflación, y se enfrenta a leyendas urbanas venezolanas como
+El Silbón. El nombre viene del +58, el código telefónico de Venezuela.
+
+Es el proyecto de Programación 3 (Estructuras de Datos): las estructuras de
+DeSiGNAR sostienen los sistemas del juego, como la IA de los enemigos, el árbol
+de habilidades y el inventario. Está escrito en C++ con Godot 4 y apunta a Linux,
+Windows y macOS.
+
+El diseño completo está en [docs/PDD.md](docs/PDD.md).
 
 ## DeSiGNAR
 
