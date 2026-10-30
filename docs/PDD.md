@@ -34,9 +34,6 @@ que hace funcionar el juego, no un añadido.
 **Queda fuera, salvo que sobre tiempo:** más jefes (La Sayona, Juan Machete,
 El Carretón), finales múltiples, árbol de diálogo, Florentino y el Diablo.
 
-**Excluido:** grafos. Por decisión del grupo, el mapa y la persecución no los usan,
-aunque DeSiGNAR incluya `graph.hpp`.
-
 ## 4. Mecánicas
 
 ### Combate

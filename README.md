@@ -35,7 +35,6 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 | Árboles balanceados | `avltree.hpp`, `rbtree.hpp` |
 | Heaps | `heap.hpp`, `fibonacciheap.hpp` |
 | Tablas hash | `chainedhash.hpp`, `openhash.hpp` |
-| Grafos | `graph.hpp`, `graphalgorithms.hpp` |
 
 ## Requisitos
 
