@@ -99,7 +99,7 @@ volver a compilar y reiniciar el editor.
 | `tests/` | Pruebas de `src/core/` |
 | `game/` | Proyecto de Godot: escenas, modelos y audio |
 | `extern/` | DeSiGNAR y `godot-cpp` |
-| `docs/` | PDD y documento técnico |
+| `docs/` | PDD, [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
 
 ## Flujo de trabajo
 
