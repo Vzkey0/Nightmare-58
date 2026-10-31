@@ -20,10 +20,9 @@ set(GODOTCPP_DISABLE_EXCEPTIONS OFF CACHE BOOL "" FORCE)
 set(GODOTCPP_API_VERSION "4.7" CACHE STRING "" FORCE)
 add_subdirectory(extern/godot-cpp)
 
-add_library(nightmare58_core STATIC 
+add_library(nightmare58_core STATIC
   src/core/progression/skill_tree.cpp
-  src/core/ai/DecisionTree.cpp
-  )
+  src/core/ai/behavior_tree.cpp)
 target_include_directories(nightmare58_core PUBLIC src)
 target_link_libraries(nightmare58_core PUBLIC Designar::Designar)
 
@@ -31,6 +30,9 @@ enable_testing()
 add_executable(test_core tests/test_core.cpp)
 target_link_libraries(test_core PRIVATE nightmare58_core)
 add_test(NAME core COMMAND test_core)
+
+add_executable(behavior_tree_benchmark benchmarks/behavior_tree_benchmark.cpp)
+target_link_libraries(behavior_tree_benchmark PRIVATE Designar::Designar)
 
 add_executable(Nightmare58 src/main.cpp)
 target_link_libraries(Nightmare58 PRIVATE Designar::Designar)

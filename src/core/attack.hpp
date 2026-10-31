@@ -1,6 +1,6 @@
 #pragma once
 
-class Attack {
-    public:
-    Attack() {};
+struct Attack
+{
+  int id;
 };

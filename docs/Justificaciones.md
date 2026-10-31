@@ -25,7 +25,6 @@ implementarse.
 
 | Sistema | Propuesta del PDD | Ficha |
 |---|---|---|
-| IA de enemigos | Árbol de comportamiento propio sobre `list.hpp` | Pendiente |
 | Zonas | Árbol n-ario | Pendiente |
 | Combos y estados alterados | Listas | Pendiente |
 | Objeto rápido | Lista recorrida en círculo | Pendiente |
@@ -57,3 +56,43 @@ implementarse.
 - **Medición:** No aplica
 - **Conclusión:** `MTreeNode` refleja la jerarquía real, admite cualquier cantidad de
   hijos y es de DeSiGNAR. Con pocas habilidades, buscar en `O(n)` es suficiente
+
+## J-002: Árbol de comportamiento con `MTreeNode`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/ai/behavior_tree.hpp`, `BehaviorTree::root`
+- **Crítico:** Sí. `decide` corre de forma constante, hasta una vez por frame y enemigo
+- **Datos:** 15 nodos en el árbol del PDD; máximo por definir
+- **Operaciones:** crear el árbol una vez y recorrer los hijos en orden. Domina el
+  recorrido
+- **Elegida:** `MTreeNode`. Evaluar es `O(n)` en el peor caso y no reserva memoria
+- **Descartadas:** `DynArray` con índices al primer hijo y al hermano derecho obliga a
+  mantener esos índices a mano y fue más lento en esta medición. `SLList` de hijos,
+  propuesta inicial del PDD, no se midió: exige una lista por nodo y `MTreeNode` ya da
+  los hijos enlazados y en orden
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/behavior_tree_benchmark.cpp`. Peor caso, visitando todas las ramas. Mediana
+  de 101 muestras de 20 000 evaluaciones, en tres ejecuciones:
+
+  | Nodos | `MTreeNode` | `DynArray` |
+  |---|---|---|
+  | 16 | 10,08 a 10,23 ns | 12,84 a 13,12 ns |
+  | 151 | 109,45 a 112,15 ns | 144,62 a 164,03 ns |
+
+- **Conclusión:** `MTreeNode` fue más rápido y refleja la jerarquía real. Con el tamaño
+  esperado, una evaluación usa alrededor del 0,00006 % de un frame de 16,6 ms
+
+## J-003: Rotación de ataques con `DynQueue`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/ai/behavior_tree.hpp`, colas de ataques de `BehaviorTree`
+- **Crítico:** No. `decide` solo lee el frente; la cola cambia al ejecutar un ataque
+- **Datos:** pocos ataques por acción; máximo por definir
+- **Operaciones:** leer el frente y mover el primero al final. Domina la lectura
+- **Elegida:** `DynQueue`. Ambas operaciones son `O(1)`
+- **Descartadas:** `DynArray` con un índice circular logra lo mismo, pero hay que
+  mantener el índice a mano. Un heap no aplica: los ataques rotan, no compiten por
+  prioridad
+- **Medición:** No aplica
+- **Conclusión:** la cola expresa directamente la rotación y sus operaciones cuestan
+  `O(1)`
