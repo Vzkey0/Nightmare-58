@@ -9,3 +9,4 @@ build/
 .vscode/
 .godot/
 *.dylib
+*.blend[0-9]*
