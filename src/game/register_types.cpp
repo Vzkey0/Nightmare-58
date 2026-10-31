@@ -3,17 +3,17 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "prueba_designar.hpp"
+#include "designar_check.hpp"
 
 using namespace godot;
 
-static void iniciar(ModuleInitializationLevel nivel)
+static void initialize(ModuleInitializationLevel level)
 {
-  if (nivel == MODULE_INITIALIZATION_LEVEL_SCENE)
-    GDREGISTER_CLASS(PruebaDesignar);
+  if (level == MODULE_INITIALIZATION_LEVEL_SCENE)
+    GDREGISTER_CLASS(DesignarCheck);
 }
 
-static void terminar(ModuleInitializationLevel) {}
+static void terminate(ModuleInitializationLevel) {}
 
 extern "C" GDExtensionBool GDE_EXPORT nightmare58_init(
   GDExtensionInterfaceGetProcAddress get_proc_address,
@@ -21,8 +21,8 @@ extern "C" GDExtensionBool GDE_EXPORT nightmare58_init(
   GDExtensionInitialization *initialization)
 {
   GDExtensionBinding::InitObject init(get_proc_address, library, initialization);
-  init.register_initializer(iniciar);
-  init.register_terminator(terminar);
+  init.register_initializer(initialize);
+  init.register_terminator(terminate);
   init.set_minimum_library_initialization_level(MODULE_INITIALIZATION_LEVEL_SCENE);
   return init.init();
 }

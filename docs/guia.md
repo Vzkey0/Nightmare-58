@@ -163,6 +163,46 @@ Al terminar tendrás la librería en `game/bin/`:
 | Linux | `nightmare58.linux.template_debug.x86_64.so` |
 | macOS | Archivo `.dylib` de `nightmare58` |
 
+### Compilar con Make
+
+Ninja es la opción oficial y la que usan los checks de GitHub. El proyecto también
+compila con Make, sin cambiar nada en el repositorio. Si ya tienes `build/` creada
+con Ninja, bórrala antes: CMake no permite cambiar de generador sobre la misma carpeta.
+
+En Windows, instala Make y prepara la compilación en **MSYS2 UCRT64**:
+
+```bash
+pacman -S --needed make
+```
+
+```bash
+cmake -S . -B build -G "MSYS Makefiles"
+```
+
+En Linux, Make ya viene con `build-essential`:
+
+```bash
+cmake -S . -B build -G "Unix Makefiles"
+```
+
+Después, en ambos sistemas:
+
+```bash
+cmake --build build -j "$(nproc)"
+```
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+Sin `-j`, Make compila un archivo a la vez y la primera compilación tarda mucho más.
+
+En Windows, el archivo debe llamarse `nightmare58.windows.template_debug.x86_64.dll`.
+Si le falta `x86_64`, Godot no lo cargará: abre la terminal desde el menú Inicio o
+desde VS Code, no desde otro Bash.
+
+Probado en Windows. En Linux falta probarlo.
+
 ### Abrir en Godot
 
 1. Abre Godot 4.7.2.
@@ -173,8 +213,8 @@ Al terminar tendrás la librería en `game/bin/`:
 Si todo salió bien, la salida de Godot muestra:
 
 ```text
-DeSiGNAR OK: 3 elementos
-Excepcion atrapada: List is empty
+DeSiGNAR OK: 3 elements
+Exception caught: List is empty
 ```
 
 ## 4. Cómo está organizado

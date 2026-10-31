@@ -9,6 +9,6 @@ int main()
   numbers.append(2);
   numbers.append(3);
 
-  std::cout << "DeSiGNAR OK: " << numbers.size() << " elementos\n";
+  std::cout << "DeSiGNAR OK: " << numbers.size() << " elements\n";
   return 0;
 }
