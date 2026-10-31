@@ -55,6 +55,27 @@ hebilla, pantalón cargo ancho y rasgado, y botas negras.
 Están en pose A y ya tienen esqueleto, con los mismos 25 huesos en ambos para poder
 compartir animaciones. Aún no tienen animaciones.
 
+## Escenario 1: avenida de Caracas
+
+Avenida abandonada bajo tormenta, basada en las referencias 07 y 08: bloques de losas
+con balcones, casas de ladrillo con escaleras, comercios cerrados, hiedra densa,
+autobús y carros abandonados, postes con cables caídos, charcos, escombros en ambos
+extremos, torre escalonada y el Ávila al fondo.
+
+[build_avenue.py](../art/environments/build_avenue.py) la genera, guarda
+`avenue.blend` y exporta `avenue.glb`. Los objetos terminados en `-colonly` son las
+colisiones. La escena [avenue.tscn](../game/scenes/avenue.tscn) añade cielo, niebla,
+luz de tormenta, reflejos y lluvia.
+
+**Optimización de escenarios:**
+
+- El color va en los vértices, con cinco materiales para todo el mapa.
+- La vegetación se hace con láminas continuas y domos, no con objetos sueltos.
+- Se borran las caras que quedan dentro de sólidos o de espaldas a toda la zona
+  jugable. Por eso el mapa se ve incompleto desde fuera o desde arriba: es a propósito.
+  Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`.
+- Las capas largas se parten por tramos para que Godot omita lo que no está en cámara.
+
 ## Presupuesto inicial
 
 Son valores de partida; se ajustan si el juego los necesita.
