@@ -98,8 +98,9 @@ volver a compilar y reiniciar el editor.
 | `src/game/` | Clases C++ registradas en Godot |
 | `tests/` | Pruebas de `src/core/` |
 | `game/` | Proyecto de Godot: escenas, modelos y audio |
+| `art/` | Archivos `.blend` editables; ver la [guía de arte](docs/art_guide.md) |
 | `extern/` | DeSiGNAR y `godot-cpp` |
-| `docs/` | PDD, [guía](docs/guia.md), [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
+| `docs/` | PDD, [guía](docs/guia.md), [guía de arte](docs/art_guide.md), [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
 
 ## Flujo de trabajo
 

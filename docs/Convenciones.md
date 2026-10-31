@@ -157,6 +157,7 @@ src/game/      Clases C++ registradas en Godot.
 tests/         Pruebas de src/core/.
 benchmarks/    Mediciones de rendimiento.
 game/          Proyecto Godot: escenas, modelos y audio.
+art/           Archivos .blend editables (ver art_guide.md).
 extern/        DeSiGNAR y godot-cpp (no se modifican).
 docs/          PDD, convenciones y justificaciones.
 ```
