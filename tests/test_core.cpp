@@ -1,10 +1,9 @@
 #undef NDEBUG
 #include <cassert>
 
+#include <core/ai/behavior_tree.hpp>
 #include <core/distance.hpp>
 #include <core/progression/skill_tree.hpp>
-#include "core/ai/DecisionTree.hpp"
-#include "core/attack.hpp"
 
 static void test_skill_tree()
 {
@@ -34,29 +33,68 @@ static void test_skill_tree()
   assert(!tree.is_unlocked(3));
 }
 
-static void test_DecisionTree(){
-
-  Designar::DynQueue<Attack> near_qs;
-    near_qs.put(Attack{});
-    near_qs.put(Attack{});
-
-    Designar::DynQueue<Attack> medium_qs;
-    medium_qs.put(Attack{});
-
-    Designar::DynQueue<Attack> far_qs;
-    far_qs.put(Attack{});
-
-    DecisionTree tree(near_qs, medium_qs, far_qs);
-
-    Attack eval_near_1 = tree.evaluate(DistanceRange::Near);
-    Attack eval_near_2 = tree.evaluate(DistanceRange::Near);
-    Attack eval_medium = tree.evaluate(DistanceRange::Medium);
-    Attack eval_far    = tree.evaluate(DistanceRange::Far);
-
-    Attack eval_default = tree.evaluate(DistanceRange::Far);
-
+static BehaviorTree::AttackQueue make_attacks(int id)
+{
+  BehaviorTree::AttackQueue attacks;
+  attacks.put(Attack{id});
+  return attacks;
 }
 
+static bool decides(const BehaviorTree & tree, float health, DistanceRange range,
+                    BehaviorAction action, int attack_id)
+{
+  const Decision decision = tree.decide(EnemyContext{health, range});
+  return decision.action == action && decision.attack_id == attack_id;
+}
+
+static void test_behavior_tree_priorities()
+{
+  BehaviorTree tree(make_attacks(1), make_attacks(2), make_attacks(3), make_attacks(4));
+
+  assert(decides(tree, 0.2f, DistanceRange::Near, BehaviorAction::Fury, 1));
+  assert(decides(tree, 0.2f, DistanceRange::Far, BehaviorAction::Fury, 1));
+  assert(decides(tree, 0.8f, DistanceRange::Near, BehaviorAction::Melee, 2));
+  assert(decides(tree, 0.8f, DistanceRange::Medium, BehaviorAction::Ranged, 3));
+  assert(decides(tree, 0.8f, DistanceRange::Far, BehaviorAction::Charge, 4));
+
+  // The limit is strict: exactly 30 % is not low health.
+  assert(decides(tree, 0.3f, DistanceRange::Near, BehaviorAction::Melee, 2));
+}
+
+static void test_behavior_tree_rotation()
+{
+  BehaviorTree::AttackQueue melee = make_attacks(1);
+  melee.put(Attack{2});
+  BehaviorTree tree(make_attacks(9), melee, make_attacks(9), make_attacks(9));
+
+  const EnemyContext context{0.8f, DistanceRange::Near};
+  assert(tree.decide(context).attack_id == 1);
+  assert(tree.decide(context).attack_id == 1);
+
+  tree.commit(tree.decide(context));
+  assert(tree.decide(context).attack_id == 2);
+
+  tree.commit(tree.decide(context));
+  assert(tree.decide(context).attack_id == 1);
+}
+
+static void test_behavior_tree_empty_queues()
+{
+  const BehaviorTree::AttackQueue none;
+  BehaviorTree tree(none, make_attacks(2), none, none);
+
+  // Without that attack, each branch gives way to the next option.
+  assert(decides(tree, 0.2f, DistanceRange::Near, BehaviorAction::Melee, 2));
+  assert(decides(tree, 0.8f, DistanceRange::Medium, BehaviorAction::Approach,
+                 BehaviorTree::NO_ATTACK));
+  assert(decides(tree, 0.8f, DistanceRange::Far, BehaviorAction::None,
+                 BehaviorTree::NO_ATTACK));
+
+  const Decision approach = tree.decide(EnemyContext{0.8f, DistanceRange::Medium});
+  tree.commit(approach);
+  tree.commit(tree.decide(EnemyContext{0.8f, DistanceRange::Far}));
+  assert(tree.decide(EnemyContext{0.8f, DistanceRange::Near}).attack_id == 2);
+}
 
 int main()
 {
@@ -65,6 +103,8 @@ int main()
   assert(classify_distance(5.f, 3.f, 8.f) == DistanceRange::Medium);
   assert(classify_distance(9.f, 3.f, 8.f) == DistanceRange::Far);
   test_skill_tree();
-  test_DecisionTree();
+  test_behavior_tree_priorities();
+  test_behavior_tree_rotation();
+  test_behavior_tree_empty_queues();
   return 0;
 }
