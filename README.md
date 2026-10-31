@@ -40,7 +40,7 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 
 - Compilador C++17: GCC 9 o superior
 - CMake 3.20 o superior
-- Ninja (o make)
+- Ninja (o [Make](docs/guia.md#compilar-con-make))
 - Git
 - Python 3 (lo usa `godot-cpp` al compilar)
 - [Godot 4.7.2](https://godotengine.org/download/archive/4.7.2-stable/), la misma versión para todos

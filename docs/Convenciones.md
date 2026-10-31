@@ -35,8 +35,8 @@ La justificación va en dos lugares.
 **En el código**, un comentario corto junto a la declaración, con su ID:
 
 ```cpp
-// J-003: casi ordenado entre frames; insertion_sort es O(n + d) y n es pequeño.
-Designar::DynArray<Objetivo> objetivos;
+// J-003: nearly sorted between frames; insertion_sort is O(n + d) and n is small.
+Designar::DynArray<Target> targets;
 ```
 
 **En [Justificaciones.md](Justificaciones.md)**, la ficha completa con el mismo ID.
@@ -93,7 +93,7 @@ las habituales de cada estructura.
 | Consultar por posición en el orden | `RankedAVLTree` | `O(lg n)` por rango |
 | Lecturas muy concentradas en pocas claves | `SplayTree` | `O(lg n)` amortizado |
 | Prefijos de texto, autocompletado | `Trie` (`trie.hpp`) | Depende del largo de la palabra, no de `n` |
-| Jerarquía real, como habilidades | `tree.hpp` | Refleja padres e hijos |
+| Jerarquía real, como habilidades | `MTreeNode` (`mtreenode.hpp`) | Árbol n-ario: refleja padres e hijos |
 
 AVL mantiene el árbol más bajo y favorece la lectura; rojo-negro hace menos
 rotaciones y favorece la escritura. `BTree` y `BPlusTree` están pensados para muchos
@@ -165,19 +165,25 @@ docs/          PDD, convenciones y justificaciones.
 - `src/game/` traduce entre Godot y el núcleo; las decisiones del juego van en
   `src/core/`.
 - Toda lógica nueva de `src/core/` lleva pruebas en `tests/`.
-- Las clases nuevas se agregan a `CMakeLists.txt` y a `src/game/register_types.cpp`.
+- Las clases nuevas de `src/game/` se agregan a `CMakeLists.txt` y a
+  `src/game/register_types.cpp`.
+- Los `.cpp` nuevos de `src/core/` se agregan a `nightmare58_core` en `CMakeLists.txt`.
+- Una clase normal se separa en `.hpp` y `.cpp`. Las plantillas (`template`) y las
+  funciones `inline` cortas quedan en el `.hpp`.
 
 ## 8. Estilo de código
 
-Se sigue el estilo del código existente.
+**Todo el código va en inglés, siempre:** carpetas, archivos, clases, funciones,
+variables, comentarios y nombres de escenas y recursos. La documentación de `docs/`,
+el `README.md` y los commits siguen en español.
 
 | Elemento | Convención | Ejemplo |
 |---|---|---|
-| Idioma | Español | `clasificar_distancia` |
-| Archivos | `snake_case` | `prueba_designar.cpp` |
-| Clases y enums | `PascalCase` | `RangoDistancia` |
-| Funciones y variables | `snake_case` | `vida_maxima` |
-| Enumeraciones | `enum class` | `RangoDistancia::Cerca` |
+| Idioma | Inglés | `classify_distance` |
+| Archivos | `snake_case` | `skill_tree.cpp` |
+| Clases y enums | `PascalCase` | `DistanceRange` |
+| Funciones y variables | `snake_case` | `max_health` |
+| Enumeraciones | `enum class` | `DistanceRange::Near` |
 | Headers | `#pragma once` | |
 | Sangría | 2 espacios, llaves en línea propia | |
 
