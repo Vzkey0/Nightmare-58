@@ -3,6 +3,7 @@
 
 #include <core/ai/behavior_tree.hpp>
 #include <core/distance.hpp>
+#include <core/player/player_actions.hpp>
 #include <core/progression/skill_tree.hpp>
 
 static void test_skill_tree()
@@ -96,6 +97,116 @@ static void test_behavior_tree_empty_queues()
   assert(tree.decide(EnemyContext{0.8f, DistanceRange::Near}).attack_id == 2);
 }
 
+static constexpr float STEP = 1.f / 60.f;
+
+static void advance(PlayerActions & actions, float seconds, bool moving = false)
+{
+  for (float time = 0.f; time < seconds; time += STEP)
+    actions.update(STEP, moving);
+}
+
+static void test_player_action_lifetime()
+{
+  PlayerActions actions;
+  assert(!actions.update(STEP, false));
+  assert(actions.current() == PlayerAction::None);
+
+  actions.press(PlayerAction::Dodge);
+  assert(actions.update(STEP, false));
+  assert(actions.current() == PlayerAction::Dodge);
+
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::Dodge);
+  advance(actions, timing.duration - 0.1f);
+  assert(actions.current() == PlayerAction::Dodge);
+  advance(actions, 0.2f);
+  assert(actions.current() == PlayerAction::None);
+}
+
+static void test_player_action_buffer()
+{
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::Dodge);
+
+  PlayerActions chained;
+  chained.press(PlayerAction::Dodge);
+  chained.update(STEP, false);
+  advance(chained, timing.next_action - 0.2f);
+  chained.press(PlayerAction::Attack);
+  advance(chained, 0.1f);
+  assert(chained.current() == PlayerAction::Dodge);
+  advance(chained, 0.2f);
+  assert(chained.current() == PlayerAction::Attack);
+
+  // A press from too long ago is no longer what the player wants.
+  PlayerActions stale;
+  stale.press(PlayerAction::Attack);
+  stale.update(STEP, false);
+  stale.press(PlayerAction::Dodge);
+  advance(stale, PlayerActions::BUFFER_TIME + 0.1f);
+  advance(stale, 1.f);
+  assert(stale.current() == PlayerAction::None);
+
+  // With a full buffer the oldest press gives way to the newest.
+  PlayerActions full;
+  full.press(PlayerAction::Dodge);
+  full.update(STEP, false);
+  full.press(PlayerAction::Dodge);
+  full.press(PlayerAction::Dodge);
+  full.press(PlayerAction::Attack);
+  advance(full, 0.45f);
+  full.press(PlayerAction::Attack);
+  advance(full, timing.next_action - 0.45f + 0.02f);
+  assert(full.current() == PlayerAction::Attack);
+}
+
+static void test_player_move_cancel()
+{
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::Attack);
+
+  PlayerActions actions;
+  actions.press(PlayerAction::Attack);
+  actions.update(STEP, true);
+  advance(actions, timing.move_cancel - 0.1f, true);
+  assert(actions.current() == PlayerAction::Attack);
+  advance(actions, 0.2f, true);
+  assert(actions.current() == PlayerAction::None);
+}
+
+static void test_player_dodge_button()
+{
+  PlayerActions tap;
+  tap.update_dodge_button(true, STEP);
+  tap.update_dodge_button(false, STEP);
+  assert(!tap.sprinting());
+  assert(tap.update(STEP, false));
+  assert(tap.current() == PlayerAction::Dodge);
+
+  PlayerActions hold;
+  hold.update_dodge_button(true, STEP);
+  assert(hold.sprinting());
+  for (float time = 0.f; time < PlayerActions::TAP_TIME + 0.1f; time += STEP)
+    hold.update_dodge_button(true, STEP);
+  assert(hold.sprinting());
+  hold.update_dodge_button(false, STEP);
+  assert(!hold.sprinting());
+  assert(!hold.update(STEP, false));
+}
+
+static void test_player_air_rules()
+{
+  PlayerActions air;
+  air.press(PlayerAction::Attack);
+  assert(air.update(STEP, false, false));
+  assert(air.current() == PlayerAction::AirAttack);
+  air.update(STEP, false, true);
+  assert(air.current() == PlayerAction::None);
+
+  PlayerActions waits;
+  waits.press(PlayerAction::Dodge);
+  assert(!waits.update(STEP, false, false));
+  assert(waits.update(STEP, false, true));
+  assert(waits.current() == PlayerAction::Dodge);
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -106,5 +217,10 @@ int main()
   test_behavior_tree_priorities();
   test_behavior_tree_rotation();
   test_behavior_tree_empty_queues();
+  test_player_action_lifetime();
+  test_player_action_buffer();
+  test_player_move_cancel();
+  test_player_dodge_button();
+  test_player_air_rules();
   return 0;
 }

@@ -52,8 +52,58 @@ hebilla, pantalón cargo ancho y rasgado, y botas negras.
 
 [build_protagonist.py](../art/characters/build_protagonist.py) genera ambos, guarda
 `protagonist.blend` y exporta `protagonist_male.glb` y `protagonist_female.glb`.
-Están en pose A y ya tienen esqueleto, con los mismos 25 huesos en ambos para poder
-compartir animaciones. Aún no tienen animaciones.
+Están en pose A y ya tienen esqueleto, con los mismos 27 huesos en ambos para poder
+compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y golpes;
+`weapon` es el punto de agarre del arma.
+
+## Animaciones
+
+[animate_protagonist.py](../art/characters/animate_protagonist.py) genera los clips y
+exporta `protagonist_male.glb` con ellos. Hay que correrlo después de
+`build_protagonist.py`, porque ese script exporta el modelo sin animaciones:
+
+```bash
+blender --background art/characters/protagonist.blend --python art/characters/animate_protagonist.py
+```
+
+Las poses clave definen pelvis, columna, pies y palo, y la cinemática inversa resuelve
+piernas y brazos en cada cuadro. Así los pies no patinan y las dos manos siguen en el
+palo. Se escriben en cuadros a 30 fps y se hornean a 60. El `.import` del modelo debe
+quedar con `animation/fps=60`, o Godot las reduce a 30.
+
+| Clip | Duración | Interrupción | Uso |
+|---|---|---|---|
+| `idle` | 5 s, en bucle | Siempre | Reposo a una mano, con el palo a un lado |
+| `run` | 0,6 s, en bucle | Siempre | Carrera a 4,6 m/s |
+| `sprint` | 0,5 s, en bucle | Siempre | Esprint a 6,8 m/s al mantener Shift |
+| `jump` | 0,33 s | Golpe aéreo 0,12 s | Despegue sin agacharse, para responder al instante |
+| `fall` | 0,8 s, en bucle | Siempre | Caída |
+| `land` | 0,4 s | Moverse o cualquier acción | Amortigua el aterrizaje |
+| `attack_air` | 0,7 s | Termina al tocar el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
+| `dodge_forward` | 0,8 s, avanza 3,05 m | Acción 0,53 s, moverse 0,6 s | Esquiva baja |
+| `attack_light_1` | 1 s, avanza 0,7 m | Acción 0,63 s, moverse 0,73 s | Corte diagonal a dos manos |
+
+**Reglas tomadas de los souls-like y de animación de juegos:**
+
+- **Ataques por fases:** pose de apertura legible, golpe más rápido de lo físico, pose
+  final sostenida y regreso lento, como
+  [el análisis de ataques de Dark Souls 3](https://www.gamedeveloper.com/game-platforms/anatomy-of-an-enemy-attack-in-dark-souls-3).
+  Ese análisis pide al menos 340 ms entre la señal y el golpe en ataques de enemigos: es
+  la regla a seguir en los jefes.
+- **Esquiva:** responde casi al instante y su costo está en la recuperación, no en el
+  arranque. Se empieza a mover en menos de 0,1 s.
+- **Carrera:** contacto, bajada, impulso y vuelo, según
+  [las poses clave de AnimSchool](https://blog.animschool.edu/?p=634). El pie apoyado
+  retrocede a la velocidad exacta de la carrera; si se cambia `RUN_SPEED` o la velocidad
+  del esprint, hay que cambiar `run_speed` o `SPRINT_SPEED` en `PlayerController`.
+- **Seguimiento:** el pecho, la cabeza y las manos llegan unos cuadros después de la
+  pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
+- **Cámara detrás:** el arma debe verse desde atrás en reposo.
+
+**Pendiente:** `walk`, `run_stop`, y esquivas hacia atrás y a los
+lados. La pausa al impactar y la sacudida de cámara se agregan cuando haya enemigos. La
+mujer aún no tiene clips, y el palo es provisional: cambiar su malla no afecta a los
+clips.
 
 ## Escenario 1: avenida de Caracas
 
