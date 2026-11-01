@@ -36,6 +36,7 @@ constexpr float NUMBER_TIME = 0.75f;
 
 void TrainingDummy::_ready()
 {
+  add_to_group("targets");
   model = get_node<Node3D>("Model");
   sparks = get_node<CPUParticles3D>("Sparks");
   health_bar = get_node<Control>("BarLayer/HealthBar");

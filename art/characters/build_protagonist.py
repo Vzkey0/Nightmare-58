@@ -918,6 +918,15 @@ def start(name):
   head_parts.clear()
 
 
+# On the jacket's surface, from the waist to the hem. HemSprings in player.tscn moves them, so
+# they have no keys in the clips, and only the male model has them: the female wears no jacket.
+HEM_BONES = {
+  "hem_front": ((0, -0.13, 1.1), (0, -0.133, 0.985), "hips"),
+  "hem_back": ((0, 0.13, 1.1), (0, 0.133, 0.985), "hips"),
+  "hem_l": ((0.178, 0, 1.1), (0.181, 0, 0.985), "hips"),
+}
+
+
 def skeleton():
   """Bones as name: (head, tail, parent), for the side +X; _l bones get a mirrored _r twin."""
   lift = HEAD_LIFT if variant["fingers"] else 0.0
@@ -932,7 +941,7 @@ def skeleton():
   ankle = (ankle_x, 0.01, 0.1)
   ball = (ankle_x, -0.1, 0.04)
   toe = (ankle_x, -0.2, 0.04)
-  return {
+  return (HEM_BONES if variant["fingers"] else {}) | {
     # Carries root motion, so it sits on the ground and has no vertex weights.
     "root": ((0, 0, 0), (0, 0.2, 0), None),
     "hips": ((0, 0, 0.93), (0, 0, 1.05), "root"),
@@ -979,7 +988,9 @@ def bone_candidates(part_name, side):
     return ["lower_leg" + side, "foot" + side, "toes" + side]
   if name.startswith(("leg", "rip", "cargo", "pants")):
     return ["hips", "upper_leg" + side, "lower_leg" + side]
-  if name.startswith(("pelvis", "belt", "buckle", "fly", "jacket_hem")):
+  if name.startswith(("jacket", "star", "jersey", "flag")):
+    return ["hips", "spine", "chest", "shoulder_l", "shoulder_r", "hem_front", "hem_back", "hem_l", "hem_r"]
+  if name.startswith(("pelvis", "belt", "buckle", "fly")):
     return ["hips", "spine", "upper_leg_l", "upper_leg_r"]
   if name == "neck":
     return ["chest", "neck", "head"]

@@ -54,7 +54,8 @@ hebilla, pantalón cargo ancho y rasgado, y botas negras.
 `protagonist.blend` y exporta `protagonist_male.glb` y `protagonist_female.glb`.
 Están en pose A y ya tienen esqueleto, con los mismos 27 huesos en ambos para poder
 compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y golpes;
-`weapon` es el punto de agarre del arma.
+`weapon` es el punto de agarre del arma. El hombre suma cuatro huesos `hem_*` para el borde de
+la chaqueta, sin claves en los clips.
 
 ## Animaciones
 
@@ -74,22 +75,51 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | Clip | Duración | Interrupción | Uso |
 |---|---|---|---|
 | `idle` | 5 s, en bucle | Siempre | Reposo a una mano, con el palo a un lado |
+| `walk` | 0,8 s, en bucle | Siempre | Caminata a 1,9 m/s con el stick a media carrera |
 | `run` | 0,6 s, en bucle | Siempre | Carrera a 4,6 m/s |
 | `sprint` | 0,5 s, en bucle | Siempre | Esprint a 6,8 m/s al mantener Shift |
+| `run_start` | 0,33 s | Soltar la dirección | Primeros dos pasos; termina donde `run` apoya el pie izquierdo |
+| `run_stop` | 0,5 s | Volver a moverse | Frenada con el pie derecho clavado y el palo siguiendo de largo |
+| `run_turn` | 0,43 s | Una acción | Giro brusco al invertir la dirección corriendo |
 | `jump` | 0,33 s | Golpe aéreo 0,12 s | Despegue sin agacharse, para responder al instante |
 | `fall` | 0,8 s, en bucle | Siempre | Caída |
 | `land` | 0,4 s | Moverse o cualquier acción | Amortigua el aterrizaje |
 | `attack_air` | 0,7 s | Termina el golpe aunque toque el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
-| `dodge_forward` | 0,8 s, avanza 3,05 m | Acción 0,53 s, moverse 0,6 s | Esquiva baja |
-| `attack_light_1` | 1 s, avanza 0,7 m | Acción 0,63 s, moverse 0,73 s | Combo 1: corte diagonal a dos manos |
-| `attack_light_2` | 0,93 s, avanza 0,75 m | Acción 0,57 s, moverse 0,67 s | Combo 2: revés ascendente con el pie izquierdo |
-| `attack_light_3` | 1,4 s, avanza 0,9 m | Acción 0,93 s, moverse 1 s | Combo 3: golpe de arriba abajo con zancada y recuperación larga |
+| `dodge_forward` | 0,77 s, avanza 3,2 m | Acción 0,5 s, moverse 0,57 s | Voltereta hacia delante con el palo cruzado sobre el eje de giro |
+| `attack_light_1` | 0,8 s, avanza 0,85 m | Esquiva 0,37 s, acción 0,45 s, moverse 0,55 s | Combo 1: corte diagonal rápido con zancada |
+| `attack_light_2` | 0,87 s, avanza 0,75 m | Esquiva 0,36 s, acción 0,5 s, moverse 0,6 s | Combo 2: barrido a largo completo, la mano izquierda suelta y el palo corre por la derecha |
+| `attack_light_3` | 1,33 s, avanza 1,15 m | Esquiva 0,55 s, acción 0,85 s, moverse 0,95 s | Combo 3: salto con giro completo y el palo girando sobre la cabeza, y clavado al suelo a dos manos |
+| `attack_roll` | 0,8 s, avanza 1,1 m | Esquiva 0,33 s, acción 0,5 s, moverse 0,6 s | Estocada a una mano al salir de la voltereta |
+| `attack_run` | 1 s, avanza 2,35 m | Esquiva 0,4 s, acción 0,62 s, moverse 0,72 s | Atacar esprintando: golpe ascendente a dos manos que aprovecha la velocidad |
+
+**Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
+sobre la raíz, y `lift` lo separa del suelo. Las poses se escriben como si no girara, y
+`feet_free` decide si los pies giran con el cuerpo (1) o siguen en el suelo (0). El palo mide
+1,6 m: en una voltereta solo cabe sobre el eje de giro, sin atravesar el suelo.
 
 **Combo:** pulsar ataque durante un golpe guarda el siguiente, y tras el tercero vuelve al
-primero. Dejar terminar el golpe, moverse después de su corte o esquivar lo reinicia. Cada
-golpe arranca en la pose donde el anterior permite encadenar (`AFTER_CUT` y `AFTER_BACKHAND`
-en `animate_protagonist.py`): si cambia esa pose o el tiempo de `next_action`, hay que
-actualizarlas.
+primero. Dejar terminar el golpe o moverse después de su corte lo reinicia. Esquivar interrumpe
+desde que termina el barrido y no espera a los ataques ya pulsados. La voltereta conserva el
+sitio en el combo: un ataque pulsado durante ella es `attack_roll`, y el siguiente sigue con el
+paso que tocaba. Cada golpe arranca en la pose donde el anterior permite encadenar (`AFTER_CUT`,
+`AFTER_SWEEP` y `AFTER_ROLL` en `animate_protagonist.py`): si cambia esa pose o el tiempo de
+`next_action`, hay que actualizarlas.
+
+**Atracción al objetivo:** al empezar un golpe, el personaje se orienta hacia el objetivo más
+cercano del grupo `targets` a menos de 4,5 m y 75° de la dirección pedida. También escala el
+avance del clip entre 0,25 y 1,6 veces para terminar a 1,3 m. Todo enemigo debe entrar a ese grupo.
+
+**Efectos:** `WeaponTrail` dibuja la estela del palo durante el barrido y el giro del tercer
+golpe. El nodo `Dust` de `player.tscn` levanta polvo al rodar, aterrizar, frenar y clavar el palo.
+El clavado añade temblor y un empujón de cámara.
+
+**Chaqueta:** `HemSprings` en `player.tscn` mueve el borde con los resortes nativos de Godot.
+Trabaja en el espacio del nodo `Model`: en coordenadas del mundo, cada giro del personaje arrastra
+todo el borde. Rigidez 4 y arrastre 0,6 dan unos 30° de pico en carrera y hasta 70° un instante en la voltereta y el giro; `WaistCollision` evita que entre
+al cuerpo, y con un radio mayor empuja el frente al inclinarse.
+
+**Sonido:** los sonidos del jugador están en `Sounds` en `player.tscn`, con tono aleatorio. Solo
+se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
 
 **Reglas tomadas de los souls-like y de animación de juegos:**
 
@@ -99,7 +129,8 @@ actualizarlas.
   Ese análisis pide al menos 340 ms entre la señal y el golpe en ataques de enemigos: es
   la regla a seguir en los jefes.
 - **Esquiva:** responde casi al instante y su costo está en la recuperación, no en el
-  arranque. Se empieza a mover en menos de 0,1 s.
+  arranque. Se empieza a mover en menos de 0,1 s. El giro dura como los 14 cuadros a 30 fps
+  que [da la wiki de Elden Ring](https://eldenring.wiki.gg/wiki/Invincibility_Frames).
 - **Carrera:** contacto, bajada, impulso y vuelo, según
   [las poses clave de AnimSchool](https://blog.animschool.edu/?p=634). El pie apoyado
   retrocede a la velocidad exacta de la carrera; si se cambia `RUN_SPEED` o la velocidad
@@ -108,8 +139,9 @@ actualizarlas.
   pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
 - **Cámara detrás:** el arma debe verse desde atrás en reposo.
 
-**Pendiente:** `walk`, `run_stop`, y esquivas hacia atrás y a los lados. La mujer aún no
-tiene clips, y el palo es provisional: cambiar su malla no afecta a los clips.
+**Pendiente:** esquivas hacia atrás y a los lados, que hacen falta con el fijado de objetivo,
+e invulnerabilidad de la voltereta, cuando algo ataque al jugador. La mujer aún no tiene clips,
+y el palo es provisional: cambiar su malla no afecta a los clips.
 
 ## Armas
 

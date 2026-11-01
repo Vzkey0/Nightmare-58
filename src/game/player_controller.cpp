@@ -1,5 +1,6 @@
 #include "player_controller.hpp"
 #include "training_dummy.hpp"
+#include "weapon_trail.hpp"
 
 #include <godot_cpp/classes/animation_library.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -26,10 +27,16 @@ constexpr float AIR_CONTROL = 6.f;
 constexpr float COYOTE_TIME = 0.1f;
 constexpr float LAND_TIME = 0.4f;
 constexpr float SPRINT_SPEED = 6.8f; // Must match the sprint clip in animate_protagonist.py.
+constexpr float WALK_SPEED = 1.9f;   // Same, for the walk clip.
 constexpr float ACCELERATION = 20.f;
 constexpr float DECELERATION = 26.f;
 constexpr float RUN_THRESHOLD = 0.4f;
 constexpr float MIN_STRIDE_SPEED = 0.55f;
+constexpr float MAX_WALK_STRIDE = 1.7f; // A half push walks faster than the clip's own speed.
+constexpr float MIN_PUSH = 0.1f;
+constexpr float FULL_PUSH = 0.7f;   // Below this, a stick walks instead of running.
+constexpr float BRAKE_SPEED = 0.6f; // Share of the run speed that needs a stop or a turn clip.
+constexpr float REVERSE_DOT = -0.3f;
 constexpr float WALK_SLIDE_ANGLE = 0.26f; // Godot's default.
 constexpr float ATTACK_SLIDE_ANGLE = 1.2f; // An attack's step stops at a target instead of rounding it.
 
@@ -47,6 +54,15 @@ constexpr float BLEND_TO_DODGE = 0.05f;
 constexpr float BLEND_TO_ATTACK = 0.09f;
 constexpr float BLEND_TO_FALL = 0.25f;
 constexpr float BLEND_TO_LAND = 0.05f;
+constexpr float BLEND_TO_FLOURISH = 0.07f;
+
+constexpr float RUN_START_TIME = 0.33f;
+constexpr float RUN_STOP_TIME = 0.5f;
+constexpr float RUN_TURN_TIME = 0.43f;
+
+constexpr float MAGNET_RANGE = 4.5f;
+constexpr float MAGNET_COS = 0.25f;  // About 75 degrees to each side of the input.
+constexpr float STRIKE_REACH = 1.3f; // How far from a target a blow should end its step.
 
 constexpr float CAMERA_HEIGHT = 1.5f;
 constexpr float CAMERA_FOLLOW = 11.f;
@@ -59,6 +75,18 @@ constexpr float HITSTOP_TIME_SCALE = 0.02f; // Not 0: the shake divides by it to
 constexpr float SHAKE_PER_DAMAGE = 0.03f;
 constexpr float SHAKE_SIZE = 0.13f;
 constexpr float SHAKE_FADE = 3.5f;
+constexpr float SLAM_SHAKE = 0.7f;
+constexpr float KICK_FOV = 6.f;
+constexpr float KICK_FADE = 5.f;
+
+constexpr float STICK_HALF = 0.8f;   // Half of the Hitbox capsule in player.tscn.
+constexpr float WHIRL_START = 0.12f; // The third blow's overhead spin, before its hit window.
+
+constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing sound.
+
+constexpr float STEP_VOLUME_WALK = -18.f;
+constexpr float STEP_VOLUME_RUN = -12.f;
+constexpr float STEP_VOLUME_SPRINT = -8.f;
 
 float damp(float rate, float delta)
 {
@@ -83,6 +111,16 @@ void PlayerController::_ready()
   camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   hitbox = get_node<ShapeCast3D>("Model/armature_male/Skeleton3D/WeaponBone/Hitbox");
+  trail = get_node<WeaponTrail>("WeaponTrail");
+  dust = get_node<CPUParticles3D>("Dust");
+  swing_sound = get_node<AudioStreamPlayer>("Sounds/Swing");
+  heavy_swing_sound = get_node<AudioStreamPlayer>("Sounds/HeavySwing");
+  hit_sound = get_node<AudioStreamPlayer>("Sounds/Hit");
+  slam_sound = get_node<AudioStreamPlayer>("Sounds/Slam");
+  roll_sound = get_node<AudioStreamPlayer>("Sounds/Roll");
+  roll_land_sound = get_node<AudioStreamPlayer>("Sounds/RollLand");
+  step_sound = get_node<AudioStreamPlayer>("Sounds/Step");
+  base_fov = camera->get_fov();
 
   // The scene places the player with a rotation; it moves to the model and the camera.
   facing_yaw = target_yaw = get_rotation().y;
@@ -101,6 +139,10 @@ void PlayerController::_ready()
     attack_animation[step] = animator->get_animation(attack_clip[step]);
     attack_root_track[step] = attack_animation[step]->find_track(root_path, Animation::TYPE_POSITION_3D);
   }
+  roll_attack_animation = animator->get_animation(attack_roll_clip);
+  roll_attack_root_track = roll_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  run_attack_animation = animator->get_animation(attack_run_clip);
+  run_attack_root_track = run_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
 
   Ref<AnimationLibrary> clips = animator->get_animation_library("");
   clips->add_animation(dodge_clip[1], dodge_animation);
@@ -160,9 +202,12 @@ void PlayerController::_physics_process(double delta_time)
 
   if (actions.hitting())
     hit_targets();
+  update_weapon_effects(delta);
 
   const PlayerAction action = actions.current();
-  const bool attacking = actions.combo_step() != PlayerActions::NO_COMBO_STEP;
+  const bool attacking = actions.stepping_attack();
+  if (landed)
+    step_sound->play();
   if (landed && !started && action == PlayerAction::None && !wants_to_move)
   {
     land_time = LAND_TIME;
@@ -174,7 +219,7 @@ void PlayerController::_physics_process(double delta_time)
   velocity.y = 0.f;
 
   if (action == PlayerAction::Dodge || attacking)
-    velocity = Vector3(root_motion_step(delta)).rotated(UP, facing_yaw) / delta;
+    velocity = Vector3(root_motion_step(delta)).rotated(UP, facing_yaw) * step_scale / delta;
   else if (action == PlayerAction::AirAttack && grounded)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
@@ -188,7 +233,10 @@ void PlayerController::_physics_process(double delta_time)
     if (wants_to_move && action != PlayerAction::AirAttack)
       target_yaw = Math::atan2(wish.x, wish.z);
     if (action == PlayerAction::None)
-      update_locomotion_clip(velocity.length(), grounded, wants_to_move, delta);
+    {
+      const bool reversing = wants_to_move && velocity.dot(wish) < REVERSE_DOT * velocity.length() * wish.length();
+      update_locomotion_clip(velocity.length(), grounded, wish.length(), reversing, delta);
+    }
   }
 
   const float speed = velocity.length();
@@ -207,6 +255,8 @@ void PlayerController::start_action(const Vector3 & wish)
     target_yaw = Math::atan2(wish.x, wish.z);
 
   land_time = 0.f;
+  flourish_time = 0.f;
+  step_scale = 1.f;
   animator->set_speed_scale(1.f);
   chain = 1 - chain;
   hitbox->clear_exceptions();
@@ -215,11 +265,30 @@ void PlayerController::start_action(const Vector3 & wish)
   {
     case PlayerAction::Dodge:
       play(dodge_clip[chain], BLEND_TO_DODGE);
+      motion_animation = dodge_animation;
+      motion_track = dodge_root_track;
+      kick_dust(get_global_position());
+      roll_sound->play();
       break;
     case PlayerAction::Attack:
     case PlayerAction::Attack2:
     case PlayerAction::Attack3:
       play(attack_clip[actions.combo_step()], BLEND_TO_ATTACK);
+      motion_animation = attack_animation[actions.combo_step()];
+      motion_track = attack_root_track[actions.combo_step()];
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::RollAttack:
+      play(attack_roll_clip, BLEND_TO_ATTACK);
+      motion_animation = roll_attack_animation;
+      motion_track = roll_attack_root_track;
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::RunAttack:
+      play(attack_run_clip, BLEND_TO_ATTACK);
+      motion_animation = run_attack_animation;
+      motion_track = run_attack_root_track;
+      bend_towards_target(wish);
       break;
     case PlayerAction::Jump:
       vertical_speed = JUMP_SPEED;
@@ -230,6 +299,30 @@ void PlayerController::start_action(const Vector3 & wish)
       play(attack_air_clip, BLEND_TO_ATTACK);
       break;
   }
+}
+
+void PlayerController::bend_towards_target(const Vector3 & wish)
+{
+  const Vector3 heading = wish.length_squared() > 0.01f ? wish.normalized() : MODEL_FORWARD.rotated(UP, facing_yaw);
+  Vector3 closest;
+  float distance = MAGNET_RANGE;
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  for (int i = 0; i < targets.size(); ++i)
+  {
+    const Vector3 offset = (Object::cast_to<Node3D>(targets[i])->get_global_position() - get_global_position()).slide(UP);
+    const float length = offset.length();
+    if (length < distance && offset.dot(heading) > MAGNET_COS * length)
+    {
+      closest = offset;
+      distance = length;
+    }
+  }
+  if (distance == MAGNET_RANGE)
+    return;
+
+  target_yaw = Math::atan2(closest.x, closest.z);
+  const float clip_step = motion_animation->position_track_interpolate(motion_track, motion_animation->get_length()).length();
+  step_scale = PlayerActions::step_scale(distance - STRIKE_REACH, clip_step);
 }
 
 void PlayerController::hit_targets()
@@ -244,10 +337,48 @@ void PlayerController::hit_targets()
     {
       dummy->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
       feel_hit(damage);
+      hit_sound->play();
     }
     // Skipped until the next action, so one swing hits a target once.
     hitbox->add_exception_rid(hitbox->get_collider_rid(i));
   }
+}
+
+void PlayerController::update_weapon_effects(float delta)
+{
+  const PlayerAction action = actions.current();
+  const Transform3D stick = hitbox->get_global_transform();
+  const Vector3 tip = stick.xform(Vector3(0, STICK_HALF, 0));
+  const bool whirling = action == PlayerAction::Attack3 && actions.elapsed() >= WHIRL_START &&
+                        actions.elapsed() < PlayerActions::timing(action).hit_end;
+  if (whirling || actions.hitting())
+    trail->add_sample(stick.origin, tip);
+
+  const ActionTiming & timing = PlayerActions::timing(action);
+  const float time = actions.elapsed();
+  if (time >= timing.hit_start && time - delta < timing.hit_start && timing.hit_end > timing.hit_start)
+    (timing.damage >= HEAVY_DAMAGE ? heavy_swing_sound : swing_sound)->play();
+  if (action == PlayerAction::Attack3 && time >= WHIRL_START && time - delta < WHIRL_START)
+    heavy_swing_sound->play();
+
+  if (!actions.hit_ground(delta))
+    return;
+  if (action == PlayerAction::Dodge)
+  {
+    kick_dust(get_global_position());
+    roll_land_sound->play();
+    return;
+  }
+  kick_dust(Vector3(tip.x, get_global_position().y, tip.z));
+  slam_sound->play();
+  camera_shake = MIN(camera_shake + SLAM_SHAKE, 1.f);
+  camera_kick = 1.f;
+}
+
+void PlayerController::kick_dust(const Vector3 & where)
+{
+  dust->set_global_position(where);
+  dust->restart();
 }
 
 void PlayerController::feel_hit(int damage)
@@ -268,34 +399,89 @@ Vector3 PlayerController::root_motion_step(float delta) const
 {
   // Reading the curve on each tick instead of the mixer's per-render-frame delta: a tick
   // holds two or three render frames, and that uneven share made the dodge shake.
-  const bool dodge = actions.current() == PlayerAction::Dodge;
-  const Ref<Animation> & clip = dodge ? dodge_animation : attack_animation[actions.combo_step()];
-  const int track = dodge ? dodge_root_track : attack_root_track[actions.combo_step()];
   // Steps ahead of the clock, so the action already moves on the tick it starts.
   const float now = actions.elapsed();
-  return clip->position_track_interpolate(track, now + delta) -
-         clip->position_track_interpolate(track, now);
+  return motion_animation->position_track_interpolate(motion_track, now + delta) -
+         motion_animation->position_track_interpolate(motion_track, now);
 }
 
-void PlayerController::update_locomotion_clip(float speed, bool grounded, bool moving, float delta)
+void PlayerController::start_flourish(const StringName & clip, float time)
+{
+  play(clip, BLEND_TO_FLOURISH);
+  animator->set_speed_scale(1.f);
+  flourish_time = time;
+}
+
+void PlayerController::update_locomotion_clip(float speed, bool grounded, float push, bool reversing, float delta)
 {
   if (!grounded)
   {
+    flourish_time = 0.f;
     play(fall_clip, BLEND_TO_FALL);
     animator->set_speed_scale(1.f);
     return;
   }
 
+  const bool moving = push > MIN_PUSH;
   land_time = MAX(land_time - delta, 0.f);
   if (land_time > 0.f && !moving)
     return;
 
+  const bool striding = is_stride(current_clip);
+  const bool fast = speed > run_speed * BRAKE_SPEED;
+  // Pushing against a wall stays idle, or the start would replay on every failed step.
+  if (moving && push >= FULL_PUSH && current_clip == idle_clip && !is_on_wall())
+    start_flourish(run_start_clip, RUN_START_TIME);
+  else if (!moving && fast && (striding || current_clip == run_start_clip))
+  {
+    start_flourish(run_stop_clip, RUN_STOP_TIME);
+    kick_dust(get_global_position());
+    step_sound->play();
+  }
+  else if (reversing && fast && striding)
+  {
+    start_flourish(run_turn_clip, RUN_TURN_TIME);
+    kick_dust(get_global_position());
+    step_sound->play();
+  }
+
+  flourish_time = MAX(flourish_time - delta, 0.f);
+  const bool changed_mind = (current_clip == run_stop_clip && moving) || (current_clip == run_start_clip && !moving);
+  if (flourish_time > 0.f && !changed_mind)
+    return;
+  flourish_time = 0.f;
+
   const bool running = speed > RUN_THRESHOLD;
   const bool sprinting = speed > (run_speed + SPRINT_SPEED) * 0.5f;
-  const float clip_speed = sprinting ? SPRINT_SPEED : run_speed;
-  play(sprinting ? sprint_clip : (running ? run_clip : idle_clip), running ? BLEND_TO_RUN : BLEND_TO_IDLE);
+  const bool walking = moving ? push < FULL_PUSH : speed < (run_speed + WALK_SPEED) * 0.5f;
+  const StringName & clip = !running ? idle_clip : (sprinting ? sprint_clip : (walking ? walk_clip : run_clip));
+  const float clip_speed = sprinting ? SPRINT_SPEED : (walking ? WALK_SPEED : run_speed);
+
+  // The stride clips share a phase, so the feet stay in step when one blends into another.
+  const bool keep_phase = striding && is_stride(clip) && clip != current_clip;
+  const double phase = keep_phase ? animator->get_current_animation_position() / animator->get_current_animation_length() : 0.0;
+  play(clip, running ? BLEND_TO_RUN : BLEND_TO_IDLE);
+  if (keep_phase)
+    animator->seek(phase * animator->get_current_animation_length());
+
   // A slower stride under a light stick push keeps the feet in step with the ground.
-  animator->set_speed_scale(running ? CLAMP(speed / clip_speed, MIN_STRIDE_SPEED, 1.f) : 1.f);
+  animator->set_speed_scale(running ? CLAMP(speed / clip_speed, MIN_STRIDE_SPEED, walking ? MAX_WALK_STRIDE : 1.f) : 1.f);
+
+  if (!is_stride(clip))
+    return;
+  // Each foot lands at the start of its half of the clip.
+  const int half = static_cast<int>(animator->get_current_animation_position() / animator->get_current_animation_length() * 2.0);
+  if (half != stride_half)
+  {
+    stride_half = half;
+    step_sound->set_volume_db(sprinting ? STEP_VOLUME_SPRINT : (walking ? STEP_VOLUME_WALK : STEP_VOLUME_RUN));
+    step_sound->play();
+  }
+}
+
+bool PlayerController::is_stride(const StringName & clip) const
+{
+  return clip == walk_clip || clip == run_clip || clip == sprint_clip;
 }
 
 void PlayerController::play(const StringName & clip, float blend)
@@ -341,7 +527,10 @@ void PlayerController::update_camera(float delta)
   camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
 
   // In real time: the shake has to keep going through a hitstop.
-  camera_shake = MAX(camera_shake - SHAKE_FADE * delta / static_cast<float>(Engine::get_singleton()->get_time_scale()), 0.f);
+  const float real_delta = delta / static_cast<float>(Engine::get_singleton()->get_time_scale());
+  camera_shake = MAX(camera_shake - SHAKE_FADE * real_delta, 0.f);
+  camera_kick = MAX(camera_kick - KICK_FADE * real_delta, 0.f);
+  camera->set_fov(base_fov - camera_kick * camera_kick * KICK_FOV);
   const float reach = camera_shake * camera_shake * SHAKE_SIZE;
   camera->set_h_offset(UtilityFunctions::randf_range(-reach, reach));
   camera->set_v_offset(UtilityFunctions::randf_range(-reach, reach));
