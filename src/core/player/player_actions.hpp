@@ -11,6 +11,11 @@ struct ActionTiming
   float duration;
   float next_action; // A buffered action may interrupt from here on.
   float move_cancel; // Moving may end the action from here on.
+  // The whole swing, from leaving the raised pose until the weapon stops: see the weapon
+  // rules in docs/art_guide.md. An action without a swing has an empty window.
+  float hit_start = 0.f;
+  float hit_end = 0.f;
+  int damage = 0;
 };
 
 class PlayerActions
@@ -31,11 +36,18 @@ public:
   bool sprinting() const { return button_held; }
 
   // Returns true on the step where a new action starts, so the caller can start its clip.
-  // In the air an attack becomes an air attack; a dodge or jump waits for the ground.
+  // In the air an attack becomes an air attack, which finishes its swing if it lands;
+  // a dodge or jump waits for the ground.
   bool update(float delta, bool wants_to_move, bool grounded = true);
 
   PlayerAction current() const { return action; }
   float elapsed() const { return action_time; }
+
+  bool hitting() const
+  {
+    const ActionTiming & current_timing = timing(action);
+    return action_time >= current_timing.hit_start && action_time < current_timing.hit_end;
+  }
 
 private:
   struct Press

@@ -3,10 +3,10 @@
 const ActionTiming & PlayerActions::timing(PlayerAction action)
 {
   static constexpr ActionTiming DODGE{0.8f, 0.53f, 0.6f};
-  static constexpr ActionTiming ATTACK{1.f, 0.63f, 0.73f};
+  static constexpr ActionTiming ATTACK{1.f, 0.63f, 0.73f, 0.33f, 0.57f, 20};
   static constexpr ActionTiming JUMP{0.33f, 0.12f, 0.33f};
   // Past its duration on purpose: the clip must end before another air attack restarts it.
-  static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f};
+  static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f, 0.23f, 0.43f, 30};
 
   switch (action)
   {
@@ -48,9 +48,6 @@ bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
 
   while (!buffer.is_empty() && clock - buffer.front().time > BUFFER_TIME)
     buffer.get();
-
-  if (action == PlayerAction::AirAttack && grounded)
-    action = PlayerAction::None;
 
   const bool free = action == PlayerAction::None;
   if (!buffer.is_empty() && (free || action_time >= timing(action).next_action) &&

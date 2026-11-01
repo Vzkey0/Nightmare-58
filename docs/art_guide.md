@@ -79,7 +79,7 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `jump` | 0,33 s | Golpe aéreo 0,12 s | Despegue sin agacharse, para responder al instante |
 | `fall` | 0,8 s, en bucle | Siempre | Caída |
 | `land` | 0,4 s | Moverse o cualquier acción | Amortigua el aterrizaje |
-| `attack_air` | 0,7 s | Termina al tocar el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
+| `attack_air` | 0,7 s | Termina el golpe aunque toque el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
 | `dodge_forward` | 0,8 s, avanza 3,05 m | Acción 0,53 s, moverse 0,6 s | Esquiva baja |
 | `attack_light_1` | 1 s, avanza 0,7 m | Acción 0,63 s, moverse 0,73 s | Corte diagonal a dos manos |
 
@@ -100,10 +100,29 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
   pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
 - **Cámara detrás:** el arma debe verse desde atrás en reposo.
 
-**Pendiente:** `walk`, `run_stop`, y esquivas hacia atrás y a los
-lados. La pausa al impactar y la sacudida de cámara se agregan cuando haya enemigos. La
-mujer aún no tiene clips, y el palo es provisional: cambiar su malla no afecta a los
-clips.
+**Pendiente:** `walk`, `run_stop`, y esquivas hacia atrás y a los lados. La mujer aún no
+tiene clips, y el palo es provisional: cambiar su malla no afecta a los clips.
+
+## Armas
+
+**Regla para todas las armas: pega el arma entera.** Si se ve que el arma toca al enemigo
+durante el golpe, el golpe cuenta, sea con la punta, el centro o el mango.
+
+- **Forma de golpe:** el nodo `Hitbox` de `player.tscn` cubre la malla del arma de punta a
+  punta. Va en el hueso `weapon`, así sigue la animación. Se mide contra la malla real,
+  no a ojo: el palo va de -0,55 a 1,05 m sobre el eje Y del hueso, así que su cápsula mide
+  1,6 m y está centrada en 0,25 m. Su radio de 0,06 m es mayor que el del palo a propósito,
+  para perdonar un poco.
+- **Ventana de golpe:** `hit_start` y `hit_end` en `player_actions.cpp` cubren todo el
+  barrido, desde que el arma deja la pose alzada hasta que se detiene. No cuentan la
+  preparación ni la pose final sostenida.
+- **Un golpe por objetivo:** cada acción daña una vez a cada objetivo. Una acción nueva
+  vuelve a dañar.
+- **Al cambiar un arma o agregar un ataque:** hay que actualizar la cápsula o la ventana, y
+  comprobar con el dummy en varias posiciones que cada contacto del barrido registra daño.
+- **Límite conocido:** la forma se consulta 60 veces por segundo sin barrer entre ticks, y
+  la punta del palo avanza hasta unos 0,4 m por tick. Un objetivo más delgado que eso
+  podría saltarse; en ese caso hay que comprobar posiciones intermedias.
 
 ## Escenario 1: avenida de Caracas
 

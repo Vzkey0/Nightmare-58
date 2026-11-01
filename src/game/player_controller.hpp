@@ -2,8 +2,10 @@
 
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/character_body3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
+#include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
 
 #include <core/player/player_actions.hpp>
@@ -35,12 +37,17 @@ private:
   void play(const godot::StringName & clip, float blend);
   void turn_model(float delta, float speed);
   void update_camera(float delta);
+  void hit_targets();
+  void feel_hit(int damage);
+  void end_hitstop();
 
   PlayerActions actions;
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
+  godot::Camera3D * camera = nullptr;
   godot::AnimationPlayer * animator = nullptr;
+  godot::ShapeCast3D * hitbox = nullptr;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.
   float run_speed = 4.6f;
@@ -56,6 +63,7 @@ private:
   float land_time = 0.f;
   float camera_yaw = 0.f;
   float camera_pitch = -0.2f;
+  float camera_shake = 0.f;
   godot::Vector3 camera_focus;
 
   godot::Ref<godot::Animation> dodge_animation;

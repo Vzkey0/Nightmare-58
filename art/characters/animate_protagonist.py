@@ -30,6 +30,7 @@ DELAYS = {
   "grip": 1.0, "aim": 1.4, "slide": 1.0, "hand_l": 1.6,
 }
 
+# The Hitbox in game/scenes/player.tscn must cover the stick from end to end.
 STICK_BACK = 0.55
 STICK_FRONT = 1.05
 STICK_RADIUS = 0.019
