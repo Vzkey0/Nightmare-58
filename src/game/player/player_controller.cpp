@@ -1,7 +1,7 @@
 #include "player_controller.hpp"
-#include "stat_bar.hpp"
-#include "training_dummy.hpp"
-#include "weapon_trail.hpp"
+#include <game/enemies/combat_target.hpp>
+#include <game/ui/stat_bar.hpp>
+#include <game/weapons/weapon_trail.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -253,6 +253,7 @@ void PlayerController::_physics_process(double delta_time)
     actions.press(PlayerAction::HeavyAttack);
 
   update_lock(delta);
+  turns.update(delta);
 
   const bool started = actions.update(delta, wants_to_move, grounded);
   if (started)
@@ -265,7 +266,7 @@ void PlayerController::_physics_process(double delta_time)
   const PlayerAction action = actions.current();
   const bool attacking = actions.stepping_attack();
   const bool stunned = action == PlayerAction::Hurt || action == PlayerAction::Dead;
-  const TrainingDummy * locked = locked_target();
+  const CombatTarget * locked = locked_target();
   const bool strafing = locked != nullptr && !actions.sprinting();
 
   if (action == PlayerAction::Dead)
@@ -381,7 +382,7 @@ void PlayerController::start_action(const Vector3 & wish)
 void PlayerController::bend_towards_target(const Vector3 & wish)
 {
   // A locked target wins over the direction pushed: that blow is aimed at it.
-  const TrainingDummy * locked = locked_target();
+  const CombatTarget * locked = locked_target();
   if (locked != nullptr)
     target_yaw = yaw_towards(locked);
   const bool pushing = locked == nullptr && wish.length_squared() > 0.01f;
@@ -414,10 +415,10 @@ void PlayerController::hit_targets()
   const int damage = PlayerActions::timing(actions.current()).damage;
   for (int i = 0; i < hitbox->get_collision_count(); ++i)
   {
-    TrainingDummy * dummy = Object::cast_to<TrainingDummy>(hitbox->get_collider(i));
-    if (dummy != nullptr)
+    CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
+    if (target != nullptr)
     {
-      dummy->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
+      target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
       feel_hit(damage);
       hit_sound->play();
     }
@@ -510,12 +511,13 @@ void PlayerController::respawn()
   set_velocity(Vector3());
   health.restore();
   actions.revive();
+  ++respawns;
   play(idle_clip, BLEND_TO_IDLE);
 }
 
-TrainingDummy * PlayerController::locked_target() const
+CombatTarget * PlayerController::locked_target() const
 {
-  return Object::cast_to<TrainingDummy>(ObjectDB::get_instance(lock_id));
+  return Object::cast_to<CombatTarget>(ObjectDB::get_instance(lock_id));
 }
 
 float PlayerController::yaw_towards(const Node3D * node) const
@@ -524,7 +526,7 @@ float PlayerController::yaw_towards(const Node3D * node) const
   return Math::atan2(offset.x, offset.z);
 }
 
-bool PlayerController::sees(const TrainingDummy * target) const
+bool PlayerController::sees(const CombatTarget * target) const
 {
   const Vector3 from = get_global_position() + UP * CAMERA_HEIGHT;
   const Vector3 to = target->get_global_position() + UP * LOCK_HEIGHT;
@@ -532,7 +534,7 @@ bool PlayerController::sees(const TrainingDummy * target) const
   return hit.is_empty() || static_cast<uint64_t>(hit["collider_id"]) == target->get_instance_id();
 }
 
-float PlayerController::view_side(const TrainingDummy * target) const
+float PlayerController::view_side(const CombatTarget * target) const
 {
   const Vector3 offset = (target->get_global_position() - camera_focus).slide(UP);
   return Math::wrapf(Math::atan2(-offset.x, -offset.z) - camera_yaw, -PI, PI);
@@ -544,7 +546,7 @@ void PlayerController::gather_lock_candidates()
   const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
   for (int i = 0; i < targets.size(); ++i)
   {
-    const TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[i]);
+    const CombatTarget * target = Object::cast_to<CombatTarget>(targets[i]);
     if (target == nullptr || target->is_down())
       continue;
     const float distance = target->get_global_position().distance_to(camera_focus);
@@ -561,7 +563,7 @@ void PlayerController::lock_nearest()
   const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
   for (int i = 0; i < lock_candidates.size(); ++i)
   {
-    TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[lock_candidates[i].id]);
+    CombatTarget * target = Object::cast_to<CombatTarget>(targets[lock_candidates[i].id]);
     if (sees(target))
     {
       lock_onto(target);
@@ -570,7 +572,7 @@ void PlayerController::lock_nearest()
   }
 }
 
-void PlayerController::lock_onto(TrainingDummy * target)
+void PlayerController::lock_onto(CombatTarget * target)
 {
   release_lock();
   lock_id = target->get_instance_id();
@@ -584,14 +586,14 @@ void PlayerController::switch_lock(int direction)
   if (next == LockOnList::NONE)
     return;
   const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
-  TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[next]);
+  CombatTarget * target = Object::cast_to<CombatTarget>(targets[next]);
   if (sees(target))
     lock_onto(target);
 }
 
 void PlayerController::release_lock()
 {
-  TrainingDummy * target = locked_target();
+  CombatTarget * target = locked_target();
   if (target != nullptr)
     target->set_targeted(false);
   lock_id = 0;
@@ -610,7 +612,7 @@ void PlayerController::update_lock(float delta)
       lock_nearest();
   }
 
-  const TrainingDummy * target = locked_target();
+  const CombatTarget * target = locked_target();
   if (target == nullptr)
     return;
 
@@ -645,7 +647,7 @@ void PlayerController::update_hud(float delta)
   stamina_bar->set_values(actions.stamina_ratio(), 0.f);
   stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
 
-  const TrainingDummy * target = locked_target();
+  const CombatTarget * target = locked_target();
   const Vector3 aim = target != nullptr ? target->get_global_position() + UP * LOCK_HEIGHT : Vector3();
   lock_marker->set_visible(target != nullptr && !camera->is_position_behind(aim));
   if (lock_marker->is_visible())
@@ -787,7 +789,7 @@ void PlayerController::turn_model(float delta, float speed)
 
 void PlayerController::update_camera(float delta)
 {
-  const TrainingDummy * locked = locked_target();
+  const CombatTarget * locked = locked_target();
   if (locked == nullptr)
   {
     const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);

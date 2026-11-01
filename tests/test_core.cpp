@@ -1,7 +1,9 @@
 #undef NDEBUG
 #include <cassert>
 
+#include <core/ai/attack_turns.hpp>
 #include <core/ai/behavior_tree.hpp>
+#include <core/ai/enemy_actions.hpp>
 #include <core/distance.hpp>
 #include <core/health.hpp>
 #include <core/health_trail.hpp>
@@ -99,6 +101,119 @@ static void test_behavior_tree_empty_queues()
   tree.commit(approach);
   tree.commit(tree.decide(EnemyContext{0.8f, DistanceRange::Far}));
   assert(tree.decide(EnemyContext{0.8f, DistanceRange::Near}).attack_id == 2);
+}
+
+static void test_skeleton_tree()
+{
+  BehaviorTree::AttackQueue melee = make_attacks(1);
+  melee.put(Attack{2});
+  BehaviorTree tree = BehaviorTree::skeleton(melee, make_attacks(3));
+
+  EnemyContext context{1.f, DistanceRange::Near};
+  assert(tree.decide(context).action == BehaviorAction::Melee);
+  assert(tree.decide(context).attack_id == 1);
+  tree.commit(tree.decide(context));
+  assert(tree.decide(context).attack_id == 2);
+
+  context.range = DistanceRange::Medium;
+  assert(tree.decide(context).action == BehaviorAction::Charge);
+  context.charge_ready = false;
+  assert(tree.decide(context).action == BehaviorAction::Approach);
+
+  // Without a turn it never attacks, however close: it circles.
+  context.can_attack = false;
+  assert(tree.decide(context).action == BehaviorAction::Circle);
+  context.range = DistanceRange::Near;
+  assert(tree.decide(context).action == BehaviorAction::Circle);
+  context.range = DistanceRange::Far;
+  assert(tree.decide(context).action == BehaviorAction::Approach);
+
+  context.sees_player = false;
+  assert(tree.decide(context).action == BehaviorAction::Investigate);
+  context.aware = false;
+  assert(tree.decide(context).action == BehaviorAction::Watch);
+}
+
+static void test_distance_margin()
+{
+  // Entering a range uses the plain limit; leaving it needs the margin too.
+  assert(classify_distance(2.1f, 2.f, 4.f, 0.4f, DistanceRange::Medium) == DistanceRange::Medium);
+  assert(classify_distance(2.1f, 2.f, 4.f, 0.4f, DistanceRange::Near) == DistanceRange::Near);
+  assert(classify_distance(2.5f, 2.f, 4.f, 0.4f, DistanceRange::Near) == DistanceRange::Medium);
+  assert(classify_distance(4.1f, 2.f, 4.f, 0.4f, DistanceRange::Far) == DistanceRange::Far);
+  assert(classify_distance(4.1f, 2.f, 4.f, 0.4f, DistanceRange::Medium) == DistanceRange::Medium);
+  assert(classify_distance(4.1f, 2.f, 4.f, 0.4f, DistanceRange::Near) == DistanceRange::Medium);
+}
+
+static void test_attack_turns()
+{
+  AttackTurns turns;
+  assert(turns.available());
+  turns.take();
+  assert(!turns.available()); // Attacks never start together.
+  turns.update(AttackTurns::GAP);
+  assert(turns.available());
+  turns.take();
+  turns.update(AttackTurns::GAP);
+  assert(!turns.available()); // Full.
+  turns.give_back();
+  assert(turns.available());
+}
+
+static void run_enemy(EnemyActions & actions, float seconds)
+{
+  for (float time = 0.f; time < seconds; time += 1.f / 60.f)
+    actions.update(1.f / 60.f);
+}
+
+static void test_enemy_attack()
+{
+  const EnemyTiming & chop = EnemyActions::timing(EnemyAction::Chop);
+  assert(chop.track_end < chop.hit_start && chop.hit_start < chop.hit_end && chop.hit_end < chop.duration);
+
+  EnemyActions actions;
+  assert(!actions.busy());
+  actions.start(EnemyAction::Chop);
+  assert(actions.busy() && actions.tracking() && actions.winding_up() && !actions.hitting());
+
+  run_enemy(actions, chop.track_end + 0.02f);
+  assert(!actions.tracking() && actions.winding_up());
+  run_enemy(actions, chop.hit_start - chop.track_end + 0.02f);
+  assert(actions.hitting());
+
+  bool ended = false;
+  for (float time = 0.f; time < chop.duration; time += 1.f / 60.f)
+    ended = actions.update(1.f / 60.f) || ended;
+  assert(ended && !actions.busy());
+}
+
+static void test_enemy_stagger()
+{
+  const EnemyTiming & chop = EnemyActions::timing(EnemyAction::Chop);
+  EnemyActions actions;
+
+  // A blow during the windup stops the attack.
+  actions.start(EnemyAction::Chop);
+  assert(actions.hurt());
+  assert(actions.current() == EnemyAction::Hurt && !actions.attacking());
+
+  // The next ones in the combo only do damage, so it cannot be locked in place.
+  assert(!actions.hurt());
+  run_enemy(actions, EnemyActions::STAGGER_GUARD + 0.02f);
+  assert(!actions.busy());
+
+  // The swing itself cannot be stopped.
+  actions.start(EnemyAction::Chop);
+  run_enemy(actions, chop.hit_start + 0.02f);
+  assert(!actions.hurt());
+  assert(actions.current() == EnemyAction::Chop);
+
+  actions.die();
+  assert(!actions.hurt());
+  run_enemy(actions, 10.f);
+  assert(actions.current() == EnemyAction::Dead);
+  actions.revive();
+  assert(!actions.busy());
 }
 
 static constexpr float STEP = 1.f / 60.f;
@@ -626,6 +741,11 @@ int main()
   test_behavior_tree_priorities();
   test_behavior_tree_rotation();
   test_behavior_tree_empty_queues();
+  test_skeleton_tree();
+  test_distance_margin();
+  test_attack_turns();
+  test_enemy_attack();
+  test_enemy_stagger();
   test_player_action_lifetime();
   test_player_action_buffer();
   test_player_dodge_cancel();

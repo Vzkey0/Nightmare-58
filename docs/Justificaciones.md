@@ -35,6 +35,7 @@ implementarse.
 | Base de objetos | Tabla hash | Pendiente |
 | Bestiario | Trie | Pendiente |
 | Lock-on | `insertion_sort` | Pendiente |
+| Rutas de enemigos | `NavigationAgent3D` de Godot | Pendiente: hoy caminan en línea recta |
 | Inventario | `merge_sort` | Pendiente |
 | Récords | `quicksort` | Pendiente |
 | Botín, nivel, fase, tasa de cambio | `binary_search` | Pendiente |
@@ -61,8 +62,8 @@ implementarse.
 
 - **Estado:** Aceptada
 - **Código:** `src/core/ai/behavior_tree.hpp`, `BehaviorTree::root`
-- **Crítico:** Sí. `decide` corre de forma constante, hasta una vez por frame y enemigo
-- **Datos:** 15 nodos en el árbol del PDD; máximo por definir
+- **Crítico:** Sí. `decide` corre de forma constante: 10 veces por segundo y enemigo (J-005)
+- **Datos:** 15 nodos en el árbol del PDD y 26 en el del esqueleto; máximo por definir
 - **Operaciones:** crear el árbol una vez y recorrer los hijos en orden. Domina el
   recorrido
 - **Elegida:** `MTreeNode`. Evaluar es `O(n)` en el peor caso y no reserva memoria
@@ -121,3 +122,51 @@ implementarse.
 
 - **Conclusión:** en tiempo es un empate. `FixedQueue` gana por no reservar memoria en
   código crítico, y su costo es despreciable frente a un frame de 16,6 ms
+
+## J-005: Decisiones de enemigos 10 veces por segundo
+
+- **Estado:** Aceptada
+- **Código:** `src/game/enemies/skeleton_enemy.cpp`, `THINK_TIME`, y `src/core/ai/enemy_actions.hpp`
+- **Crítico:** Sí. `EnemyActions::update` corre en cada tick físico, y `decide` 10 veces por segundo
+- **Datos:** hasta 8 enemigos activos; se midió también con 80
+- **Operaciones:** avanzar la acción en cada tick y recorrer el árbol al pensar. Domina el avance
+- **Elegida:** pensar cada 0,1 s, desfasado entre enemigos, sin reservar memoria. El rayo de línea
+  de vista se limita a 5 veces por segundo
+- **Descartadas:** pensar en cada tick costó unas 4,8 veces más y se siente peor: el enemigo reacciona
+  en el mismo frame. Reevaluar solo ante eventos ahorraría aún menos y agrega estado
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/enemy_ai_benchmark.cpp`. Camino más largo del árbol del esqueleto. Mediana de 101
+  muestras de 6000 ticks, en tres ejecuciones, en nanosegundos por tick para todos los enemigos:
+
+  | Enemigos | En cada tick | 10 veces por segundo |
+  |---|---|---|
+  | 8 | 212 a 228 ns | 44 a 49 ns |
+  | 80 | 2288 a 4381 ns | 479 a 992 ns |
+
+- **Conclusión:** con 8 enemigos, decidir usa cerca del 0,0003 % de un frame de 16,6 ms. La frecuencia
+  se eligió por naturalidad; el rendimiento no la limita. No se midió el costo de los rayos ni de la
+  animación, que quedan fuera de esta prueba porque dependen de Godot
+
+## J-006: Turnos de ataque con un contador
+
+- **Estado:** Aceptada
+- **Código:** `src/core/ai/attack_turns.hpp`, `AttackTurns`
+- **Crítico:** Sí. Cada enemigo consulta `available` al pensar
+- **Datos:** 2 turnos a la vez, para hasta 8 enemigos; se midió también con 80
+- **Operaciones:** consultar si hay turno, tomarlo y devolverlo. Domina la consulta
+- **Elegida:** un contador y un temporizador en el jugador. Todo es `O(1)` y no guarda ninguna lista.
+  El primero en pensar con turno libre lo toma, y solo lo pide quien ya está a su alcance
+- **Descartadas:** recorrer una `DynArray` de enemigos para contar turnos es `O(n)` por consulta, lo
+  que da `O(n²)` por tick con todos consultando, y obliga a mantener esa lista al crear y borrar enemigos.
+  Elegir siempre al más cercano con un heap da un reparto poco mejor: la espera tras cada ataque ya rota
+  a los atacantes
+- **Medición:** misma máquina, programa y método que J-005, en nanosegundos por tick:
+
+  | Enemigos | Contador | Recorrer la lista |
+  |---|---|---|
+  | 8 | 0,05 a 0,07 ns | 25 a 27 ns |
+  | 80 | 0,05 a 0,07 ns | 2167 a 3037 ns |
+
+  El valor del contador es tan bajo porque el compilador simplifica el ciclo; indica que no pesa, no
+  su costo exacto.
+- **Conclusión:** el contador es más corto y soporta cualquier cantidad de enemigos sin que se conozcan
