@@ -36,6 +36,7 @@ STICK_FRONT = 1.05
 STICK_RADIUS = 0.019
 PALM_LENGTH = 0.095
 FINGER_CURL = 75.0
+TUMBLE_PIVOT = 0.44
 
 FORWARD = Vector((0, -1, 0))
 UP = Vector((0, 0, 1))
@@ -123,22 +124,22 @@ class Rig:
     self.place(upper, aim_delta(self.direction(upper), rest_pole, joint - origin, pole))
     self.place(lower, aim_delta(self.direction(lower), rest_pole, end - joint, pole))
 
-  def leg(self, side, ball, pitch, yaw):
+  def leg(self, side, ball, pitch, yaw, turn):
     ankle_rest = self.head["foot" + side]
     ball_rest = at(ankle_rest.x, 0.1, 0.0)
     heel_rest = at(ankle_rest.x, -0.09, 0.0)
-    delta = rot(pitch, yaw)
+    delta = turn @ rot(pitch, yaw)
     # Up on the toes the foot turns around the ball, and on a heel strike around the heel.
     if pitch >= 0:
       ankle = ball + delta @ (ankle_rest - ball_rest)
     else:
-      heel = ball + rot(0, yaw) @ (heel_rest - ball_rest)
+      heel = ball + turn @ rot(0, yaw) @ (heel_rest - ball_rest)
       ankle = heel + delta @ (ankle_rest - heel_rest)
-    pole = rot(0, yaw * 0.6) @ FORWARD
+    pole = turn @ rot(0, yaw * 0.6) @ FORWARD
     self.limb("upper_leg" + side, "lower_leg" + side, ankle, pole + UP * 0.1, FORWARD)
     self.place("foot" + side, delta)
     grounded = 1.0 - min(ball.z / 0.04, 1.0)
-    self.place("toes" + side, rot(pitch * (1.0 - grounded), yaw))
+    self.place("toes" + side, turn @ rot(pitch * (1.0 - grounded), yaw))
 
   def arm(self, side, wrist, pole, chest):
     shoulder = "shoulder" + side
@@ -166,30 +167,42 @@ class Rig:
   def solve(self, pose):
     self.world.clear()
     self.local.clear()
-    root = at(0, pose["root"], 0)
-    self.place("root", Quaternion(), root)
+    ground = at(0, pose["root"], 0)
+    self.place("root", Quaternion(), ground)
+
+    # Rolls and spins turn the whole body around a point above the root, so the keys can stay
+    # in a pose that never rotates. Only the foot positions may stay on the ground instead.
+    turn = rot(pose.get("tumble", 0.0), pose.get("spin", 0.0))
+    lift = UP * pose.get("lift", 0.0)
+    root = ground + lift
+    pivot = root + UP * TUMBLE_PIVOT
+    turned = lambda point: pivot + turn @ (point - pivot)
+    free = pose.get("feet_free", 0.0)
+    foot_turn = Quaternion().slerp(turn, free)
 
     x, forward, z = pose["hips_pos"]
-    hips = rot(*pose["hips_rot"])
+    hips_at = turned(root + self.head["hips"] + at(x, forward, z))
+    hips = turn @ rot(*pose["hips_rot"])
     spine = hips @ rot(*pose["spine_rot"])
     chest = spine @ rot(*pose["chest_rot"])
-    head = rot(*pose["head_rot"])
-    self.place("hips", hips, root + self.head["hips"] + at(x, forward, z))
+    head = turn @ rot(*pose["head_rot"])
+    self.place("hips", hips, hips_at)
     self.place("spine", spine)
     self.place("chest", chest)
     self.place("neck", chest.slerp(head, 0.5))
     self.place("head", head)
 
     for side, ball, foot_rot in (("_l", pose["foot_l"], pose["foot_l_rot"]), ("_r", pose["foot_r"], pose["foot_r_rot"])):
-      self.leg(side, at(*ball), *foot_rot)
+      planted = at(*ball)
+      self.leg(side, planted.lerp(turned(planted + lift), free), *foot_rot, foot_turn)
 
-    stick = at(*pose["aim"]).normalized()
-    grip = root + at(*pose["grip"])
-    shoulder_r = root + self.head["hips"] + at(x, forward, z) + chest @ Vector((-0.2, 0, 0.47))
-    shoulder_l = root + self.head["hips"] + at(x, forward, z) + chest @ Vector((0.2, 0, 0.47))
+    stick = turn @ at(*pose["aim"]).normalized()
+    grip = turned(root + at(*pose["grip"]))
+    shoulder_r = hips_at + chest @ Vector((-0.2, 0, 0.47))
+    shoulder_l = hips_at + chest @ Vector((0.2, 0, 0.47))
 
     grip_r, hand_axis = self.grip_delta("_r", shoulder_r, grip, stick)
-    self.arm("_r", grip - hand_axis * PALM_LENGTH, at(*pose["pole_r"]), chest)
+    self.arm("_r", grip - hand_axis * PALM_LENGTH, turn @ at(*pose["pole_r"]), chest)
     self.hand("_r", grip_r, FINGER_CURL)
     self.place("weapon", aim_delta(FORWARD, self.direction("hand_r"), stick, hand_axis), grip - stick * pose["slide"])
 
@@ -197,7 +210,7 @@ class Rig:
     grip_left = grip - stick * pose["left_dist"]
     grip_l, hand_axis_l = self.grip_delta("_l", shoulder_l, grip_left, stick)
     wrist_held = grip_left - hand_axis_l * PALM_LENGTH
-    self.arm("_l", (root + at(*pose["hand_l"])).lerp(wrist_held, held), at(*pose["pole_l"]), chest)
+    self.arm("_l", turned(root + at(*pose["hand_l"])).lerp(wrist_held, held), turn @ at(*pose["pole_l"]), chest)
     lower = self.world["lower_arm_l"].to_quaternion() @ self.rest["lower_arm_l"].to_quaternion().inverted()
     self.hand("_l", lower.slerp(grip_l, held), 25.0 + (FINGER_CURL - 25.0) * held)
 
@@ -320,6 +333,7 @@ def idle_clip():
 
 
 RUN_SPEED = 4.6
+WALK_SPEED = 1.9
 RUN_FRAMES = 18
 STANCE_SHARE = 0.3
 LANDING_REACH = 0.3
@@ -328,7 +342,7 @@ SWING_LIFT = [(0.0, 0.0), (0.25, 0.3), (0.55, 0.23), (0.85, 0.09), (1.0, 0.0)]
 FOOT_PITCH = [(0.0, -8.0), (0.09, 0.0), (0.2, 12.0), (0.3, 58.0), (0.42, 72.0), (0.72, 24.0), (0.93, -10.0)]
 
 
-def run_foot(side_x, offset, speed, frames, stance):
+def run_foot(side_x, offset, speed, frames, stance, step):
   """Stance moves back at exactly the run speed: that is what stops the feet from sliding."""
   duration = frames / AUTHOR_FPS
   slope = -speed * duration
@@ -346,12 +360,12 @@ def run_foot(side_x, offset, speed, frames, stance):
       + (-2 * u**3 + 3 * u**2) * LANDING_REACH
       + (u**3 - u**2) * span_slope
     )
-    return (side_x, forward, interpolate(SWING_LIFT, u, 0))
+    return (side_x, forward, step * interpolate(SWING_LIFT, u, 0))
 
   return position
 
 
-def run_clip(name, speed, frames, stance, lean, drop, swing):
+def run_clip(name, speed, frames, stance, lean, drop, swing, step=1.0):
   def foot_rot(offset, yaw):
     return lambda phase: (interpolate(FOOT_PITCH, (phase + offset) % 1.0, 1.0), yaw)
 
@@ -363,8 +377,8 @@ def run_clip(name, speed, frames, stance, lean, drop, swing):
     "spine_rot": lambda p: (5, 7 * wave(p, 0.04), 1.5 * wave(p, 0.15)),
     "chest_rot": lambda p: (3 + 1.0 * wave(p, 0.1, 2), 8 * wave(p, 0.04), 1.5 * wave(p, 0.15)),
     "head_rot": lambda p: (6 + 1.0 * wave(p, 0.2, 2), 1.5 * wave(p, 0.04), 0),
-    "foot_l": run_foot(0.125, 0.0, speed, frames, stance),
-    "foot_r": run_foot(-0.125, 0.5, speed, frames, stance),
+    "foot_l": run_foot(0.125, 0.0, speed, frames, stance, step),
+    "foot_r": run_foot(-0.125, 0.5, speed, frames, stance, step),
     "foot_l_rot": foot_rot(0.0, 5),
     "foot_r_rot": foot_rot(0.5, -5),
     # The right arm swings less: it carries the stick, trailing low behind the run.
@@ -445,90 +459,53 @@ def air_attack_clip():
   ))
 
 
+# The body curled into a ball around TUMBLE_PIVOT, both hands on a stick held across the
+# shins: the stick lies along the roll's axis, the only way 1.6 m fits through a roll.
+TUCK = {
+  "hips_pos": (0.0, -0.24, -0.52), "hips_rot": (58, 0, 0), "spine_rot": (24, 0, 0), "chest_rot": (22, 0, 0), "head_rot": (72, 0, 0),
+  "grip": (-0.2, 0.28, 0.3), "aim": (-1.0, 0.02, 0.0), "slide": 0.45, "left_on": 1.0, "left_dist": 0.4,
+  "pole_r": (-0.7, 0.2, 0.6), "pole_l": (0.7, 0.2, 0.6),
+}
+
+
+def tucked_feet(root):
+  return {
+    "root": root,
+    "foot_r": (-0.13, root - 0.02, 0.1), "foot_r_rot": (40, -4),
+    "foot_l": (0.13, root - 0.08, 0.1), "foot_l_rot": (40, 4),
+  }
+
+
 def dodge_clip():
-  """A low quickstep: the front foot flies ahead, the body slides over it, the back foot catches."""
-  distance = 3.05
-  end_r = (GUARD["foot_r"][0], GUARD["foot_r"][1] + distance, 0.0)
-  end_l = (GUARD["foot_l"][0], GUARD["foot_l"][1] + distance, 0.0)
-  return Clip("dodge_forward", 24, timeline(
-    (0, dict(GUARD)),
-    (1, {
-      "root": 0.15, "hips_pos": (0.0, 0.03, -0.15), "hips_rot": (16, 8, 0), "chest_rot": (6, -3, 0),
-      "foot_r": GUARD["foot_r"], "foot_r_rot": GUARD["foot_r_rot"],
-      "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"],
+  """A forward roll: it dives on the first frames, carries its speed through the ball, and the
+  cost is in getting up. The next action may start at landing, so it leaves no dead time."""
+  distance = 3.2
+  landed = 2.92
+  land_r = (-0.15, landed + 0.12, 0.0)
+  land_l = (0.15, landed - 0.12, 0.0)
+  return Clip("dodge_forward", 23, timeline(
+    (0, dict(GUARD, tumble=0.0, feet_free=0.0)),
+    (2, {
+      "root": 0.42, "tumble": 16.0, "feet_free": 0.0,
+      "hips_pos": (0.0, 0.08, -0.3), "hips_rot": (38, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (14, 0, 0), "head_rot": (30, 0, 0),
+      "foot_r": (GUARD["foot_r"][0], GUARD["foot_r"][1] + 0.3, 0.0), "foot_r_rot": (0, -6),
+      "foot_l": GUARD["foot_l"], "foot_l_rot": (42, 20),
+      "grip": (-0.26, 0.3, 0.68), "aim": (-0.78, 0.45, -0.25), "slide": 0.3, "left_on": 0.3,
     }),
-    (2, {"foot_l": GUARD["foot_l"], "foot_l_rot": (28, 24)}),
-    (3, {"root": 0.55, "foot_r": (-0.14, 0.85, 0.15), "foot_r_rot": (-5, -4)}),
-    (4, {"foot_l": (0.16, 0.15, 0.14), "foot_l_rot": (62, 14)}),
-    (6, {
-      "root": 1.6, "hips_pos": (0.0, 0.06, -0.2), "hips_rot": (31, 0, -3), "spine_rot": (5, 2, 0), "chest_rot": (6, 3, 2),
-      "head_rot": (15, 0, 0), "foot_r": (-0.13, 2.1, 0.2), "foot_r_rot": (-16, -4),
-      "grip": (-0.34, -0.1, 0.92), "aim": (0.04, 0.92, 0.34), "slide": 0.45,
-      "hand_l": (0.3, -0.34, 1.0), "pole_r": (-0.6, -0.8, -0.5), "pole_l": (0.7, -0.8, -0.4),
-    }),
-    (8, {"foot_l": (0.15, 1.25, 0.42), "foot_l_rot": (72, 8)}),
-    (10, {"root": 2.4, "hips_pos": (0.0, 0.05, -0.21), "hips_rot": (29, 2, -2), "foot_r": (-0.14, 2.95, 0.1), "foot_r_rot": (-12, -8)}),
-    (11, {"foot_l": (0.17, 2.1, 0.38), "foot_l_rot": (58, 14)}),
-    (12, {
-      "root": 2.72, "hips_pos": (0.0, 0.03, -0.25), "hips_rot": (25, 8, 2), "spine_rot": (5, -2, 0), "chest_rot": (5, -3, 0),
-      "foot_r": end_r, "foot_r_rot": (-6, -10), "hand_l": (0.3, -0.08, 1.0),
-    }),
-    (14, {"foot_r": end_r, "foot_r_rot": GUARD["foot_r_rot"], "foot_l": (0.18, 2.6, 0.2), "foot_l_rot": (34, 20)}),
-    (15, {"root": 2.95, "hips_pos": (0.0, 0.0, -0.22), "hips_rot": (17, 12, 1), "head_rot": (8, 0, 0)}),
-    (17, {"foot_l": end_l, "foot_l_rot": GUARD["foot_l_rot"]}),
-    (19, {"root": 3.03, "hips_pos": (0.0, -0.01, -0.12), "hips_rot": (8, 12, 0)}),
-    (24, {
-      "root": distance, "hips_pos": GUARD["hips_pos"], "hips_rot": GUARD["hips_rot"], "spine_rot": GUARD["spine_rot"],
-      "chest_rot": GUARD["chest_rot"], "head_rot": GUARD["head_rot"], "foot_r": end_r, "foot_r_rot": GUARD["foot_r_rot"],
-      "foot_l": end_l, "foot_l_rot": GUARD["foot_l_rot"], "grip": GUARD["grip"], "aim": GUARD["aim"],
-      "slide": GUARD["slide"], "hand_l": GUARD["hand_l"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
-    }),
-  ))
-
-
-def attack_clip():
-  """A diagonal cut from the right shoulder, using the classic souls beats: opening pose,
-  a swing faster than physics allows, a held end pose, and an unhurried return."""
-  distance = 0.7
-  end_r = (GUARD["foot_r"][0], GUARD["foot_r"][1] + distance, 0.0)
-  end_l = (GUARD["foot_l"][0], GUARD["foot_l"][1] + distance, 0.0)
-  return Clip("attack_light_1", 30, timeline(
-    (0, dict(GUARD)),
-    (4, {"grip": (-0.22, 0.2, 1.26), "aim": (-0.08, 0.3, 0.95), "slide": 0.0, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
-    (5, {"left_on": 1.0}),
-    (6, {"foot_r": GUARD["foot_r"], "foot_r_rot": GUARD["foot_r_rot"]}),
-    (7, {
-      "root": -0.05, "hips_pos": (0.03, -0.04, -0.075), "hips_rot": (-2, -12, 2), "spine_rot": (1, -12, 0),
-      "chest_rot": (0, -14, 0), "head_rot": (5, -8, 0), "grip": (-0.3, -0.03, 1.5), "aim": (-0.42, -0.72, 0.52),
-    }),
-    (9, {
-      "root": -0.03, "hips_pos": (0.03, -0.05, -0.085), "hips_rot": (-3, -14, 2), "chest_rot": (-1, -15, 0),
-      "grip": (-0.32, -0.07, 1.54), "aim": (-0.46, -0.76, 0.46), "foot_r": (-0.15, 0.3, 0.1), "foot_r_rot": (-10, -10),
-    }),
-    (11, {"grip": (-0.24, 0.22, 1.42), "aim": (-0.1, 0.35, 0.93), "root": 0.2}),
-    (13, {
-      "root": 0.45, "hips_pos": (-0.02, 0.04, -0.13), "hips_rot": (14, 10, -2), "spine_rot": (5, 8, 0),
-      "chest_rot": (6, 8, 0), "head_rot": (10, 2, 0), "grip": (-0.03, 0.55, 1.05), "aim": (0.3, 0.9, 0.2),
-      "foot_r": end_r, "foot_r_rot": (-4, -10), "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"],
-    }),
+    (4, dict(TUCK, tumble=66.0, feet_free=1.0, **tucked_feet(1.05))),
+    (7, dict(TUCK, tumble=160.0, feet_free=1.0, **tucked_feet(1.8))),
+    (10, dict(TUCK, tumble=258.0, feet_free=1.0, **tucked_feet(2.42))),
+    (13, dict(TUCK, tumble=340.0, feet_free=1.0, **tucked_feet(2.8))),
     (15, {
-      "root": 0.6, "hips_pos": (-0.03, 0.06, -0.19), "hips_rot": (22, 24, -3), "spine_rot": (7, 10, 0),
-      "chest_rot": (8, 10, 0), "head_rot": (14, 8, 0), "grip": (0.14, 0.42, 0.78), "aim": (0.66, 0.55, -0.5),
-      "foot_r": end_r, "foot_r_rot": GUARD["foot_r_rot"], "foot_l": GUARD["foot_l"], "foot_l_rot": (30, 24),
+      "root": landed, "tumble": 360.0, "feet_free": 0.0,
+      "hips_pos": (0.0, -0.1, -0.46), "hips_rot": (40, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (22, 0, 0),
+      "foot_r": land_r, "foot_r_rot": (0, -8), "foot_l": land_l, "foot_l_rot": (0, 12),
+      "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "slide": 0.4, "left_on": 1.0,
     }),
-    (17, {"foot_l": GUARD["foot_l"], "foot_l_rot": (38, 24)}),
-    (19, {
-      "root": 0.66, "hips_pos": (-0.03, 0.06, -0.2), "hips_rot": (22, 25, -3), "chest_rot": (8, 10, 0),
-      "grip": (0.16, 0.4, 0.76), "aim": (0.68, 0.5, -0.53), "foot_l": (0.18, 0.12, 0.09), "foot_l_rot": (30, 24),
-    }),
-    (21, {"left_on": 1.0, "slide": 0.0}),
-    (23, {"foot_l": end_l, "foot_l_rot": GUARD["foot_l_rot"], "hips_rot": (12, 20, -1)}),
-    (30, {
-      "root": distance, "hips_pos": GUARD["hips_pos"], "hips_rot": GUARD["hips_rot"], "spine_rot": GUARD["spine_rot"],
-      "chest_rot": GUARD["chest_rot"], "head_rot": GUARD["head_rot"], "grip": GUARD["grip"], "aim": GUARD["aim"],
-      "slide": GUARD["slide"], "left_on": GUARD["left_on"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
-      "foot_r": end_r, "foot_r_rot": GUARD["foot_r_rot"], "foot_l": end_l, "foot_l_rot": GUARD["foot_l_rot"],
-    }),
+    (17, {"left_on": 0.4, "foot_r": land_r, "foot_r_rot": (24, -8), "foot_l": land_l, "foot_l_rot": (0, 18)}),
+    (18, {"root": 3.08, "hips_pos": (0.0, -0.03, -0.3), "hips_rot": (24, 10, 0), "head_rot": (12, 0, 0)}),
+    (20, {"foot_r": (-0.16, distance + 0.1, 0.07), "foot_r_rot": (6, -8), "foot_l": (0.18, distance - 0.2, 0.0), "foot_l_rot": (0, 26)}),
+    (23, recovery(distance)),
   ))
 
 
@@ -537,106 +514,273 @@ def recovery(distance):
   return {
     "root": distance, "hips_pos": GUARD["hips_pos"], "hips_rot": GUARD["hips_rot"], "spine_rot": GUARD["spine_rot"],
     "chest_rot": GUARD["chest_rot"], "head_rot": GUARD["head_rot"], "grip": GUARD["grip"], "aim": GUARD["aim"],
-    "slide": GUARD["slide"], "left_on": GUARD["left_on"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
+    "slide": GUARD["slide"], "left_on": GUARD["left_on"], "hand_l": GUARD["hand_l"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
     "foot_r": (GUARD["foot_r"][0], GUARD["foot_r"][1] + distance, 0.0), "foot_r_rot": GUARD["foot_r_rot"],
     "foot_l": (GUARD["foot_l"][0], GUARD["foot_l"][1] + distance, 0.0), "foot_l_rot": GUARD["foot_l_rot"],
   }
 
 
-# Where attack_light_1 stands when the next step may start, with feet relative to its root:
-# attack_light_2 opens here, so the blend between them has nothing to travel.
+def held(pose, root):
+  """A chain pose at some point of its own clip: its feet are stored relative to the root."""
+  shifted = dict(pose, root=root)
+  for foot in ("foot_r", "foot_l"):
+    x, forward, z = pose[foot]
+    shifted[foot] = (x, forward + root, z)
+  return shifted
+
+
+# Where each blow stands when the next step may start, with feet relative to its root: the
+# next one opens here, so the blend between them has nothing to travel.
 AFTER_CUT = dict(GUARD, **{
-  "hips_pos": (-0.03, 0.06, -0.2), "hips_rot": (22, 25, -3), "spine_rot": (7, 10, 0), "chest_rot": (8, 10, 0),
-  "head_rot": (14, 8, 0), "grip": (0.16, 0.4, 0.76), "aim": (0.68, 0.5, -0.53), "slide": 0.0, "left_on": 1.0,
-  "foot_r": (-0.16, 0.2, 0.0), "foot_l": (0.18, -0.54, 0.09), "foot_l_rot": (30, 24),
+  "hips_pos": (-0.03, 0.07, -0.21), "hips_rot": (24, 38, -4), "spine_rot": (7, 14, 0), "chest_rot": (8, 16, 0),
+  "head_rot": (14, 10, 0), "grip": (0.22, 0.4, 0.74), "aim": (0.74, 0.46, -0.5), "slide": 0.0, "left_on": 1.0,
+  "foot_r": (-0.16, 0.21, 0.0), "foot_l": (0.18, -0.6, 0.09), "foot_l_rot": (30, 24),
   "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0),
 })
 
+# The stick reaches its full length here: the right hand slides to its end and the left lets go.
+AFTER_SWEEP = dict(GUARD, **{
+  "hips_pos": (0.03, 0.04, -0.2), "hips_rot": (5, -44, 4), "spine_rot": (2, -12, 0), "chest_rot": (-3, -20, 0),
+  "head_rot": (6, -12, 0), "grip": (-0.46, 0.2, 1.36), "aim": (-0.86, -0.1, 0.46), "slide": -0.42, "left_on": 0.0,
+  "hand_l": (0.42, -0.1, 1.05), "foot_r": (-0.16, -0.25, 0.0), "foot_r_rot": (30, -12), "foot_l": (0.19, 0.09, 0.0), "foot_l_rot": (0, 8),
+  "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0),
+})
 
-def attack_2_clip():
-  """A rising backhand: the cut's low end pose winds up further and the left foot steps in."""
-  distance = 0.75
-  planted_r = AFTER_CUT["foot_r"]
-  planted_l = (0.19, 0.55, 0.0)
-  return Clip("attack_light_2", 28, timeline(
-    (0, dict(AFTER_CUT)),
-    (3, {
-      "hips_rot": (20, 33, -3), "chest_rot": (8, 16, 0), "grip": (0.24, 0.3, 0.74), "aim": (0.8, 0.3, -0.5),
-      "foot_r": planted_r, "foot_r_rot": GUARD["foot_r_rot"],
+# dodge_forward at the frame the next action may start.
+AFTER_ROLL = dict(GUARD, **{
+  "hips_pos": (0.0, -0.1, -0.46), "hips_rot": (40, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (22, 0, 0),
+  "foot_r": (-0.15, 0.12, 0.0), "foot_r_rot": (0, -8), "foot_l": (0.15, -0.12, 0.0), "foot_l_rot": (0, 12),
+  "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "slide": 0.4, "left_on": 1.0, "left_dist": 0.4,
+})
+
+
+def attack_clip():
+  """The opener: a fast diagonal cut from the right shoulder on a long step. The hips travel
+  from -26 to 38 degrees, and that turn is what sells the swing."""
+  distance = 0.85
+  end_r = (GUARD["foot_r"][0], GUARD["foot_r"][1] + distance, 0.0)
+  raised = {
+    "hips_pos": (0.03, -0.05, -0.085), "hips_rot": (-3, -26, 3), "spine_rot": (1, -14, 0), "chest_rot": (-1, -20, 0), "head_rot": (5, -8, 0),
+    "grip": (-0.32, -0.07, 1.54), "aim": (-0.46, -0.76, 0.46),
+  }
+  return Clip("attack_light_1", 24, timeline(
+    (0, dict(GUARD)),
+    (2, {"grip": (-0.22, 0.2, 1.26), "aim": (-0.08, 0.3, 0.95), "slide": 0.0, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
+    (3, {"left_on": 1.0, "foot_r": GUARD["foot_r"], "foot_r_rot": GUARD["foot_r_rot"]}),
+    (4, dict(raised, root=-0.05)),
+    (5, dict(raised, root=-0.03, foot_r=(-0.15, 0.3, 0.1), foot_r_rot=(-10, -10), foot_l=GUARD["foot_l"], foot_l_rot=GUARD["foot_l_rot"])),
+    (6, {"root": 0.25, "grip": (-0.24, 0.22, 1.42), "aim": (-0.1, 0.35, 0.93)}),
+    (7, {
+      "root": 0.55, "hips_pos": (-0.02, 0.05, -0.14), "hips_rot": (14, 10, -2), "spine_rot": (5, 8, 0), "chest_rot": (6, 10, 0), "head_rot": (10, 2, 0),
+      "grip": (-0.03, 0.55, 1.05), "aim": (0.3, 0.9, 0.2), "foot_r": end_r, "foot_r_rot": (-4, -10),
+      "foot_l": (0.18, -0.05, 0.05), "foot_l_rot": (28, 22),
     }),
-    (5, {"root": 0.04, "grip": (0.24, 0.32, 0.78), "aim": (0.82, 0.34, -0.42), "foot_l": (0.2, -0.3, 0.1), "foot_l_rot": (24, 18)}),
-    (8, {
-      "root": 0.22, "hips_pos": (0.0, 0.05, -0.15), "hips_rot": (10, 0, 1), "spine_rot": (4, -6, 0), "chest_rot": (2, -8, 0),
-      "head_rot": (8, -2, 0), "grip": (0.02, 0.56, 1.02), "aim": (0.12, 0.92, 0.3), "foot_l": (0.2, 0.3, 0.12), "foot_l_rot": (-8, 10),
-    }),
-    (10, {
-      "root": 0.32, "hips_pos": (0.02, 0.05, -0.17), "hips_rot": (6, -18, 3), "spine_rot": (2, -9, 0), "chest_rot": (-2, -12, 0),
-      "head_rot": (6, -8, 0), "grip": (-0.22, 0.44, 1.3), "aim": (-0.62, 0.58, 0.54), "foot_l": planted_l, "foot_l_rot": (-4, 8),
-    }),
-    (13, {
-      "root": 0.38, "hips_pos": (0.03, 0.04, -0.2), "hips_rot": (5, -26, 3), "chest_rot": (-3, -14, 0),
-      "grip": (-0.32, 0.36, 1.4), "aim": (-0.74, 0.36, 0.58), "foot_l": planted_l, "foot_l_rot": (0, 8),
-      "foot_r": planted_r, "foot_r_rot": (28, -12),
-    }),
-    (17, {
-      "root": 0.4, "hips_pos": (0.03, 0.04, -0.2), "hips_rot": (5, -26, 3), "grip": (-0.33, 0.35, 1.41), "aim": (-0.75, 0.34, 0.57),
-      "foot_l": planted_l, "foot_r": planted_r, "foot_r_rot": (30, -12), "left_on": 1.0, "slide": 0.0,
-    }),
-    (22, {"foot_r": (-0.16, 0.7, 0.1), "foot_r_rot": (6, -10), "foot_l": (0.19, 0.55, 0.0), "root": 0.62}),
-    (28, recovery(distance)),
+    (9, dict(held(AFTER_CUT, 0.74), foot_r=end_r, foot_r_rot=GUARD["foot_r_rot"], foot_l=(0.18, 0.02, 0.03), foot_l_rot=(32, 24))),
+    (11, {"foot_l": (0.18, 0.12, 0.07), "foot_l_rot": (34, 24)}),
+    (13, held(AFTER_CUT, 0.8)),
+    (15, held(AFTER_CUT, 0.8)),
+    (19, {"foot_l": (0.18, 0.65, 0.0), "foot_l_rot": GUARD["foot_l_rot"], "hips_rot": (12, 26, -1), "root": 0.83}),
+    (24, recovery(distance)),
   ))
 
 
-# Where attack_light_2 stands when the next step may start, with feet relative to its root.
-AFTER_BACKHAND = dict(GUARD, **{
-  "hips_pos": (0.03, 0.04, -0.2), "hips_rot": (5, -26, 3), "spine_rot": (2, -9, 0), "chest_rot": (-3, -14, 0),
-  "head_rot": (6, -8, 0), "grip": (-0.33, 0.35, 1.41), "aim": (-0.75, 0.34, 0.57), "slide": 0.0, "left_on": 1.0,
-  "foot_r": (-0.16, -0.2, 0.0), "foot_r_rot": (30, -12), "foot_l": (0.19, 0.15, 0.0), "foot_l_rot": (0, 8),
-  "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0),
-})
+def attack_2_clip():
+  """The sweep: the cut's low pose winds further, the left foot crosses over and the stick
+  whips around at full length, pulled through the right hand as the left lets go."""
+  distance = 0.75
+  planted_r = AFTER_CUT["foot_r"]
+  planted_l = (0.19, 0.55, 0.0)
+  return Clip("attack_light_2", 26, timeline(
+    (0, dict(AFTER_CUT)),
+    (2, {
+      "hips_rot": (20, 46, -3), "chest_rot": (8, 22, 0), "grip": (0.32, 0.28, 0.76), "aim": (0.86, 0.24, -0.46),
+      "foot_r": planted_r, "foot_r_rot": GUARD["foot_r_rot"],
+    }),
+    (3, {"root": 0.05, "grip": (0.33, 0.3, 0.8), "aim": (0.88, 0.3, -0.38), "foot_l": (0.2, -0.3, 0.1), "foot_l_rot": (24, 18)}),
+    (5, {
+      "root": 0.25, "hips_pos": (0.0, 0.05, -0.15), "hips_rot": (10, 0, 1), "spine_rot": (4, -6, 0), "chest_rot": (2, -10, 0), "head_rot": (8, -2, 0),
+      "grip": (0.02, 0.6, 1.02), "aim": (0.12, 0.93, 0.3), "slide": 0.0, "left_on": 1.0, "hand_l": (0.3, 0.3, 1.0), "foot_l": (0.2, 0.3, 0.12), "foot_l_rot": (-8, 10),
+    }),
+    (7, {
+      "root": 0.36, "hips_rot": (6, -30, 3), "spine_rot": (2, -12, 0), "chest_rot": (-2, -18, 0), "head_rot": (6, -12, 0),
+      "grip": (-0.3, 0.5, 1.3), "aim": (-0.78, 0.5, 0.34), "slide": -0.25, "left_on": 0.2, "foot_l": planted_l, "foot_l_rot": (-4, 8),
+    }),
+    (9, dict(held(AFTER_SWEEP, 0.42), foot_r=planted_r, foot_l=planted_l)),
+    (14, dict(held(AFTER_SWEEP, 0.46), foot_r=planted_r, foot_l=planted_l)),
+    (19, {"foot_r": (-0.16, 0.72, 0.1), "foot_r_rot": (6, -10), "foot_l": planted_l, "foot_l_rot": (0, 8), "root": 0.62}),
+    (26, recovery(distance)),
+  ))
 
 
 def attack_3_clip():
-  """The closer: a long wind-up overhead, a lunge on the right foot and a slam that stays down,
-  so its weight reads in how long it takes to recover."""
-  distance = 0.9
-  slam_r = (-0.17, 1.06, 0.0)
-  planted_l = AFTER_BACKHAND["foot_l"]
-  return Clip("attack_light_3", 42, timeline(
-    (0, dict(AFTER_BACKHAND)),
+  """The closer: it jumps out of the sweep, whirls the stick overhead through a full turn in the
+  air and comes down with both hands into the ground, staying low long enough to pay for it."""
+  distance = 1.15
+  high = {"grip": (-0.05, 0.25, 1.72), "aim": (0.0, 1.0, 0.03), "slide": 0.2}
+  raised = {"grip": (-0.12, -0.08, 1.66), "aim": (-0.12, -0.88, 0.42), "slide": 0.0}
+  body = {"hips_pos": (0.0, 0.0, -0.1), "hips_rot": (0, -10, 0), "spine_rot": (0, 0, 0), "chest_rot": (-4, 0, 0), "head_rot": (4, 0, 0)}
+  slam = {
+    "hips_pos": (-0.01, 0.09, -0.36), "hips_rot": (36, 6, 0), "spine_rot": (10, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (18, 0, 0),
+    "grip": (0.0, 0.6, 0.62), "aim": (0.02, 0.8, -0.6), "slide": 0.0, "left_on": 1.0,
+    "foot_r": (-0.17, 1.14, 0.0), "foot_r_rot": GUARD["foot_r_rot"], "foot_l": (0.19, 0.6, 0.0), "foot_l_rot": (36, 8),
+  }
+  air_feet = lambda root: {
+    "foot_r": (-0.14, root - 0.1, 0.26), "foot_r_rot": (20, -5), "foot_l": (0.14, root + 0.14, 0.42), "foot_l_rot": (-10, 5),
+  }
+  return Clip("attack_light_3", 40, timeline(
+    (0, dict(AFTER_SWEEP, spin=0.0, lift=0.0, feet_free=0.0)),
+    (2, {
+      "hips_pos": (0.02, -0.02, -0.32), "hips_rot": (16, -30, 2), "spine_rot": (4, -8, 0), "chest_rot": (6, -16, 0), "head_rot": (8, -8, 0),
+      "grip": (-0.3, 0.1, 1.5), "aim": (-0.4, -0.4, 0.82), "slide": 0.0, "feet_free": 0.0, "lift": 0.0,
+      "foot_r": AFTER_SWEEP["foot_r"], "foot_r_rot": (10, -12), "foot_l": AFTER_SWEEP["foot_l"], "foot_l_rot": (0, 8),
+    }),
+    (3, {"left_on": 1.0, "spin": 8.0}),
+    (5, dict(body, **high, **air_feet(0.25), root=0.25, lift=0.2, spin=70.0, feet_free=1.0)),
+    (8, dict(high, **air_feet(0.5), root=0.5, lift=0.4, spin=205.0, feet_free=1.0)),
+    (10, dict(raised, **air_feet(0.7), root=0.7, lift=0.42, spin=320.0, hips_rot=(-8, 0, 0), chest_rot=(-10, 0, 0), head_rot=(2, 0, 0), feet_free=1.0)),
+    (11, dict(raised, root=0.78, lift=0.36, spin=360.0)),
+    (12, {"root": 0.86, "lift": 0.26, "grip": (-0.08, 0.42, 1.46), "aim": (-0.05, 0.5, 0.86), "hips_rot": (10, 0, 0)}),
+    (13, {
+      "root": 0.92, "lift": 0.12, "feet_free": 0.6, "grip": (-0.03, 0.66, 1.0), "aim": (0.0, 0.94, 0.08),
+      "hips_pos": (-0.01, 0.06, -0.2), "hips_rot": (26, 4, 0), "spine_rot": (8, 0, 0), "chest_rot": (10, 0, 0), "head_rot": (16, 0, 0),
+    }),
+    (14, dict(slam, root=0.96, lift=0.0, feet_free=0.0)),
+    (16, dict(slam, root=0.98, hips_pos=(-0.01, 0.1, -0.42))),
+    (26, dict(slam, root=1.0, hips_pos=(-0.01, 0.1, -0.4), hips_rot=(33, 6, 0))),
+    (32, {"foot_l": (0.19, 0.85, 0.1), "foot_l_rot": (20, 14), "root": 1.08}),
+    (40, recovery(distance)),
+  ))
+
+
+def attack_roll_clip():
+  """Out of a roll: it stays low, pulls the stick back at the hip and drives a one-handed thrust
+  on a long lunge. The stick's whole length goes ahead of the hand."""
+  distance = 1.1
+  lunge_r = (-0.17, 1.45, 0.0)
+  lunge_l = (0.18, 0.34, 0.0)
+  thrust = {
+    "hips_pos": (-0.02, 0.12, -0.32), "hips_rot": (30, 20, -2), "spine_rot": (8, 8, 0), "chest_rot": (8, 10, 0), "head_rot": (12, 8, 0),
+    "grip": (-0.05, 0.75, 1.12), "aim": (0.02, 1.0, 0.02), "slide": -0.38, "left_on": 0.0, "hand_l": (0.34, -0.3, 1.0),
+    "pole_r": (-0.6, -0.5, -0.8), "pole_l": (0.6, -0.6, -0.6),
+    "foot_r": lunge_r, "foot_r_rot": GUARD["foot_r_rot"], "foot_l": lunge_l, "foot_l_rot": (40, 22),
+  }
+  return Clip("attack_roll", 24, timeline(
+    (0, dict(AFTER_ROLL)),
+    (3, {
+      "root": 0.1, "hips_pos": (0.0, -0.06, -0.36), "hips_rot": (24, -20, 0), "chest_rot": (6, -16, 0), "head_rot": (12, -2, 0),
+      "grip": (-0.2, -0.2, 0.95), "aim": (0.05, 0.95, 0.05), "slide": 0.0, "left_on": 0.8,
+      "foot_r": AFTER_ROLL["foot_r"], "foot_r_rot": AFTER_ROLL["foot_r_rot"], "foot_l": AFTER_ROLL["foot_l"], "foot_l_rot": (24, 14),
+    }),
+    (5, {"root": 0.5, "foot_r": (-0.16, 0.9, 0.12), "foot_r_rot": (-10, -8), "foot_l": AFTER_ROLL["foot_l"]}),
+    (7, dict(thrust, root=0.85)),
+    (13, dict(thrust, root=0.95)),
+    (18, {"foot_l": (0.18, 0.75, 0.08), "foot_l_rot": (24, 18), "root": 1.02}),
+    (24, recovery(distance)),
+  ))
+
+
+def attack_run_clip():
+  """Out of a sprint: the left foot plants and the run's speed throws the stick from low behind
+  the body up over the left shoulder, on two hands. The root brakes from sprint speed."""
+  distance = 2.35
+  plant_l = (0.13, 0.78, 0.0)
+  finish = {
+    "hips_pos": (0.01, 0.03, -0.14), "hips_rot": (-6, 34, -4), "spine_rot": (-2, 10, 0), "chest_rot": (-10, 16, 0), "head_rot": (-6, 10, 0),
+    "grip": (0.26, 0.24, 1.55), "aim": (0.55, 0.08, 0.83),
+  }
+  landed_r = (-0.16, 2.4, 0.0)
+  return Clip("attack_run", 30, timeline(
+    (0, {
+      "root": 0.0, "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (19, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
+      "foot_r": (-0.125, -0.35, 0.12), "foot_r_rot": (30, -5), "foot_l": (0.125, 0.3, 0.06), "foot_l_rot": (-6, 5),
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
+    }),
+    (2, {
+      "root": 0.44, "hips_pos": (0.0, 0.02, -0.2), "hips_rot": (26, -22, 3), "spine_rot": (6, -8, 0), "chest_rot": (6, -10, 0), "head_rot": (8, 0, 0),
+      "foot_l": plant_l, "foot_l_rot": (-4, 5), "foot_r": (-0.14, 0.1, 0.2), "foot_r_rot": (40, -5),
+      "grip": (-0.42, -0.2, 0.82), "aim": (-0.3, -0.62, -0.5), "slide": 0.0, "left_on": 0.6,
+    }),
+    (3, {"left_on": 1.0}),
+    (4, {"root": 0.9, "hips_rot": (22, -14, 2), "grip": (-0.4, -0.05, 0.72), "aim": (-0.35, 0.4, -0.55), "foot_l": plant_l, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
+    (6, {
+      "root": 1.3, "hips_pos": (0.0, 0.06, -0.24), "hips_rot": (14, 8, -1), "spine_rot": (4, 6, 0), "chest_rot": (0, 10, 0), "head_rot": (2, 4, 0),
+      "grip": (-0.12, 0.5, 0.82), "aim": (0.0, 0.85, -0.5), "foot_l": plant_l, "foot_l_rot": (22, 6), "foot_r": (-0.15, 1.1, 0.22), "foot_r_rot": (-12, -6),
+    }),
+    (8, {
+      "root": 1.62, "hips_rot": (0, 22, -3), "chest_rot": (-8, 14, 0), "head_rot": (-4, 8, 0), "grip": (0.1, 0.52, 1.25), "aim": (0.3, 0.75, 0.6),
+      "foot_r": (-0.16, 2.1, 0.1), "foot_r_rot": (-10, -6), "foot_l": (0.14, 1.0, 0.1), "foot_l_rot": (48, 10),
+    }),
+    (10, dict(finish, root=1.85, foot_r=landed_r, foot_r_rot=(-2, -8), foot_l=(0.15, 1.35, 0.16), foot_l_rot=(40, 14))),
+    (13, dict(finish, root=2.1, foot_r=landed_r, foot_r_rot=GUARD["foot_r_rot"], foot_l=(0.17, 1.85, 0.06), foot_l_rot=(20, 18))),
+    (18, dict(finish, root=2.25, foot_r=landed_r, foot_l=(0.18, 2.05, 0.0), foot_l_rot=GUARD["foot_l_rot"], left_on=1.0, slide=0.0)),
+    (30, recovery(distance)),
+  ))
+
+
+def run_start_clip():
+  """The first two steps from a stand. Ends on the frame the run clip's left foot lands, and
+  the stance foot moves back at run speed from the moment it touches down."""
+  step = RUN_SPEED / AUTHOR_FPS
+  return Clip("run_start", 10, timeline(
+    (0, dict(GUARD)),
+    (2, {"hips_pos": (0.0, 0.04, -0.14), "hips_rot": (20, 8, 0), "foot_r": (-0.15, 0.2, 0.14), "foot_r_rot": (-5, -6), "foot_l": GUARD["foot_l"], "foot_l_rot": (30, 20)}),
     (5, {
-      "root": -0.04, "hips_pos": (0.02, -0.04, -0.14), "hips_rot": (-4, -8, 1), "spine_rot": (-2, -3, 0), "chest_rot": (-7, -4, 0),
-      "head_rot": (2, -3, 0), "grip": (-0.16, 0.0, 1.6), "aim": (-0.16, -0.75, 0.62), "foot_l": planted_l, "foot_l_rot": (0, 8),
+      "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (22, -6, -3), "spine_rot": (5, 6, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
+      "foot_r": (-0.125, LANDING_REACH, 0.0), "foot_r_rot": (-8, -5), "foot_l": (0.125, -0.25, 0.22), "foot_l_rot": (58, 5),
+      "grip": (-0.33, 0.0, 0.98), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "hand_l": (0.25, 0.3, 1.0),
+      "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
-    (9, {
-      "root": -0.08, "hips_pos": (0.02, -0.07, -0.12), "hips_rot": (-8, -6, 1), "chest_rot": (-10, -3, 0),
-      "grip": (-0.13, -0.06, 1.66), "aim": (-0.13, -0.86, 0.46), "foot_r": (-0.16, -0.05, 0.08), "foot_r_rot": (20, -10),
+    (10, {
+      "hips_pos": (0.018, 0.05, -0.05), "hips_rot": (13, -9, -2), "spine_rot": (5, 7, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
+      "foot_r": (-0.125, LANDING_REACH - 5 * step, 0.0), "foot_r_rot": (24, -5), "foot_l": (0.125, LANDING_REACH, 0.0), "foot_l_rot": (-8, 5),
+      "grip": (-0.33, 0.19, 0.96), "aim": (0.07, 0.93, 0.39), "hand_l": (0.25, -0.15, 1.12),
     }),
-    (12, {
-      "root": -0.04, "grip": (-0.12, -0.08, 1.66), "aim": (-0.12, -0.88, 0.42), "hips_rot": (-8, -6, 1), "chest_rot": (-10, -3, 0),
-      "foot_r": (-0.17, 0.4, 0.16), "foot_r_rot": (-6, -8),
+  ))
+
+
+def run_stop_clip():
+  """Braking from a run: the right foot digs in ahead, the body leans back against its own
+  weight and the stick carries on forward before it settles."""
+  return Clip("run_stop", 15, timeline(
+    (0, {
+      "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
+      "foot_r": (-0.125, -0.1, 0.1), "foot_r_rot": (20, -5), "foot_l": (0.125, 0.1, 0.0), "foot_l_rot": (0, 5),
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
-    (14, {
-      "root": 0.3, "hips_pos": (0.0, 0.04, -0.14), "hips_rot": (10, 0, 0), "spine_rot": (4, 0, 0), "chest_rot": (6, 0, 0),
-      "grip": (-0.08, 0.42, 1.46), "aim": (-0.05, 0.5, 0.86), "foot_r": (-0.17, 0.9, 0.14), "foot_r_rot": (-12, -8),
+    (3, {
+      "hips_pos": (0.0, -0.1, -0.2), "hips_rot": (-6, 6, 0), "chest_rot": (-2, -4, 0), "head_rot": (2, 0, 0),
+      "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (-14, -6), "foot_l": (0.14, -0.1, 0.0), "foot_l_rot": (26, 10),
+      "grip": (-0.34, 0.3, 0.96), "aim": (-0.1, 0.9, 0.0), "hand_l": (0.3, 0.2, 1.0),
     }),
-    (16, {
-      "root": 0.62, "hips_pos": (-0.01, 0.08, -0.26), "hips_rot": (26, 4, 0), "spine_rot": (8, 0, 0), "chest_rot": (10, 0, 0),
-      "head_rot": (16, 0, 0), "grip": (-0.03, 0.66, 1.0), "aim": (0.0, 0.94, 0.08), "foot_r": slam_r, "foot_r_rot": (-4, -8),
-      "foot_l": planted_l, "foot_l_rot": (24, 8),
+    (6, {"hips_pos": (0.0, -0.05, -0.2), "hips_rot": (3, 10, 0), "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (0, -8), "grip": (-0.34, 0.26, 0.9), "aim": (-0.22, 0.86, -0.3), "slide": 0.1}),
+    (10, {"foot_r": (-0.15, 0.3, 0.05), "foot_r_rot": (4, -8), "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"], "hips_pos": (0.01, -0.02, -0.14)}),
+    (15, recovery(0.0)),
+  ))
+
+
+def run_turn_clip():
+  """A hard turn at speed, played while the model swings around: the outside foot plants wide,
+  the body drops into the corner and the stick trails."""
+  return Clip("run_turn", 13, timeline(
+    (0, {
+      "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
+      "foot_r": (-0.125, 0.1, 0.0), "foot_r_rot": (0, -5), "foot_l": (0.125, -0.1, 0.1), "foot_l_rot": (20, 5),
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
-    (19, {
-      "root": 0.72, "hips_pos": (-0.01, 0.09, -0.36), "hips_rot": (36, 6, 0), "spine_rot": (10, 0, 0), "chest_rot": (12, 0, 0),
-      "head_rot": (18, 0, 0), "grip": (0.0, 0.6, 0.62), "aim": (0.02, 0.8, -0.6), "foot_r": slam_r, "foot_r_rot": GUARD["foot_r_rot"],
-      "foot_l": planted_l, "foot_l_rot": (36, 8),
+    (3, {
+      "hips_pos": (0.08, -0.04, -0.24), "hips_rot": (6, 22, 8), "spine_rot": (6, 8, 4), "chest_rot": (4, 10, 3), "head_rot": (6, 24, 0),
+      "foot_r": (-0.38, 0.2, 0.0), "foot_r_rot": (-10, -28), "foot_l": (0.2, -0.22, 0.14), "foot_l_rot": (34, 14),
+      "grip": (-0.4, -0.12, 0.92), "aim": (-0.3, 0.84, 0.44), "hand_l": (0.4, 0.2, 1.1),
     }),
-    (28, {
-      "root": 0.76, "hips_pos": (-0.01, 0.09, -0.34), "hips_rot": (33, 6, 0), "spine_rot": (9, 0, 0), "chest_rot": (11, 0, 0),
-      "head_rot": (16, 0, 0), "grip": (0.0, 0.6, 0.64), "aim": (0.02, 0.8, -0.58), "foot_r": slam_r, "foot_l": planted_l, "foot_l_rot": (38, 8),
-      "left_on": 1.0, "slide": 0.0,
+    (7, {"hips_pos": (0.06, 0.0, -0.2), "hips_rot": (10, 12, 6), "foot_r": (-0.34, 0.14, 0.0), "foot_r_rot": (6, -20), "foot_l": (0.18, 0.2, 0.16), "foot_l_rot": (-6, 8)}),
+    (13, {
+      "hips_pos": (0.018, 0.05, -0.05), "hips_rot": (13, -9, -2), "spine_rot": (5, 7, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
+      "foot_r": (-0.125, -0.05, 0.05), "foot_r_rot": (24, -5), "foot_l": (0.125, LANDING_REACH, 0.0), "foot_l_rot": (-8, 5),
+      "grip": (-0.33, 0.19, 0.96), "aim": (0.07, 0.93, 0.39), "hand_l": (0.25, -0.15, 1.12),
     }),
-    (34, {"foot_l": (0.19, 0.55, 0.1), "foot_l_rot": (20, 14), "root": 0.84}),
-    (42, recovery(distance)),
   ))
 
 
@@ -645,6 +789,11 @@ CLIPS = [
   run_clip("run-loop", RUN_SPEED, RUN_FRAMES, STANCE_SHARE, lean=11, drop=-0.075, swing=0.25),
   # SPRINT_SPEED in PlayerController must match this speed.
   run_clip("sprint-loop", 6.8, 15, 0.26, lean=19, drop=-0.1, swing=0.34),
+  # WALK_SPEED in PlayerController must match this speed.
+  run_clip("walk-loop", WALK_SPEED, 24, 0.58, lean=4, drop=-0.05, swing=0.12, step=0.35),
+  run_start_clip(),
+  run_stop_clip(),
+  run_turn_clip(),
   jump_clip(),
   fall_clip(),
   land_clip(),
@@ -652,6 +801,8 @@ CLIPS = [
   attack_clip(),
   attack_2_clip(),
   attack_3_clip(),
+  attack_roll_clip(),
+  attack_run_clip(),
   air_attack_clip(),
 ]
 
@@ -675,6 +826,11 @@ def build_stick(armature):
   mesh.from_pydata(verts, [], faces)
   material = bpy.data.materials.get("stick") or bpy.data.materials.new("stick")
   material.diffuse_color = (0.22, 0.13, 0.07, 1.0)
+  # The exporter reads the node, not the viewport color.
+  material.use_nodes = True
+  bsdf = material.node_tree.nodes.get("Principled BSDF")
+  bsdf.inputs["Base Color"].default_value = material.diffuse_color
+  bsdf.inputs["Roughness"].default_value = 0.9
   mesh.materials.append(material)
   stick = bpy.data.objects.new("stick", mesh)
   bpy.context.scene.collection.objects.link(stick)

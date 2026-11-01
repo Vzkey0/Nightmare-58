@@ -136,13 +136,13 @@ static void test_player_action_buffer()
   advance(chained, 0.1f);
   assert(chained.current() == PlayerAction::Dodge);
   advance(chained, 0.2f);
-  assert(chained.current() == PlayerAction::Attack);
+  assert(chained.current() == PlayerAction::RollAttack);
 
   // A press from too long ago is no longer what the player wants.
   PlayerActions stale;
-  stale.press(PlayerAction::Attack);
-  stale.update(STEP, false);
   stale.press(PlayerAction::Dodge);
+  stale.update(STEP, false);
+  stale.press(PlayerAction::Attack);
   advance(stale, PlayerActions::BUFFER_TIME + 0.1f);
   advance(stale, 1.f);
   assert(stale.current() == PlayerAction::None);
@@ -157,7 +157,55 @@ static void test_player_action_buffer()
   advance(full, 0.45f);
   full.press(PlayerAction::Attack);
   advance(full, timing.next_action - 0.45f + 0.02f);
-  assert(full.current() == PlayerAction::Attack);
+  assert(full.current() == PlayerAction::RollAttack);
+
+  // A dodge does not wait behind attacks already queued.
+  PlayerActions mashed;
+  mashed.press(PlayerAction::Attack);
+  mashed.update(STEP, false);
+  mashed.press(PlayerAction::Attack);
+  mashed.press(PlayerAction::Dodge);
+  advance(mashed, PlayerActions::timing(PlayerAction::Attack).dodge_cancel + STEP);
+  assert(mashed.current() == PlayerAction::Dodge);
+}
+
+static void test_player_dodge_cancel()
+{
+  for (const PlayerAction blow : {PlayerAction::Attack, PlayerAction::Attack2, PlayerAction::Attack3, PlayerAction::RollAttack, PlayerAction::RunAttack})
+  {
+    const ActionTiming & timing = PlayerActions::timing(blow);
+    // The swing always finishes first, and a dodge comes before the next blow can.
+    assert(timing.dodge_cancel >= timing.hit_end);
+    assert(timing.dodge_cancel < timing.next_action);
+  }
+
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::Attack);
+  PlayerActions actions;
+  actions.press(PlayerAction::Attack);
+  actions.update(STEP, false);
+  advance(actions, timing.dodge_cancel - 3.f * STEP);
+  actions.press(PlayerAction::Dodge);
+  actions.update(STEP, false);
+  assert(actions.current() == PlayerAction::Attack);
+  advance(actions, 4.f * STEP);
+  assert(actions.current() == PlayerAction::Dodge);
+
+  // An attack still waits for next_action.
+  PlayerActions chain;
+  chain.press(PlayerAction::Attack);
+  chain.update(STEP, false);
+  advance(chain, timing.dodge_cancel);
+  chain.press(PlayerAction::Attack);
+  chain.update(STEP, false);
+  assert(chain.current() == PlayerAction::Attack);
+}
+
+static void test_player_step_scale()
+{
+  assert(PlayerActions::step_scale(1.f, 1.f) == 1.f);
+  assert(PlayerActions::step_scale(0.5f, 1.f) == 0.5f);
+  assert(PlayerActions::step_scale(-2.f, 1.f) == PlayerActions::MIN_STEP_SCALE);
+  assert(PlayerActions::step_scale(9.f, 1.f) == PlayerActions::MAX_STEP_SCALE);
 }
 
 static void test_player_move_cancel()
@@ -207,7 +255,7 @@ static void test_player_combo()
   chain_attack(actions);
   assert(actions.current() == PlayerAction::Attack);
 
-  // Letting a step end, or dodging, starts over.
+  // Letting a step end starts over.
   PlayerActions ended;
   ended.press(PlayerAction::Attack);
   ended.update(STEP, false);
@@ -228,7 +276,56 @@ static void test_player_combo()
   advance(dodged, PlayerActions::timing(PlayerAction::Dodge).next_action);
   dodged.press(PlayerAction::Attack);
   dodged.update(STEP, false);
-  assert(dodged.current() == PlayerAction::Attack);
+
+  // The roll keeps the combo's place: its attack comes in between, and the combo carries on.
+  assert(dodged.current() == PlayerAction::RollAttack);
+  assert(dodged.combo_step() == PlayerActions::NO_COMBO_STEP);
+  assert(dodged.stepping_attack());
+  chain_attack(dodged);
+  assert(dodged.current() == PlayerAction::Attack2);
+
+  // Letting the roll finish starts over.
+  PlayerActions rolled;
+  rolled.press(PlayerAction::Attack);
+  rolled.update(STEP, false);
+  advance(rolled, PlayerActions::timing(PlayerAction::Attack).next_action);
+  rolled.press(PlayerAction::Dodge);
+  rolled.update(STEP, false);
+  advance(rolled, PlayerActions::timing(PlayerAction::Dodge).duration + 0.1f);
+  assert(rolled.current() == PlayerAction::None);
+  rolled.press(PlayerAction::Attack);
+  rolled.update(STEP, false);
+  assert(rolled.current() == PlayerAction::Attack);
+}
+
+static void test_player_run_attack()
+{
+  // Only a real sprint counts: a held button without moving, or a tap, stays a normal attack.
+  PlayerActions sprinting;
+  for (float time = 0.f; time < PlayerActions::TAP_TIME + 0.1f; time += STEP)
+    sprinting.update_dodge_button(true, STEP);
+  sprinting.press(PlayerAction::Attack);
+  sprinting.update(STEP, true);
+  assert(sprinting.current() == PlayerAction::RunAttack);
+  assert(sprinting.stepping_attack());
+  assert(sprinting.combo_step() == PlayerActions::NO_COMBO_STEP);
+
+  // The combo starts over after it.
+  chain_attack(sprinting);
+  assert(sprinting.current() == PlayerAction::Attack);
+
+  PlayerActions standing;
+  for (float time = 0.f; time < PlayerActions::TAP_TIME + 0.1f; time += STEP)
+    standing.update_dodge_button(true, STEP);
+  standing.press(PlayerAction::Attack);
+  standing.update(STEP, false);
+  assert(standing.current() == PlayerAction::Attack);
+
+  PlayerActions tapped;
+  tapped.update_dodge_button(true, STEP);
+  tapped.press(PlayerAction::Attack);
+  tapped.update(STEP, true);
+  assert(tapped.current() == PlayerAction::Attack);
 }
 
 static void test_player_dodge_button()
@@ -302,6 +399,31 @@ static void test_player_hit_window()
   }
 }
 
+static void test_player_ground_hit()
+{
+  // Only actions that land report it, and the clock keeps running after an action ends.
+  PlayerActions jump;
+  jump.press(PlayerAction::Jump);
+  jump.update(STEP, false);
+  for (float time = 0.f; time < 1.f; time += STEP)
+  {
+    jump.update(STEP, false);
+    assert(!jump.hit_ground(STEP));
+  }
+  assert(jump.current() == PlayerAction::None);
+
+  PlayerActions roll;
+  roll.press(PlayerAction::Dodge);
+  roll.update(STEP, false);
+  int landings = 0;
+  for (float time = 0.f; time < 1.5f; time += STEP)
+  {
+    roll.update(STEP, false);
+    landings += roll.hit_ground(STEP) ? 1 : 0;
+  }
+  assert(landings == 1);
+}
+
 static void test_health()
 {
   Health health(50);
@@ -357,11 +479,15 @@ int main()
   test_behavior_tree_empty_queues();
   test_player_action_lifetime();
   test_player_action_buffer();
+  test_player_dodge_cancel();
+  test_player_step_scale();
   test_player_move_cancel();
   test_player_combo();
+  test_player_run_attack();
   test_player_dodge_button();
   test_player_air_rules();
   test_player_hit_window();
+  test_player_ground_hit();
   test_health();
   test_health_trail();
   return 0;
