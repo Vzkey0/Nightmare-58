@@ -1,8 +1,10 @@
 #pragma once
 
+#include <list.hpp>
 #include <queue.hpp>
 
-enum class PlayerAction { None, Dodge, Attack, Jump, AirAttack };
+// Attack, Attack2 and Attack3 stay together: PlayerController::attack_clip follows this order.
+enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack };
 
 // Seconds from the start of the clip. duration must match the clip in
 // art/characters/animate_protagonist.py.
@@ -25,7 +27,11 @@ public:
   static constexpr float BUFFER_TIME = 0.45f;
   static constexpr float TAP_TIME = 0.22f;
 
+  static constexpr int NO_COMBO_STEP = -1;
+
   static const ActionTiming & timing(PlayerAction action);
+
+  PlayerActions();
 
   // Oldest press is dropped when the buffer is full: the newest one is the player's intent.
   void press(PlayerAction action);
@@ -36,12 +42,19 @@ public:
   bool sprinting() const { return button_held; }
 
   // Returns true on the step where a new action starts, so the caller can start its clip.
-  // In the air an attack becomes an air attack, which finishes its swing if it lands;
-  // a dodge or jump waits for the ground.
+  // An attack pressed during a combo step becomes the next step, and the last leads back to
+  // the first. In the air an attack becomes an air attack, which finishes its swing if it
+  // lands; a dodge or jump waits for the ground.
   bool update(float delta, bool wants_to_move, bool grounded = true);
 
   PlayerAction current() const { return action; }
   float elapsed() const { return action_time; }
+
+  int combo_step() const
+  {
+    const bool attacking = action >= PlayerAction::Attack && action <= PlayerAction::Attack3;
+    return attacking ? static_cast<int>(action) - static_cast<int>(PlayerAction::Attack) : NO_COMBO_STEP;
+  }
 
   bool hitting() const
   {
@@ -55,6 +68,11 @@ private:
     PlayerAction action = PlayerAction::None;
     double time = 0.0;
   };
+
+  PlayerAction next_attack() const;
+
+  // A list so a weapon upgrade can append a step.
+  Designar::SLList<PlayerAction> combo;
 
   // J-004: small fixed capacity, so reads and writes never reserve memory.
   Designar::FixedQueue<Press, BUFFER_SIZE> buffer;

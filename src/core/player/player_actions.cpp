@@ -4,6 +4,8 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
 {
   static constexpr ActionTiming DODGE{0.8f, 0.53f, 0.6f};
   static constexpr ActionTiming ATTACK{1.f, 0.63f, 0.73f, 0.33f, 0.57f, 20};
+  static constexpr ActionTiming ATTACK_2{0.93f, 0.57f, 0.67f, 0.2f, 0.5f, 22};
+  static constexpr ActionTiming ATTACK_3{1.4f, 0.93f, 1.f, 0.42f, 0.7f, 30};
   static constexpr ActionTiming JUMP{0.33f, 0.12f, 0.33f};
   // Past its duration on purpose: the clip must end before another air attack restarts it.
   static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f, 0.23f, 0.43f, 30};
@@ -12,6 +14,10 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
   {
     case PlayerAction::Attack:
       return ATTACK;
+    case PlayerAction::Attack2:
+      return ATTACK_2;
+    case PlayerAction::Attack3:
+      return ATTACK_3;
     case PlayerAction::Jump:
       return JUMP;
     case PlayerAction::AirAttack:
@@ -19,6 +25,25 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
     default:
       return DODGE;
   }
+}
+
+PlayerActions::PlayerActions()
+{
+  combo.append(PlayerAction::Attack);
+  combo.append(PlayerAction::Attack2);
+  combo.append(PlayerAction::Attack3);
+}
+
+PlayerAction PlayerActions::next_attack() const
+{
+  bool found = false;
+  for (const PlayerAction step : combo)
+  {
+    if (found)
+      return step;
+    found = step == action;
+  }
+  return combo.get_first();
 }
 
 void PlayerActions::press(PlayerAction pressed)
@@ -54,7 +79,10 @@ bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
       (grounded || buffer.front().action == PlayerAction::Attack))
   {
     const PlayerAction next = buffer.get().action;
-    action = next == PlayerAction::Attack && !grounded ? PlayerAction::AirAttack : next;
+    if (next != PlayerAction::Attack)
+      action = next;
+    else
+      action = grounded ? next_attack() : PlayerAction::AirAttack;
     action_time = 0.f;
     return true;
   }

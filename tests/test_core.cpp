@@ -173,6 +173,64 @@ static void test_player_move_cancel()
   assert(actions.current() == PlayerAction::None);
 }
 
+static void chain_attack(PlayerActions & actions)
+{
+  const float wait = PlayerActions::timing(actions.current()).next_action - actions.elapsed();
+  advance(actions, wait - 0.1f);
+  actions.press(PlayerAction::Attack);
+  advance(actions, 0.1f + 2.f * STEP);
+}
+
+static void test_player_combo()
+{
+  PlayerActions actions;
+  assert(actions.combo_step() == PlayerActions::NO_COMBO_STEP);
+
+  actions.press(PlayerAction::Attack);
+  actions.update(STEP, false);
+  assert(actions.current() == PlayerAction::Attack);
+  assert(actions.combo_step() == 0);
+
+  chain_attack(actions);
+  assert(actions.current() == PlayerAction::Attack2);
+  assert(actions.combo_step() == 1);
+
+  chain_attack(actions);
+  assert(actions.current() == PlayerAction::Attack3);
+  assert(actions.combo_step() == 2);
+
+  // The last blow is the strongest and the slowest to recover from.
+  const ActionTiming & last = PlayerActions::timing(PlayerAction::Attack3);
+  assert(last.damage > PlayerActions::timing(PlayerAction::Attack).damage);
+  assert(last.next_action > PlayerActions::timing(PlayerAction::Attack).next_action);
+
+  chain_attack(actions);
+  assert(actions.current() == PlayerAction::Attack);
+
+  // Letting a step end, or dodging, starts over.
+  PlayerActions ended;
+  ended.press(PlayerAction::Attack);
+  ended.update(STEP, false);
+  chain_attack(ended);
+  advance(ended, PlayerActions::timing(PlayerAction::Attack2).duration);
+  assert(ended.current() == PlayerAction::None);
+  ended.press(PlayerAction::Attack);
+  ended.update(STEP, false);
+  assert(ended.current() == PlayerAction::Attack);
+
+  PlayerActions dodged;
+  dodged.press(PlayerAction::Attack);
+  dodged.update(STEP, false);
+  advance(dodged, PlayerActions::timing(PlayerAction::Attack).next_action);
+  dodged.press(PlayerAction::Dodge);
+  dodged.update(STEP, false);
+  assert(dodged.current() == PlayerAction::Dodge);
+  advance(dodged, PlayerActions::timing(PlayerAction::Dodge).next_action);
+  dodged.press(PlayerAction::Attack);
+  dodged.update(STEP, false);
+  assert(dodged.current() == PlayerAction::Attack);
+}
+
 static void test_player_dodge_button()
 {
   PlayerActions tap;
@@ -300,6 +358,7 @@ int main()
   test_player_action_lifetime();
   test_player_action_buffer();
   test_player_move_cancel();
+  test_player_combo();
   test_player_dodge_button();
   test_player_air_rules();
   test_player_hit_window();
