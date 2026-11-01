@@ -942,7 +942,7 @@ def build_stick(armature):
   return stick
 
 
-def bake(armature, rig, clip):
+def bake(armature, rig, clip, moved=("root", "hips", "weapon")):
   stale = bpy.data.actions.get(clip.name)
   if stale:
     bpy.data.actions.remove(stale)
@@ -950,7 +950,6 @@ def bake(armature, rig, clip):
   action.use_fake_user = True
   armature.animation_data.action = action
   bones = armature.pose.bones
-  moved = ("root", "hips", "weapon")
   previous = {}
   rig.max_stretch = 0.0
   steps = clip.frames * BAKE_FPS // AUTHOR_FPS
@@ -1006,4 +1005,5 @@ def main():
   bpy.ops.wm.save_mainfile()
 
 
-main()
+if __name__ == "__main__":
+  main()

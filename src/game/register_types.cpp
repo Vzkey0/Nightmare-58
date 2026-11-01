@@ -3,8 +3,10 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "combat_target.hpp"
 #include "designar_check.hpp"
 #include "player_controller.hpp"
+#include "skeleton_enemy.hpp"
 #include "stat_bar.hpp"
 #include "training_dummy.hpp"
 #include "weapon_trail.hpp"
@@ -18,6 +20,8 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_CLASS(DesignarCheck);
     GDREGISTER_RUNTIME_CLASS(PlayerController);
     GDREGISTER_RUNTIME_CLASS(StatBar);
+    GDREGISTER_RUNTIME_CLASS(CombatTarget);
+    GDREGISTER_RUNTIME_CLASS(SkeletonEnemy);
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
   }

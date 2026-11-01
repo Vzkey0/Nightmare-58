@@ -12,13 +12,14 @@
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
 
+#include <core/ai/attack_turns.hpp>
 #include <core/health.hpp>
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
 
 class StatBar;
-class TrainingDummy;
+class CombatTarget;
 class WeaponTrail;
 
 // Translates input and animation into movement; the rules live in PlayerActions.
@@ -43,6 +44,11 @@ public:
 
   // Does nothing while the player is invulnerable, as during a roll.
   void take_hit(int damage, const godot::Vector3 & attacker);
+  bool is_dead() const { return health.dead(); }
+  int respawn_count() const { return respawns; } // Enemies go back to their places on each one.
+
+  // Shared by every enemy around the player, however many there are.
+  AttackTurns & attack_turns() { return turns; }
 
 private:
   void start_action(const godot::Vector3 & wish);
@@ -63,13 +69,13 @@ private:
   void respawn();
   void update_hud(float delta);
 
-  TrainingDummy * locked_target() const;
+  CombatTarget * locked_target() const;
   float yaw_towards(const godot::Node3D * node) const;
-  bool sees(const TrainingDummy * target) const;
-  float view_side(const TrainingDummy * target) const;
+  bool sees(const CombatTarget * target) const;
+  float view_side(const CombatTarget * target) const;
   void gather_lock_candidates();
   void lock_nearest();
-  void lock_onto(TrainingDummy * target);
+  void lock_onto(CombatTarget * target);
   void switch_lock(int direction);
   void release_lock();
   void update_lock(float delta);
@@ -81,6 +87,7 @@ private:
   Health health{MAX_HEALTH};
   HealthTrail health_trail;
   LockOnList lock_candidates;
+  AttackTurns turns;
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
@@ -124,6 +131,7 @@ private:
   godot::Vector3 camera_focus;
   godot::Vector3 spawn_point;
   float respawn_time = 0.f;
+  int respawns = 0;
 
   uint64_t lock_id = 0; // An id and not a pointer: a target may be freed while locked.
   float lock_hidden_time = 0.f;

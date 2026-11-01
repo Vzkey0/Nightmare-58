@@ -57,6 +57,52 @@ compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y gol
 `weapon` es el punto de agarre del arma. El hombre suma cuatro huesos `hem_*` para el borde de
 la chaqueta, sin claves en los clips.
 
+## Esqueleto
+
+Enemigo común de la avenida. Cabeza grande, cuerpo fino y encorvado, brazos largos y un machete
+gastado en la mano derecha, sin ropa ni armadura. Tomado de las proporciones de una figura estilizada, pero
+con caras planas: ceño caído hacia la nariz, cuencas talladas de verdad, grieta en el cráneo,
+dientes sueltos y una costilla rota. Los ojos son ámbar para no confundirse con la vida del HUD.
+
+[build_skeleton.py](../art/characters/build_skeleton.py) genera el modelo en pose A, guarda
+`skeleton.blend` y exporta `skeleton.glb`, con 3.566 triángulos. Usa los nombres de huesos de la
+protagonista más `jaw`, sin `hem_*`. Cada pieza sigue a un solo hueso: nada se dobla, como en un
+esqueleto real. El machete va pesado al hueso `weapon` y mide 0,72 m de hoja.
+
+[animate_skeleton.py](../art/characters/animate_skeleton.py) genera los clips con el mismo
+resolvedor que la protagonista, y hay que correrlo después de `build_skeleton.py`:
+
+```bash
+blender --background art/characters/skeleton.blend --python art/characters/animate_skeleton.py
+```
+
+| Clip | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 4 s, en bucle | | Encorvado, con la mandíbula chasqueando de vez en cuando |
+| `walk` | 1 s, en bucle | | Paso torpe a 1,4 m/s |
+| `strafe_left`, `strafe_right`, `walk_back` | 0,8 s, en bucle | | Rodear al jugador a 1,1 m/s, mirándolo |
+| `attack_chop` | 1,47 s, avanza 0,42 m | 0,63 a 0,77 s | Alza el machete tras el cráneo y corta en diagonal |
+| `attack_sweep` | 1,33 s, avanza 0,34 m | 0,53 a 0,67 s | Revés abierto a la altura de la cintura |
+| `attack_lunge` | 1,87 s, avanza 2,4 m | 0,9 a 1,03 s | Embestida: se encoge, salta y cae cortando |
+| `hurt` | 0,5 s | | El cráneo salta hacia atrás y la mandíbula cuelga |
+| `death` | 2,2 s | | Cada hueso se suelta y cae por su cuenta; el cráneo acaba junto al montón |
+
+Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos brillan más durante esa
+señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
+queda en el último cuadro, y reproducido al revés es como el esqueleto se rearma a los 12 s.
+
+**IA:** [`SkeletonEnemy`](../src/game/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
+qué hacer y `EnemyActions` lo ejecuta. Un paseo se puede cambiar, un ataque no: un golpe solo lo
+interrumpe antes del barrido, y un combo aturde una vez cada 2,5 s. Deja de girar poco antes del golpe,
+para que esquivar tarde funcione.
+
+**Varios a la vez:** se puede poner cualquier cantidad en una escena sin configurar nada. Solo comparten
+`AttackTurns`, que está en el jugador: atacan dos como máximo, con 0,7 s entre ataques, y los demás
+rodean al jugador, cada uno a su propia distancia. Al morir el jugador, todos vuelven a su sitio.
+
+**Límite conocido:** caminan en línea recta, así que un carro los detiene. Hace falta una malla de
+navegación en la avenida.
+
 ## Animaciones
 
 [animate_protagonist.py](../art/characters/animate_protagonist.py) genera los clips y
