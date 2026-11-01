@@ -26,8 +26,9 @@ public:
   void press(PlayerAction action);
 
   // One button, as in Elden Ring: a tap dodges on release and holding it sprints.
+  // The sprint starts on press: a tap ends before its speed shows, so it needs no wait.
   void update_dodge_button(bool held, float delta);
-  bool sprinting() const { return held_time >= TAP_TIME; }
+  bool sprinting() const { return button_held; }
 
   // Returns true on the step where a new action starts, so the caller can start its clip.
   // In the air an attack becomes an air attack; a dodge or jump waits for the ground.

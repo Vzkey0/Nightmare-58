@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Nightmare 58"
-run/main_scene="res://main.tscn"
+run/main_scene="res://scenes/avenue.tscn"
 config/features=PackedStringArray("4.7")
 
 [input]

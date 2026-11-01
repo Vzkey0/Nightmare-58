@@ -181,6 +181,8 @@ static void test_player_dodge_button()
   assert(tap.current() == PlayerAction::Dodge);
 
   PlayerActions hold;
+  hold.update_dodge_button(true, STEP);
+  assert(hold.sprinting());
   for (float time = 0.f; time < PlayerActions::TAP_TIME + 0.1f; time += STEP)
     hold.update_dodge_button(true, STEP);
   assert(hold.sprinting());

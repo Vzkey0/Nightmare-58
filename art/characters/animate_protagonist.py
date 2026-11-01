@@ -451,15 +451,15 @@ def dodge_clip():
   end_l = (GUARD["foot_l"][0], GUARD["foot_l"][1] + distance, 0.0)
   return Clip("dodge_forward", 24, timeline(
     (0, dict(GUARD)),
-    (2, {
-      "root": 0.05, "hips_pos": (0.0, 0.03, -0.15), "hips_rot": (16, 8, 0), "chest_rot": (6, -3, 0),
+    (1, {
+      "root": 0.15, "hips_pos": (0.0, 0.03, -0.15), "hips_rot": (16, 8, 0), "chest_rot": (6, -3, 0),
       "foot_r": GUARD["foot_r"], "foot_r_rot": GUARD["foot_r_rot"],
       "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"],
     }),
-    (3, {"foot_l": GUARD["foot_l"], "foot_l_rot": (28, 24)}),
-    (4, {"root": 0.45, "foot_r": (-0.14, 0.75, 0.15), "foot_r_rot": (-5, -4)}),
-    (5, {"foot_l": (0.16, 0.05, 0.14), "foot_l_rot": (62, 14)}),
-    (7, {
+    (2, {"foot_l": GUARD["foot_l"], "foot_l_rot": (28, 24)}),
+    (3, {"root": 0.55, "foot_r": (-0.14, 0.85, 0.15), "foot_r_rot": (-5, -4)}),
+    (4, {"foot_l": (0.16, 0.15, 0.14), "foot_l_rot": (62, 14)}),
+    (6, {
       "root": 1.6, "hips_pos": (0.0, 0.06, -0.2), "hips_rot": (31, 0, -3), "spine_rot": (5, 2, 0), "chest_rot": (6, 3, 2),
       "head_rot": (15, 0, 0), "foot_r": (-0.13, 2.1, 0.2), "foot_r_rot": (-16, -4),
       "grip": (-0.34, -0.1, 0.92), "aim": (0.04, 0.92, 0.34), "slide": 0.45,

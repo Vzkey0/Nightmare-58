@@ -212,9 +212,10 @@ Vector3 PlayerController::root_motion_step(float delta) const
   const bool dodge = actions.current() == PlayerAction::Dodge;
   const Ref<Animation> & clip = dodge ? dodge_animation : attack_animation;
   const int track = dodge ? dodge_root_track : attack_root_track;
+  // Steps ahead of the clock, so the action already moves on the tick it starts.
   const float now = actions.elapsed();
-  return clip->position_track_interpolate(track, now) -
-         clip->position_track_interpolate(track, MAX(now - delta, 0.f));
+  return clip->position_track_interpolate(track, now + delta) -
+         clip->position_track_interpolate(track, now);
 }
 
 void PlayerController::update_locomotion_clip(float speed, bool grounded, bool moving, float delta)
