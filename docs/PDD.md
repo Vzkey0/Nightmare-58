@@ -4,9 +4,10 @@ Estado: borrador. Las decisiones sin cerrar están en [Decisiones pendientes](#1
 
 ## 1. Visión
 
-Souls-like 3D low poly ambientado en una Venezuela distópica, 2015-2018. El
-protagonista recorre un país golpeado por apagones, escasez e hiperinflación y
-se enfrenta a leyendas urbanas venezolanas.
+Souls-like 3D low poly ambientado en una Venezuela distópica, 2015-2018. Un
+emigrante vuelve a buscar a su madre y recorre un país golpeado por apagones,
+escasez e hiperinflación, donde la pérdida de la alegría despertó a las leyendas
+urbanas venezolanas. La historia completa está en [lore.md](lore.md).
 
 El nombre viene del +58, el código telefónico de Venezuela.
 
@@ -25,14 +26,14 @@ que hace funcionar el juego, no un añadido.
 
 **Entra (versión a entregar):**
 
-- Una zona jugable con refugio
+- Capítulo 1: la avenida, con refugio y minijefes, y el llano
 - Dos tipos de enemigos comunes
-- Un jefe completo: El Silbón
-- Combate, inventario, árbol de habilidades y moneda con inflación
+- Un jefe completo: El Silbón, en el llano
+- Combate, loot, inventario, árbol de habilidades y moneda con inflación
 - Modo de depuración del árbol de decisiones
 
-**Queda fuera, salvo que sobre tiempo:** más jefes (La Sayona, Juan Machete,
-El Carretón), finales múltiples, árbol de diálogo, Florentino y el Diablo.
+**Queda fuera, salvo que sobre tiempo:** más jefes (La Sayona y otras leyendas),
+árbol de diálogo, Florentino y el Diablo. El final es único: no hay finales múltiples.
 
 ## 4. Mecánicas
 
@@ -60,12 +61,13 @@ miente al jugador sobre la misma distancia que usa el árbol.
 
 ### Economía y progreso
 
-- **Bolívares:** se obtienen al matar y pierden valor con los días de juego.
-- **Muerte:** se dejan los bolívares donde se cayó; un fantasma repite tus últimos pasos.
-- **Refugios:** capillas de carretera y altares de María Lionza. María Lionza sube el nivel.
-- **Curación:** malta o guayoyo, en cantidad limitada.
-- **Bachaquero:** mercader cuyos precios suben cada vez que mueres.
-- **Pacto de Juan Machete:** rama maldita de habilidades, muy fuerte, que reduce la vida máxima.
+- **Lochas:** se obtienen al matar. Cada descanso en un refugio cuenta como un día y
+  les quita valor; vencer a un jefe frena la inflación en esa zona.
+- **Muerte:** se dejan las lochas donde se cayó; un fantasma repite tus últimos pasos.
+- **Refugios:** altares. Permiten subir de nivel.
+- **Curación:** café, en cantidad limitada.
+- **Bachaquero:** mercader que cambia lochas por objetos que no se devalúan. Sus
+  precios suben cada vez que mueres.
 
 ### Apagones
 
@@ -94,7 +96,8 @@ Todas salen de DeSiGNAR. No se usan contenedores de la STL para esto.
 | Récords por jefe | `quicksort` | `sort.hpp` |
 | Botín, nivel, fase, tasa de cambio | `binary_search` | `sort.hpp` |
 
-`insertion_sort` encaja en el lock-on porque la lista casi no cambia entre frames.
+`insertion_sort` encaja en el lock-on porque hay pocos objetivos a la vez, y ordenarlos
+permite comprobar la línea de vista empezando por el más cercano.
 `merge_sort` se usa en el inventario si conserva el orden previo: **hay que
 comprobar que la versión de DeSiGNAR sea estable.**
 
@@ -163,7 +166,7 @@ Flujo: `main` ← `development` ← `feature/*`.
 | 2. Jugador | Movimiento, combate, búfer de inputs | Se pelea contra un muñeco |
 | 3. El Silbón | Jefe con árbol y visor de depuración | Se le puede ganar y perder |
 | 4. Sistemas | Inventario, habilidades, moneda, muerte | Se guardan y cambian la partida |
-| 5. Contenido | Zona, dos enemigos, apagones, audio | Se juega de principio a fin |
+| 5. Contenido | Avenida, llano, dos enemigos, minijefes, apagones, audio | Se juega de principio a fin |
 | 6. Cierre | Exportaciones, documento técnico, exposición | Ejecutables en cada plataforma |
 
 Las fechas se asignan cuando esté el calendario de la materia.
@@ -171,6 +174,8 @@ Las fechas se asignan cuando esté el calendario de la materia.
 ## 10. Decisiones pendientes
 
 1. **Integrantes y fechas de entrega.**
+2. **Nombre del protagonista y minijefes de la avenida.**
+3. **Modelo de la protagonista:** queda fuera del juego.
 
 Decidido: todas las estructuras de datos salen de DeSiGNAR, con Godot 4
 (GDExtension) como motor y CMake para compilar.

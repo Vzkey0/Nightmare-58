@@ -5,6 +5,7 @@
 
 #include "designar_check.hpp"
 #include "player_controller.hpp"
+#include "stat_bar.hpp"
 #include "training_dummy.hpp"
 #include "weapon_trail.hpp"
 
@@ -16,6 +17,7 @@ static void initialize(ModuleInitializationLevel level)
   {
     GDREGISTER_CLASS(DesignarCheck);
     GDREGISTER_RUNTIME_CLASS(PlayerController);
+    GDREGISTER_RUNTIME_CLASS(StatBar);
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
   }

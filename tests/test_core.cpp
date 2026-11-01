@@ -5,8 +5,10 @@
 #include <core/distance.hpp>
 #include <core/health.hpp>
 #include <core/health_trail.hpp>
+#include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
 #include <core/progression/skill_tree.hpp>
+#include <core/stamina.hpp>
 
 static void test_skill_tree()
 {
@@ -437,6 +439,153 @@ static void test_health()
 
   health.restore();
   assert(health.value() == 50);
+
+  health.damage(25);
+  assert(health.ratio() == 0.5f);
+}
+
+static void test_stamina()
+{
+  Stamina stamina(100.f);
+  stamina.spend(30.f);
+  assert(stamina.ratio() == 0.7f);
+
+  // Nothing comes back during an action or right after one.
+  stamina.update(1.f, false);
+  assert(stamina.ratio() == 0.7f);
+  stamina.update(Stamina::REGEN_DELAY, true);
+  assert(stamina.ratio() == 0.7f);
+  stamina.update(STEP, true);
+  assert(stamina.ratio() > 0.7f);
+
+  stamina.spend(1000.f);
+  assert(stamina.ratio() == 0.f);
+  assert(!stamina.can_act());
+  assert(stamina.winded());
+
+  // Actions are back with the first sliver, the sprint only with a share of the bar.
+  stamina.update(Stamina::REGEN_DELAY, true);
+  stamina.update(STEP, true);
+  assert(stamina.can_act());
+  assert(stamina.winded());
+  for (float time = 0.f; time < 1.f; time += STEP)
+    stamina.update(STEP, true);
+  assert(!stamina.winded());
+}
+
+static void test_player_stamina()
+{
+  // The last action comes out with whatever is left, and the next press has to wait.
+  PlayerActions actions;
+  const float full = PlayerActions::MAX_STAMINA;
+  for (float spent = 0.f; spent < full; spent += PlayerActions::timing(PlayerAction::Dodge).stamina_cost)
+  {
+    actions.press(PlayerAction::Dodge);
+    actions.update(STEP, false);
+    assert(actions.current() == PlayerAction::Dodge);
+    advance(actions, PlayerActions::timing(PlayerAction::Dodge).next_action);
+  }
+  assert(actions.stamina_ratio() == 0.f);
+  actions.press(PlayerAction::Attack);
+  assert(!actions.update(STEP, false));
+
+  // A sprint drains the bar and ends by itself; only moving counts.
+  PlayerActions sprint;
+  const auto hold = [&sprint](float seconds, bool moving) {
+    for (float time = 0.f; time < seconds; time += STEP)
+    {
+      sprint.update_dodge_button(true, STEP);
+      sprint.update(STEP, moving);
+    }
+  };
+  hold(1.f, false);
+  assert(sprint.stamina_ratio() == 1.f);
+  hold(1.f, true);
+  assert(sprint.stamina_ratio() < 1.f);
+  assert(sprint.sprinting());
+  hold(full / PlayerActions::SPRINT_COST, true);
+  assert(sprint.winded());
+  assert(!sprint.sprinting());
+}
+
+static void test_player_hurt()
+{
+  const ActionTiming & roll = PlayerActions::timing(PlayerAction::Dodge);
+
+  PlayerActions rolling;
+  assert(!rolling.invulnerable());
+  rolling.press(PlayerAction::Dodge);
+  rolling.update(STEP, false);
+  assert(rolling.invulnerable());
+  advance(rolling, PlayerActions::DODGE_SAFE_TIME);
+  assert(!rolling.invulnerable());
+  assert(rolling.current() == PlayerAction::Dodge);
+  assert(PlayerActions::DODGE_SAFE_TIME < roll.ground_hit);
+
+  // A hit cancels the action and what was queued, and cannot land twice in a row.
+  PlayerActions hit;
+  hit.press(PlayerAction::Attack);
+  hit.update(STEP, false);
+  hit.press(PlayerAction::Attack);
+  hit.hurt();
+  assert(hit.current() == PlayerAction::Hurt);
+  assert(hit.invulnerable());
+  advance(hit, PlayerActions::timing(PlayerAction::Hurt).duration + 0.1f);
+  assert(hit.current() == PlayerAction::None);
+
+  PlayerActions dead;
+  dead.press(PlayerAction::Dodge);
+  dead.update(STEP, false);
+  dead.die();
+  dead.press(PlayerAction::Attack);
+  advance(dead, 30.f, true);
+  assert(dead.current() == PlayerAction::Dead);
+  dead.revive();
+  assert(dead.current() == PlayerAction::None);
+  assert(dead.stamina_ratio() == 1.f);
+}
+
+static void test_player_heavy_attack()
+{
+  const ActionTiming & heavy = PlayerActions::timing(PlayerAction::HeavyAttack);
+  assert(heavy.damage > PlayerActions::timing(PlayerAction::Attack3).damage);
+  assert(heavy.dodge_cancel >= heavy.hit_end);
+  assert(heavy.dodge_cancel < heavy.next_action);
+
+  // It breaks the combo: the next light blow starts over.
+  PlayerActions actions;
+  actions.press(PlayerAction::Attack);
+  actions.update(STEP, false);
+  chain_attack(actions);
+  assert(actions.current() == PlayerAction::Attack2);
+  const float wait = PlayerActions::timing(PlayerAction::Attack2).next_action;
+  advance(actions, wait);
+  actions.press(PlayerAction::HeavyAttack);
+  actions.update(STEP, false);
+  assert(actions.current() == PlayerAction::HeavyAttack);
+  assert(actions.stepping_attack());
+  chain_attack(actions);
+  assert(actions.current() == PlayerAction::Attack);
+}
+
+static void test_lock_on()
+{
+  LockOnList list;
+  list.sort();
+  assert(list.size() == 0);
+  assert(list.next_to(0.f, 1) == LockOnList::NONE);
+
+  list.add(LockCandidate{0, 9.f, 0.5f});
+  list.add(LockCandidate{1, 3.f, -0.4f});
+  list.add(LockCandidate{2, 6.f, 0.1f});
+  list.add(LockCandidate{3, 4.f, -0.9f});
+  list.sort();
+  assert(list[0].id == 1 && list[1].id == 3 && list[2].id == 2 && list[3].id == 0);
+
+  assert(list.next_to(0.1f, 1) == 0);
+  assert(list.next_to(0.1f, -1) == 1);
+  assert(list.next_to(-0.4f, -1) == 3);
+  assert(list.next_to(0.5f, 1) == LockOnList::NONE);
 }
 
 static void test_health_trail()
@@ -490,5 +639,10 @@ int main()
   test_player_ground_hit();
   test_health();
   test_health_trail();
+  test_stamina();
+  test_player_stamina();
+  test_player_hurt();
+  test_player_heavy_attack();
+  test_lock_on();
   return 0;
 }

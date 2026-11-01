@@ -90,32 +90,11 @@ color_ramp = SubResource("spark_fade")
 
 [node name="BarLayer" type="CanvasLayer" parent="."]
 
-[node name="HealthBar" type="Control" parent="BarLayer"]
+[node name="HealthBar" type="StatBar" parent="BarLayer"]
 layout_mode = 3
 anchors_preset = 0
-offset_right = 140.0
-offset_bottom = 12.0
+offset_right = 150.0
+offset_bottom = 16.0
 mouse_filter = 2
-
-[node name="Back" type="ColorRect" parent="BarLayer/HealthBar"]
-layout_mode = 0
-offset_left = -2.0
-offset_top = -2.0
-offset_right = 142.0
-offset_bottom = 14.0
-mouse_filter = 2
-color = Color(0.05, 0.05, 0.06, 0.85)
-
-[node name="Trail" type="ColorRect" parent="BarLayer/HealthBar"]
-layout_mode = 0
-offset_right = 140.0
-offset_bottom = 12.0
-mouse_filter = 2
-color = Color(0.98, 0.78, 0.45, 1)
-
-[node name="Fill" type="ColorRect" parent="BarLayer/HealthBar"]
-layout_mode = 0
-offset_right = 140.0
-offset_bottom = 12.0
-mouse_filter = 2
-color = Color(0.78, 0.13, 0.12, 1)
+fill_color = Color(0.9, 0.1, 0.15, 1)
+tip = 8.0

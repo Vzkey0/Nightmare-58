@@ -718,6 +718,102 @@ def attack_run_clip():
   ))
 
 
+def attack_heavy_clip():
+  """The heavy blow: both hands haul the stick behind the head, the body holds there leaning back
+  long enough to read, and all of it comes down on a long step into the ground."""
+  distance = 0.9
+  raised = {"grip": (-0.14, -0.1, 1.62), "aim": (-0.1, -0.86, 0.5), "slide": 0.0}
+  slam = {
+    "hips_pos": (-0.01, 0.09, -0.38), "hips_rot": (38, 6, 0), "spine_rot": (10, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (18, 0, 0),
+    "grip": (0.0, 0.6, 0.6), "aim": (0.02, 0.8, -0.6), "slide": 0.0,
+    "foot_r": (-0.17, 0.92, 0.0), "foot_r_rot": GUARD["foot_r_rot"], "foot_l": (0.19, 0.2, 0.0), "foot_l_rot": (36, 8),
+  }
+  return Clip("attack_heavy", 36, timeline(
+    (0, dict(GUARD)),
+    (3, {"grip": (-0.24, 0.18, 1.3), "aim": (-0.1, 0.3, 0.95), "slide": 0.0, "left_on": 0.6, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
+    (6, dict(raised, root=-0.06, left_on=1.0, hips_pos=(0.0, -0.06, -0.14), hips_rot=(-8, -14, 0), chest_rot=(-8, -10, 0), head_rot=(0, -4, 0))),
+    (11, dict(raised, root=-0.08, hips_pos=(0.0, -0.08, -0.16), foot_r=GUARD["foot_r"], foot_r_rot=GUARD["foot_r_rot"], foot_l=GUARD["foot_l"], foot_l_rot=GUARD["foot_l_rot"])),
+    (13, {
+      "root": 0.4, "hips_pos": (0.0, 0.02, -0.2), "hips_rot": (10, 2, 0), "chest_rot": (0, 4, 0), "head_rot": (8, 0, 0),
+      "grip": (-0.08, 0.42, 1.46), "aim": (-0.05, 0.5, 0.86), "foot_r": (-0.16, 0.62, 0.12), "foot_r_rot": (-10, -8),
+    }),
+    (14, {"root": 0.7, "grip": (-0.03, 0.66, 1.0), "aim": (0.0, 0.94, 0.08)}),
+    (16, dict(slam, root=0.84)),
+    (18, dict(slam, root=0.86, hips_pos=(-0.01, 0.1, -0.43))),
+    (27, dict(slam, root=0.88, hips_rot=(35, 6, 0))),
+    (32, {"foot_l": (0.19, 0.7, 0.08), "foot_l_rot": (20, 14)}),
+    (36, recovery(distance)),
+  ))
+
+
+def hurt_clip():
+  """Thrown back by a blow: the chest goes first, the left foot catches the weight and the stick
+  flies out to the side before the guard comes back."""
+  return Clip("hurt", 15, timeline(
+    (0, dict(GUARD)),
+    (3, {
+      "hips_pos": (0.02, -0.1, -0.18), "hips_rot": (-8, 22, -3), "spine_rot": (-6, 6, 0), "chest_rot": (-12, 8, 0), "head_rot": (-16, 6, 0),
+      "grip": (-0.42, 0.02, 1.06), "aim": (-0.55, 0.6, 0.55), "hand_l": (0.42, -0.05, 1.1), "foot_l": (0.19, -0.34, 0.04), "foot_l_rot": (18, 26),
+    }),
+    (6, {"hips_pos": (0.01, -0.08, -0.2), "foot_l": (0.19, -0.38, 0.0), "foot_l_rot": (0, 28)}),
+    (15, recovery(0.0)),
+  ))
+
+
+def death_clip():
+  """The knees give first, then the whole body tips back onto the ground. It holds its last frame."""
+  return Clip("death", 27, timeline(
+    (0, dict(GUARD, tumble=0.0, lift=0.0, feet_free=0.0)),
+    (5, {
+      "hips_pos": (0.0, -0.05, -0.42), "hips_rot": (-6, 20, 4), "chest_rot": (-14, 0, 0), "head_rot": (-10, 8, 0),
+      "grip": (-0.42, 0.04, 0.92), "aim": (-0.6, 0.6, -0.5), "hand_l": (0.42, 0.02, 0.82),
+    }),
+    (8, {"tumble": 0.0, "feet_free": 0.0, "lift": 0.0}),
+    (16, {"tumble": -55.0, "feet_free": 0.7, "lift": -0.08}),
+    (22, {"tumble": -93.0, "feet_free": 1.0, "lift": -0.3}),
+    (25, {"tumble": -86.0}),
+    (27, {"tumble": -88.0}),
+  ))
+
+
+# PlayerController::LOCK_SPEED must match this speed.
+LOCK_SPEED = 2.2
+LOCK_FRAMES = 12
+LOCK_STANCE = 0.5
+
+
+def lock_foot(home_x, offset, move):
+  """A run foot's path, centred under the body and turned towards the direction of travel."""
+  path = run_foot(0.0, offset, LOCK_SPEED, LOCK_FRAMES, LOCK_STANCE, 0.45)
+  center = LANDING_REACH - LOCK_SPEED * LOCK_FRAMES / AUTHOR_FPS * LOCK_STANCE * 0.5
+
+  def position(phase):
+    _, along, height = path(phase)
+    return (home_x + move[0] * (along - center), move[1] * (along - center), height)
+
+  return position
+
+
+def lock_clip(name, move, feet_apart):
+  """Walking around a locked target in guard. The stride is short and the feet wide, so a
+  sidestep does not cross the legs. move is (left, forward)."""
+  hips_x, hips_forward, hips_z = GUARD["hips_pos"]
+  pitch, yaw, _ = GUARD["hips_rot"]
+  channels = {key: [(0, GUARD[key])] for key in (
+    "spine_rot", "chest_rot", "head_rot", "grip", "aim", "slide", "left_on", "left_dist", "hand_l", "pole_r", "pole_l",
+  )}
+  channels.update({
+    "root": [(0, 0.0)],
+    "hips_pos": lambda p: (hips_x + 0.02 * wave(p, 0.25), hips_forward, hips_z + 0.014 * wave(p, 0.1, 2)),
+    "hips_rot": lambda p: (pitch, yaw, 5 * move[0] + 1.5 * wave(p, 0.25)),
+    "foot_l": lock_foot(feet_apart, 0.0, move),
+    "foot_r": lock_foot(-feet_apart, 0.5, move),
+    "foot_l_rot": [(0, (0, 10))],
+    "foot_r_rot": [(0, (0, -10))],
+  })
+  return Clip(name, LOCK_FRAMES, channels, loop=True)
+
+
 def run_start_clip():
   """The first two steps from a stand. Ends on the frame the run clip's left foot lands, and
   the stance foot moves back at run speed from the moment it touches down."""
@@ -804,6 +900,12 @@ CLIPS = [
   attack_roll_clip(),
   attack_run_clip(),
   air_attack_clip(),
+  attack_heavy_clip(),
+  hurt_clip(),
+  death_clip(),
+  lock_clip("walk_back-loop", (0.0, -1.0), 0.15),
+  lock_clip("strafe_left-loop", (1.0, 0.0), 0.2),
+  lock_clip("strafe_right-loop", (-1.0, 0.0), 0.2),
 ]
 
 

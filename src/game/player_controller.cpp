@@ -1,4 +1,5 @@
 #include "player_controller.hpp"
+#include "stat_bar.hpp"
 #include "training_dummy.hpp"
 #include "weapon_trail.hpp"
 
@@ -6,8 +7,12 @@
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
+#include <godot_cpp/classes/physics_direct_space_state3d.hpp>
+#include <godot_cpp/classes/physics_ray_query_parameters3d.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/scene_tree_timer.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -84,6 +89,33 @@ constexpr float WHIRL_START = 0.12f; // The third blow's overhead spin, before i
 
 constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing sound.
 
+constexpr float HURT_PUSH = 4.f;
+constexpr float RESPAWN_TIME = 3.f;
+
+constexpr float LOCK_SPEED = 2.2f; // Must match LOCK_SPEED in animate_protagonist.py.
+constexpr float LOCK_RANGE = 12.f;
+constexpr float LOCK_BREAK_RANGE = 16.f;
+constexpr float LOCK_VIEW_ANGLE = 1.05f;
+constexpr float LOCK_HIDDEN_TIME = 1.f;
+constexpr float LOCK_HEIGHT = 1.2f; // Aims at the chest.
+constexpr float LOCK_CAMERA_FOLLOW = 9.f;
+constexpr float LOCK_CAMERA_PITCH = -0.2f; // Over the shoulder, so the player stays in view.
+constexpr float LOCK_MIN_CAMERA_GAP = 0.8f; // Closer than this, the direction spins too fast.
+constexpr float LOCK_PITCH_MIN_GAP = 4.f;   // Up close, the camera would stare at the floor.
+constexpr float LOCK_FLICK = 140.f; // Pixels.
+constexpr float LOCK_FLICK_FADE = 8.f;
+constexpr float LOCK_STICK_FLICK = 0.75f;
+constexpr float LOCK_STICK_REST = 0.3f;
+constexpr uint32_t LEVEL_MASK = 1;
+
+constexpr float HUD_BASE_HEIGHT = 1080.f; // The HUD's sizes in player.tscn are for this height.
+const Color HEALTH_HIGH(0.12f, 0.9f, 0.34f);
+const Color HEALTH_MID(1.f, 0.74f, 0.12f);
+const Color HEALTH_LOW(1.f, 0.46f, 0.08f);
+const Color HEALTH_CRITICAL(0.9f, 0.1f, 0.15f);
+const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
+const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
+
 constexpr float STEP_VOLUME_WALK = -18.f;
 constexpr float STEP_VOLUME_RUN = -12.f;
 constexpr float STEP_VOLUME_SPRINT = -8.f;
@@ -91,6 +123,15 @@ constexpr float STEP_VOLUME_SPRINT = -8.f;
 float damp(float rate, float delta)
 {
   return 1.f - Math::exp(-rate * delta);
+}
+
+const Color & health_color(float ratio)
+{
+  if (ratio > 0.6f)
+    return HEALTH_HIGH;
+  if (ratio > 0.35f)
+    return HEALTH_MID;
+  return ratio > 0.15f ? HEALTH_LOW : HEALTH_CRITICAL;
 }
 }
 
@@ -106,6 +147,8 @@ void PlayerController::_bind_methods()
 
 void PlayerController::_ready()
 {
+  add_to_group("player");
+  spawn_point = get_global_position();
   model = get_node<Node3D>("Model");
   camera_pivot = get_node<Node3D>("CameraPivot");
   camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
@@ -120,6 +163,10 @@ void PlayerController::_ready()
   roll_sound = get_node<AudioStreamPlayer>("Sounds/Roll");
   roll_land_sound = get_node<AudioStreamPlayer>("Sounds/RollLand");
   step_sound = get_node<AudioStreamPlayer>("Sounds/Step");
+  hud_panel = get_node<Control>("Hud/Panel");
+  health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
+  stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
+  lock_marker = get_node<Node2D>("Hud/LockMarker");
   base_fov = camera->get_fov();
 
   // The scene places the player with a rotation; it moves to the model and the camera.
@@ -143,6 +190,8 @@ void PlayerController::_ready()
   roll_attack_root_track = roll_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
   run_attack_animation = animator->get_animation(attack_run_clip);
   run_attack_root_track = run_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  heavy_attack_animation = animator->get_animation(attack_heavy_clip);
+  heavy_attack_root_track = heavy_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
 
   Ref<AnimationLibrary> clips = animator->get_animation_library("");
   clips->add_animation(dodge_clip[1], dodge_animation);
@@ -163,16 +212,21 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
   }
 
   const InputEventMouseMotion * motion = Object::cast_to<InputEventMouseMotion>(*event);
-  if (motion != nullptr && captured)
+  if (motion == nullptr || !captured)
+    return;
+  if (locked_target() != nullptr)
   {
-    camera_yaw -= motion->get_relative().x * mouse_sensitivity;
-    camera_pitch -= motion->get_relative().y * mouse_sensitivity;
+    lock_flick += motion->get_relative().x;
+    return;
   }
+  camera_yaw -= motion->get_relative().x * mouse_sensitivity;
+  camera_pitch -= motion->get_relative().y * mouse_sensitivity;
 }
 
 void PlayerController::_process(double delta)
 {
   update_camera(static_cast<float>(delta));
+  update_hud(static_cast<float>(delta));
 }
 
 void PlayerController::_physics_process(double delta_time)
@@ -195,6 +249,10 @@ void PlayerController::_physics_process(double delta_time)
     actions.press(PlayerAction::Jump);
   if (input->is_action_just_pressed(attack_input))
     actions.press(PlayerAction::Attack);
+  if (input->is_action_just_pressed(heavy_attack_input))
+    actions.press(PlayerAction::HeavyAttack);
+
+  update_lock(delta);
 
   const bool started = actions.update(delta, wants_to_move, grounded);
   if (started)
@@ -206,6 +264,17 @@ void PlayerController::_physics_process(double delta_time)
 
   const PlayerAction action = actions.current();
   const bool attacking = actions.stepping_attack();
+  const bool stunned = action == PlayerAction::Hurt || action == PlayerAction::Dead;
+  const TrainingDummy * locked = locked_target();
+  const bool strafing = locked != nullptr && !actions.sprinting();
+
+  if (action == PlayerAction::Dead)
+  {
+    respawn_time -= delta;
+    if (respawn_time <= 0.f)
+      respawn();
+  }
+
   if (landed)
     step_sound->play();
   if (landed && !started && action == PlayerAction::None && !wants_to_move)
@@ -220,11 +289,11 @@ void PlayerController::_physics_process(double delta_time)
 
   if (action == PlayerAction::Dodge || attacking)
     velocity = Vector3(root_motion_step(delta)).rotated(UP, facing_yaw) * step_scale / delta;
-  else if (action == PlayerAction::AirAttack && grounded)
+  else if ((action == PlayerAction::AirAttack && grounded) || stunned)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
-    const float top_speed = actions.sprinting() ? SPRINT_SPEED : run_speed;
+    const float top_speed = actions.sprinting() ? SPRINT_SPEED : (strafing ? LOCK_SPEED : run_speed);
     if (air_time < COYOTE_TIME && action != PlayerAction::Jump)
       velocity = velocity.move_toward(wish * top_speed, (wants_to_move ? ACCELERATION : DECELERATION) * delta);
     else
@@ -232,10 +301,12 @@ void PlayerController::_physics_process(double delta_time)
       velocity = velocity.move_toward(wish * MAX(velocity.length(), run_speed), AIR_CONTROL * delta);
     if (wants_to_move && action != PlayerAction::AirAttack)
       target_yaw = Math::atan2(wish.x, wish.z);
+    if (strafing && action != PlayerAction::AirAttack)
+      target_yaw = yaw_towards(locked);
     if (action == PlayerAction::None)
     {
       const bool reversing = wants_to_move && velocity.dot(wish) < REVERSE_DOT * velocity.length() * wish.length();
-      update_locomotion_clip(velocity.length(), grounded, wish.length(), reversing, delta);
+      update_locomotion_clip(velocity.length(), grounded, wish.length(), reversing, strafing ? strafe_clip_for(velocity) : StringName(), delta);
     }
   }
 
@@ -290,6 +361,12 @@ void PlayerController::start_action(const Vector3 & wish)
       motion_track = run_attack_root_track;
       bend_towards_target(wish);
       break;
+    case PlayerAction::HeavyAttack:
+      play(attack_heavy_clip, BLEND_TO_ATTACK);
+      motion_animation = heavy_attack_animation;
+      motion_track = heavy_attack_root_track;
+      bend_towards_target(wish);
+      break;
     case PlayerAction::Jump:
       vertical_speed = JUMP_SPEED;
       air_time = COYOTE_TIME;
@@ -303,7 +380,12 @@ void PlayerController::start_action(const Vector3 & wish)
 
 void PlayerController::bend_towards_target(const Vector3 & wish)
 {
-  const Vector3 heading = wish.length_squared() > 0.01f ? wish.normalized() : MODEL_FORWARD.rotated(UP, facing_yaw);
+  // A locked target wins over the direction pushed: that blow is aimed at it.
+  const TrainingDummy * locked = locked_target();
+  if (locked != nullptr)
+    target_yaw = yaw_towards(locked);
+  const bool pushing = locked == nullptr && wish.length_squared() > 0.01f;
+  const Vector3 heading = pushing ? wish.normalized() : MODEL_FORWARD.rotated(UP, locked != nullptr ? target_yaw : facing_yaw);
   Vector3 closest;
   float distance = MAGNET_RANGE;
   const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
@@ -395,6 +477,181 @@ void PlayerController::end_hitstop()
   Engine::get_singleton()->set_time_scale(1.0);
 }
 
+void PlayerController::take_hit(int damage, const Vector3 & attacker)
+{
+  if (actions.invulnerable())
+    return;
+
+  const Vector3 away = (get_global_position() - attacker).slide(UP).normalized();
+  target_yaw = Math::atan2(-away.x, -away.z);
+  set_velocity(away * HURT_PUSH);
+  land_time = 0.f;
+  flourish_time = 0.f;
+  animator->set_speed_scale(1.f);
+  feel_hit(damage);
+  hit_sound->play();
+
+  health.damage(damage);
+  if (health.dead())
+  {
+    actions.die();
+    release_lock();
+    respawn_time = RESPAWN_TIME;
+    play(death_clip, BLEND_TO_DODGE);
+    return;
+  }
+  actions.hurt();
+  play(hurt_clip, BLEND_TO_DODGE);
+}
+
+void PlayerController::respawn()
+{
+  set_global_position(spawn_point);
+  set_velocity(Vector3());
+  health.restore();
+  actions.revive();
+  play(idle_clip, BLEND_TO_IDLE);
+}
+
+TrainingDummy * PlayerController::locked_target() const
+{
+  return Object::cast_to<TrainingDummy>(ObjectDB::get_instance(lock_id));
+}
+
+float PlayerController::yaw_towards(const Node3D * node) const
+{
+  const Vector3 offset = node->get_global_position() - get_global_position();
+  return Math::atan2(offset.x, offset.z);
+}
+
+bool PlayerController::sees(const TrainingDummy * target) const
+{
+  const Vector3 from = get_global_position() + UP * CAMERA_HEIGHT;
+  const Vector3 to = target->get_global_position() + UP * LOCK_HEIGHT;
+  const Dictionary hit = get_world_3d()->get_direct_space_state()->intersect_ray(PhysicsRayQueryParameters3D::create(from, to, LEVEL_MASK));
+  return hit.is_empty() || static_cast<uint64_t>(hit["collider_id"]) == target->get_instance_id();
+}
+
+float PlayerController::view_side(const TrainingDummy * target) const
+{
+  const Vector3 offset = (target->get_global_position() - camera_focus).slide(UP);
+  return Math::wrapf(Math::atan2(-offset.x, -offset.z) - camera_yaw, -PI, PI);
+}
+
+void PlayerController::gather_lock_candidates()
+{
+  lock_candidates.clear();
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  for (int i = 0; i < targets.size(); ++i)
+  {
+    const TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[i]);
+    if (target == nullptr || target->is_down())
+      continue;
+    const float distance = target->get_global_position().distance_to(camera_focus);
+    const float side = view_side(target);
+    if (distance < LOCK_RANGE && Math::abs(side) < LOCK_VIEW_ANGLE)
+      lock_candidates.add(LockCandidate{i, distance, side});
+  }
+  lock_candidates.sort();
+}
+
+void PlayerController::lock_nearest()
+{
+  gather_lock_candidates();
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  for (int i = 0; i < lock_candidates.size(); ++i)
+  {
+    TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[lock_candidates[i].id]);
+    if (sees(target))
+    {
+      lock_onto(target);
+      return;
+    }
+  }
+}
+
+void PlayerController::lock_onto(TrainingDummy * target)
+{
+  release_lock();
+  lock_id = target->get_instance_id();
+  target->set_targeted(true);
+}
+
+void PlayerController::switch_lock(int direction)
+{
+  gather_lock_candidates();
+  const int next = lock_candidates.next_to(view_side(locked_target()), direction);
+  if (next == LockOnList::NONE)
+    return;
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  TrainingDummy * target = Object::cast_to<TrainingDummy>(targets[next]);
+  if (sees(target))
+    lock_onto(target);
+}
+
+void PlayerController::release_lock()
+{
+  TrainingDummy * target = locked_target();
+  if (target != nullptr)
+    target->set_targeted(false);
+  lock_id = 0;
+  lock_hidden_time = 0.f;
+  lock_flick = 0.f;
+}
+
+void PlayerController::update_lock(float delta)
+{
+  Input * input = Input::get_singleton();
+  if (input->is_action_just_pressed(lock_input) && actions.current() != PlayerAction::Dead)
+  {
+    if (locked_target() != nullptr)
+      release_lock();
+    else
+      lock_nearest();
+  }
+
+  const TrainingDummy * target = locked_target();
+  if (target == nullptr)
+    return;
+
+  lock_hidden_time = sees(target) ? 0.f : lock_hidden_time + delta;
+  if (target->is_down() || lock_hidden_time > LOCK_HIDDEN_TIME ||
+      target->get_global_position().distance_to(get_global_position()) > LOCK_BREAK_RANGE)
+  {
+    release_lock();
+    return;
+  }
+
+  const float stick = input->get_axis(camera_left, camera_right);
+  const bool stick_flicked = stick_centered && Math::abs(stick) > LOCK_STICK_FLICK;
+  stick_centered = Math::abs(stick) < LOCK_STICK_REST || (stick_centered && !stick_flicked);
+  lock_flick = Math::lerp(lock_flick, 0.f, damp(LOCK_FLICK_FADE, delta));
+  if (stick_flicked || Math::abs(lock_flick) > LOCK_FLICK)
+  {
+    const float push = stick_flicked ? stick : lock_flick;
+    lock_flick = 0.f;
+    switch_lock(push > 0.f ? -1 : 1);
+  }
+}
+
+void PlayerController::update_hud(float delta)
+{
+  const float scale = get_viewport()->get_visible_rect().size.y / HUD_BASE_HEIGHT;
+  hud_panel->set_scale(Vector2(scale, scale));
+
+  health_trail.update(health.ratio(), delta);
+  health_bar->set_values(health.ratio(), health_trail.value());
+  health_bar->set_fill_color(health_color(health.ratio()));
+  stamina_bar->set_values(actions.stamina_ratio(), 0.f);
+  stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
+
+  const TrainingDummy * target = locked_target();
+  const Vector3 aim = target != nullptr ? target->get_global_position() + UP * LOCK_HEIGHT : Vector3();
+  lock_marker->set_visible(target != nullptr && !camera->is_position_behind(aim));
+  if (lock_marker->is_visible())
+    lock_marker->set_position(camera->unproject_position(aim));
+}
+
 Vector3 PlayerController::root_motion_step(float delta) const
 {
   // Reading the curve on each tick instead of the mixer's per-render-frame delta: a tick
@@ -412,7 +669,7 @@ void PlayerController::start_flourish(const StringName & clip, float time)
   flourish_time = time;
 }
 
-void PlayerController::update_locomotion_clip(float speed, bool grounded, float push, bool reversing, float delta)
+void PlayerController::update_locomotion_clip(float speed, bool grounded, float push, bool reversing, const StringName & strafe, float delta)
 {
   if (!grounded)
   {
@@ -427,10 +684,11 @@ void PlayerController::update_locomotion_clip(float speed, bool grounded, float 
   if (land_time > 0.f && !moving)
     return;
 
+  const bool strafing = !strafe.is_empty();
   const bool striding = is_stride(current_clip);
   const bool fast = speed > run_speed * BRAKE_SPEED;
   // Pushing against a wall stays idle, or the start would replay on every failed step.
-  if (moving && push >= FULL_PUSH && current_clip == idle_clip && !is_on_wall())
+  if (moving && push >= FULL_PUSH && current_clip == idle_clip && !is_on_wall() && !strafing)
     start_flourish(run_start_clip, RUN_START_TIME);
   else if (!moving && fast && (striding || current_clip == run_start_clip))
   {
@@ -452,10 +710,11 @@ void PlayerController::update_locomotion_clip(float speed, bool grounded, float 
   flourish_time = 0.f;
 
   const bool running = speed > RUN_THRESHOLD;
-  const bool sprinting = speed > (run_speed + SPRINT_SPEED) * 0.5f;
-  const bool walking = moving ? push < FULL_PUSH : speed < (run_speed + WALK_SPEED) * 0.5f;
-  const StringName & clip = !running ? idle_clip : (sprinting ? sprint_clip : (walking ? walk_clip : run_clip));
-  const float clip_speed = sprinting ? SPRINT_SPEED : (walking ? WALK_SPEED : run_speed);
+  const bool sprinting = !strafing && speed > (run_speed + SPRINT_SPEED) * 0.5f;
+  const bool walking = strafing || (moving ? push < FULL_PUSH : speed < (run_speed + WALK_SPEED) * 0.5f);
+  const StringName & stride = strafing ? strafe : (sprinting ? sprint_clip : (walking ? walk_clip : run_clip));
+  const StringName & clip = !running ? idle_clip : stride;
+  const float clip_speed = sprinting ? SPRINT_SPEED : (clip == walk_clip ? WALK_SPEED : (strafing ? LOCK_SPEED : run_speed));
 
   // The stride clips share a phase, so the feet stay in step when one blends into another.
   const bool keep_phase = striding && is_stride(clip) && clip != current_clip;
@@ -479,9 +738,20 @@ void PlayerController::update_locomotion_clip(float speed, bool grounded, float 
   }
 }
 
+const StringName & PlayerController::strafe_clip_for(const Vector3 & velocity) const
+{
+  // ponytail: picks the main one of four directions, so a diagonal slides a little. An
+  // AnimationTree would blend them, if that ever shows.
+  const Vector3 local = velocity.rotated(UP, -facing_yaw);
+  if (Math::abs(local.z) >= Math::abs(local.x))
+    return local.z >= 0.f ? walk_clip : walk_back_clip;
+  return local.x > 0.f ? strafe_left_clip : strafe_right_clip;
+}
+
 bool PlayerController::is_stride(const StringName & clip) const
 {
-  return clip == walk_clip || clip == run_clip || clip == sprint_clip;
+  return clip == walk_clip || clip == run_clip || clip == sprint_clip || clip == walk_back_clip ||
+         clip == strafe_left_clip || clip == strafe_right_clip;
 }
 
 void PlayerController::play(const StringName & clip, float blend)
@@ -517,12 +787,25 @@ void PlayerController::turn_model(float delta, float speed)
 
 void PlayerController::update_camera(float delta)
 {
-  const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);
-  camera_yaw -= look.x * CAMERA_STICK_SPEED * delta;
-  camera_pitch = CLAMP(camera_pitch - look.y * CAMERA_STICK_SPEED * delta, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
+  const TrainingDummy * locked = locked_target();
+  if (locked == nullptr)
+  {
+    const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);
+    camera_yaw -= look.x * CAMERA_STICK_SPEED * delta;
+    camera_pitch -= look.y * CAMERA_STICK_SPEED * delta;
+  }
+  camera_pitch = CLAMP(camera_pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
 
   const Vector3 focus = get_global_transform_interpolated().origin + UP * CAMERA_HEIGHT;
   camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
+  if (locked != nullptr)
+  {
+    const Vector3 offset = locked->get_global_position() + UP * LOCK_HEIGHT - camera_focus;
+    const float gap = offset.slide(UP).length();
+    if (gap > LOCK_MIN_CAMERA_GAP)
+      camera_yaw = Math::lerp_angle(camera_yaw, Math::atan2(-offset.x, -offset.z), damp(LOCK_CAMERA_FOLLOW, delta));
+    camera_pitch = Math::lerp(camera_pitch, Math::atan2(offset.y, MAX(gap, LOCK_PITCH_MIN_GAP)) + LOCK_CAMERA_PITCH, damp(LOCK_CAMERA_FOLLOW, delta));
+  }
   camera_pivot->set_global_position(camera_focus);
   camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
 

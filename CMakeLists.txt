@@ -45,6 +45,7 @@ add_library(nightmare58_ext SHARED
   src/game/designar_check.cpp
   src/game/player_controller.cpp
   src/game/register_types.cpp
+  src/game/stat_bar.cpp
   src/game/training_dummy.cpp
   src/game/weapon_trail.cpp)
 target_include_directories(nightmare58_ext PRIVATE src)

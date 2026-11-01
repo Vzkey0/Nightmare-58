@@ -9,6 +9,7 @@ public:
   void restore() { current = maximum; }
 
   int value() const { return current; }
+  float ratio() const { return static_cast<float>(current) / maximum; }
   bool dead() const { return current == 0; }
 
 private:
