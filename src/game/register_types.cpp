@@ -4,13 +4,17 @@
 #include <godot_cpp/godot.hpp>
 
 #include "designar_check.hpp"
+#include "player_controller.hpp"
 
 using namespace godot;
 
 static void initialize(ModuleInitializationLevel level)
 {
   if (level == MODULE_INITIALIZATION_LEVEL_SCENE)
+  {
     GDREGISTER_CLASS(DesignarCheck);
+    GDREGISTER_RUNTIME_CLASS(PlayerController);
+  }
 }
 
 static void terminate(ModuleInitializationLevel) {}

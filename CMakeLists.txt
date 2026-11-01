@@ -22,7 +22,8 @@ add_subdirectory(extern/godot-cpp)
 
 add_library(nightmare58_core STATIC
   src/core/progression/skill_tree.cpp
-  src/core/ai/behavior_tree.cpp)
+  src/core/ai/behavior_tree.cpp
+  src/core/player/player_actions.cpp)
 target_include_directories(nightmare58_core PUBLIC src)
 target_link_libraries(nightmare58_core PUBLIC Designar::Designar)
 
@@ -34,12 +35,18 @@ add_test(NAME core COMMAND test_core)
 add_executable(behavior_tree_benchmark benchmarks/behavior_tree_benchmark.cpp)
 target_link_libraries(behavior_tree_benchmark PRIVATE Designar::Designar)
 
+add_executable(input_buffer_benchmark benchmarks/input_buffer_benchmark.cpp)
+target_link_libraries(input_buffer_benchmark PRIVATE Designar::Designar)
+
 add_executable(Nightmare58 src/main.cpp)
 target_link_libraries(Nightmare58 PRIVATE Designar::Designar)
 
-add_library(nightmare58_ext SHARED src/game/designar_check.cpp src/game/register_types.cpp)
+add_library(nightmare58_ext SHARED
+  src/game/designar_check.cpp
+  src/game/player_controller.cpp
+  src/game/register_types.cpp)
 target_include_directories(nightmare58_ext PRIVATE src)
-target_link_libraries(nightmare58_ext PRIVATE godot-cpp Designar::Designar)
+target_link_libraries(nightmare58_ext PRIVATE godot-cpp nightmare58_core)
 get_target_property(GODOT_SUFFIX godot-cpp GODOTCPP_SUFFIX)
 set_target_properties(nightmare58_ext PROPERTIES
   PREFIX ""

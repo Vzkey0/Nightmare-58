@@ -933,7 +933,9 @@ def skeleton():
   ball = (ankle_x, -0.1, 0.04)
   toe = (ankle_x, -0.2, 0.04)
   return {
-    "hips": ((0, 0, 0.93), (0, 0, 1.05), None),
+    # Carries root motion, so it sits on the ground and has no vertex weights.
+    "root": ((0, 0, 0), (0, 0.2, 0), None),
+    "hips": ((0, 0, 0.93), (0, 0, 1.05), "root"),
     "spine": ((0, 0, 1.05), (0, 0, 1.2), "hips"),
     "chest": ((0, 0, 1.2), (0, 0, 1.42), "spine"),
     "neck": ((0, 0.01, 1.45), (0, 0.004, 1.55 + lift), "chest"),
@@ -948,6 +950,8 @@ def skeleton():
     "lower_leg_l": (knee, ankle, "upper_leg_l"),
     "foot_l": (ankle, ball, "lower_leg_l"),
     "toes_l": (ball, toe, "foot_l"),
+    # Grip point of whatever the hand holds; it points along the weapon.
+    "weapon": ((-hand_end[0], hand_end[1], hand_end[2]), (-hand_end[0], hand_end[1] - 0.2, hand_end[2]), "hand_r"),
   }
 
 

@@ -29,7 +29,7 @@ implementarse.
 | Combos y estados alterados | Listas | Pendiente |
 | Objeto rápido | Lista recorrida en círculo | Pendiente |
 | Fantasma y rastro | Lista de posiciones | Pendiente |
-| Búfer de inputs | Cola | Pendiente |
+| Búfer de inputs | Cola | J-004 |
 | Menús anidados | Pila | Pendiente |
 | Ataque del jefe | Heap | Pendiente |
 | Base de objetos | Tabla hash | Pendiente |
@@ -96,3 +96,28 @@ implementarse.
 - **Medición:** No aplica
 - **Conclusión:** la cola expresa directamente la rotación y sus operaciones cuestan
   `O(1)`
+
+## J-004: Búfer de inputs con `FixedQueue`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/player/player_actions.hpp`, `PlayerActions::buffer`
+- **Crítico:** Sí. `update` lee el frente en cada tick físico
+- **Datos:** 2 pulsaciones como máximo; se midió también con 20
+- **Operaciones:** leer el frente en cada tick, y poner o quitar al pulsar o caducar
+  una entrada. Domina la lectura
+- **Elegida:** `FixedQueue`. Todas las operaciones son `O(1)` y nunca reserva memoria
+- **Descartadas:** `DynQueue` rindió igual, pero puede reservar memoria durante el
+  juego, algo que no hace falta porque la capacidad es fija y pequeña. Recorrer la cola
+  para envejecer entradas tampoco: se guarda la hora de cada pulsación y solo se mira
+  el frente
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/input_buffer_benchmark.cpp`. Mediana de 101 muestras de 20 000 frames, con
+  una pulsación cada 16 frames, en tres ejecuciones:
+
+  | Capacidad | `FixedQueue` | `DynQueue` |
+  |---|---|---|
+  | 2 | 0,445 a 0,45 ns | 0,455 a 0,46 ns |
+  | 20 | 0,455 ns | 0,455 ns |
+
+- **Conclusión:** en tiempo es un empate. `FixedQueue` gana por no reservar memoria en
+  código crítico, y su costo es despreciable frente a un frame de 16,6 ms
