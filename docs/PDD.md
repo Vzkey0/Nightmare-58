@@ -79,8 +79,9 @@ Todas salen de DeSiGNAR. No se usan contenedores de la STL para esto.
 
 | Sistema | Estructura o algoritmo | Header |
 |---|---|---|
-| IA de enemigos | Árbol de comportamiento | propio, sobre `list.hpp` |
-| Habilidades y zonas | Árbol n-ario | `tree.hpp` |
+| IA de enemigos | Árbol de comportamiento | propio, sobre `mtreenode.hpp` |
+| Rotación de ataques | Cola | `queue.hpp` |
+| Habilidades y zonas | Árbol n-ario | `mtreenode.hpp` |
 | Combos, estados alterados | Listas | `list.hpp` |
 | Objeto rápido (cíclico) | Lista recorrida en círculo | `list.hpp` |
 | Fantasma, persecución por rastro | Lista de posiciones | `list.hpp` |

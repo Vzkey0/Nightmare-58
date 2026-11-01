@@ -1,0 +1,91 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/training_dummy.tscn" id="3_dummy"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_material"]
+sky_top_color = Color(0.09, 0.1, 0.13, 1)
+sky_horizon_color = Color(0.27, 0.29, 0.33, 1)
+ground_bottom_color = Color(0.04, 0.05, 0.06, 1)
+ground_horizon_color = Color(0.27, 0.29, 0.33, 1)
+sun_angle_max = 0.0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_material")
+
+[sub_resource type="Environment" id="storm"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.72, 0.75, 0.8, 1)
+ambient_light_energy = 0.85
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.34, 0.35, 0.37, 1)
+fog_density = 0.011
+fog_sky_affect = 0.2
+
+[sub_resource type="ParticleProcessMaterial" id="rain_process"]
+emission_shape = 3
+emission_box_extents = Vector3(30, 1, 40)
+direction = Vector3(0.05, -1, 0.02)
+spread = 1.0
+initial_velocity_min = 26.0
+initial_velocity_max = 32.0
+gravity = Vector3(0, -9.8, 0)
+
+[sub_resource type="StandardMaterial3D" id="rain_material"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.78, 0.85, 0.95, 0.36)
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+
+[sub_resource type="QuadMesh" id="rain_mesh"]
+material = SubResource("rain_material")
+size = Vector2(0.014, 0.75)
+
+[node name="Avenue" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("storm")
+
+[node name="StormLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.985, -0.087, 0.15, 0, 0.866, 0.5, -0.174, -0.492, 0.853, 0, 40, 0)
+light_color = Color(0.78, 0.84, 0.95, 1)
+light_energy = 0.75
+shadow_enabled = true
+shadow_opacity = 0.5
+directional_shadow_mode = 1
+directional_shadow_max_distance = 90.0
+
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0, 0.37, -0.93, 0, 0.93, 0.37, 1, 0, 0, 0, 40, 0)
+light_color = Color(0.8, 0.85, 0.95, 1)
+light_energy = 0.28
+
+[node name="Level" parent="." instance=ExtResource("1_avenue")]
+
+[node name="AvenueReflections" type="ReflectionProbe" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+size = Vector3(20, 26, 100)
+box_projection = true
+max_distance = 120.0
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.2, 0.1, 34)
+
+[node name="TrainingDummy" parent="." instance=ExtResource("3_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0, 30.5)
+
+[node name="Rain" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 26, 8)
+amount = 9000
+lifetime = 1.0
+preprocess = 1.0
+visibility_aabb = AABB(-40, -30, -50, 80, 34, 100)
+process_material = SubResource("rain_process")
+draw_pass_1 = SubResource("rain_mesh")

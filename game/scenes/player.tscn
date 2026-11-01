@@ -1,0 +1,44 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://models/characters/protagonist_male.glb" id="1_model"]
+
+[sub_resource type="CapsuleShape3D" id="body_shape"]
+radius = 0.3
+height = 1.75
+
+[sub_resource type="CapsuleShape3D" id="stick_shape"]
+radius = 0.06
+height = 1.6
+
+[node name="Player" type="PlayerController"]
+collision_layer = 2
+
+[node name="Body" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("body_shape")
+
+[node name="Model" parent="." instance=ExtResource("1_model")]
+
+[node name="WeaponBone" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
+bone_name = "weapon"
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_male/Skeleton3D/WeaponBone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+enabled = false
+shape = SubResource("stick_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 4
+
+[node name="CameraPivot" type="Node3D" parent="."]
+top_level = true
+physics_interpolation_mode = 2
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraPivot"]
+spring_length = 3.4
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/SpringArm3D"]
+current = true
+fov = 65.0
+far = 1500.0
+
+[editable path="Model"]

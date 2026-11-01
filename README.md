@@ -40,7 +40,7 @@ submódulo de git en `extern/DeSiGNAR`, así que no hay que instalarla aparte.
 
 - Compilador C++17: GCC 9 o superior
 - CMake 3.20 o superior
-- Ninja (o make)
+- Ninja (o [Make](docs/guia.md#compilar-con-make))
 - Git
 - Python 3 (lo usa `godot-cpp` al compilar)
 - [Godot 4.7.2](https://godotengine.org/download/archive/4.7.2-stable/), la misma versión para todos
@@ -98,8 +98,9 @@ volver a compilar y reiniciar el editor.
 | `src/game/` | Clases C++ registradas en Godot |
 | `tests/` | Pruebas de `src/core/` |
 | `game/` | Proyecto de Godot: escenas, modelos y audio |
+| `art/` | Archivos `.blend` editables; ver la [guía de arte](docs/art_guide.md) |
 | `extern/` | DeSiGNAR y `godot-cpp` |
-| `docs/` | PDD, [guía](docs/guia.md), [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
+| `docs/` | PDD, [guía](docs/guia.md), [guía de arte](docs/art_guide.md), [convenciones](docs/Convenciones.md), [justificaciones](docs/Justificaciones.md) y documento técnico |
 
 ## Flujo de trabajo
 
