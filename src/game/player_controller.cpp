@@ -1,10 +1,15 @@
 #include "player_controller.hpp"
+#include "training_dummy.hpp"
 
 #include <godot_cpp/classes/animation_library.hpp>
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/scene_tree_timer.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
 
@@ -25,6 +30,8 @@ constexpr float ACCELERATION = 20.f;
 constexpr float DECELERATION = 26.f;
 constexpr float RUN_THRESHOLD = 0.4f;
 constexpr float MIN_STRIDE_SPEED = 0.55f;
+constexpr float WALK_SLIDE_ANGLE = 0.26f; // Godot's default.
+constexpr float ATTACK_SLIDE_ANGLE = 1.2f; // An attack's step stops at a target instead of rounding it.
 
 constexpr float TURN_RATE = 11.f;
 constexpr float ACTION_TURN_RATE = 34.f;
@@ -47,6 +54,12 @@ constexpr float CAMERA_STICK_SPEED = 2.8f;
 constexpr float CAMERA_MIN_PITCH = -1.05f;
 constexpr float CAMERA_MAX_PITCH = 0.6f;
 
+constexpr float HITSTOP_PER_DAMAGE = 0.0027f;
+constexpr float HITSTOP_TIME_SCALE = 0.02f; // Not 0: the shake divides by it to stay in real time.
+constexpr float SHAKE_PER_DAMAGE = 0.03f;
+constexpr float SHAKE_SIZE = 0.13f;
+constexpr float SHAKE_FADE = 3.5f;
+
 float damp(float rate, float delta)
 {
   return 1.f - Math::exp(-rate * delta);
@@ -67,7 +80,9 @@ void PlayerController::_ready()
 {
   model = get_node<Node3D>("Model");
   camera_pivot = get_node<Node3D>("CameraPivot");
+  camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
+  hitbox = get_node<ShapeCast3D>("Model/armature_male/Skeleton3D/WeaponBone/Hitbox");
 
   // The scene places the player with a rotation; it moves to the model and the camera.
   facing_yaw = target_yaw = get_rotation().y;
@@ -141,6 +156,9 @@ void PlayerController::_physics_process(double delta_time)
   if (started)
     start_action(wish);
 
+  if (actions.hitting())
+    hit_targets();
+
   const PlayerAction action = actions.current();
   if (landed && !started && action == PlayerAction::None && !wants_to_move)
   {
@@ -154,6 +172,8 @@ void PlayerController::_physics_process(double delta_time)
 
   if (action == PlayerAction::Dodge || action == PlayerAction::Attack)
     velocity = Vector3(root_motion_step(delta)).rotated(UP, facing_yaw) / delta;
+  else if (action == PlayerAction::AirAttack && grounded)
+    velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
     const float top_speed = actions.sprinting() ? SPRINT_SPEED : run_speed;
@@ -172,6 +192,7 @@ void PlayerController::_physics_process(double delta_time)
   vertical_speed = on_floor && vertical_speed <= 0.f ? 0.f : vertical_speed - GRAVITY * delta;
   velocity.y = vertical_speed;
   set_velocity(velocity);
+  set_wall_min_slide_angle(action == PlayerAction::Attack ? ATTACK_SLIDE_ANGLE : WALK_SLIDE_ANGLE);
   move_and_slide();
 
   turn_model(delta, speed);
@@ -185,6 +206,7 @@ void PlayerController::start_action(const Vector3 & wish)
   land_time = 0.f;
   animator->set_speed_scale(1.f);
   chain = 1 - chain;
+  hitbox->clear_exceptions();
 
   switch (actions.current())
   {
@@ -203,6 +225,38 @@ void PlayerController::start_action(const Vector3 & wish)
       play(attack_air_clip, BLEND_TO_ATTACK);
       break;
   }
+}
+
+void PlayerController::hit_targets()
+{
+  // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
+  hitbox->force_shapecast_update();
+  const int damage = PlayerActions::timing(actions.current()).damage;
+  for (int i = 0; i < hitbox->get_collision_count(); ++i)
+  {
+    TrainingDummy * dummy = Object::cast_to<TrainingDummy>(hitbox->get_collider(i));
+    if (dummy != nullptr)
+    {
+      dummy->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
+      feel_hit(damage);
+    }
+    // Skipped until the next action, so one swing hits a target once.
+    hitbox->add_exception_rid(hitbox->get_collider_rid(i));
+  }
+}
+
+void PlayerController::feel_hit(int damage)
+{
+  camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE, 1.f);
+
+  Engine::get_singleton()->set_time_scale(HITSTOP_TIME_SCALE);
+  Ref<SceneTreeTimer> timer = get_tree()->create_timer(damage * HITSTOP_PER_DAMAGE, true, false, true);
+  timer->connect("timeout", callable_mp(this, &PlayerController::end_hitstop));
+}
+
+void PlayerController::end_hitstop()
+{
+  Engine::get_singleton()->set_time_scale(1.0);
 }
 
 Vector3 PlayerController::root_motion_step(float delta) const
@@ -280,4 +334,10 @@ void PlayerController::update_camera(float delta)
   camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
   camera_pivot->set_global_position(camera_focus);
   camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
+
+  // In real time: the shake has to keep going through a hitstop.
+  camera_shake = MAX(camera_shake - SHAKE_FADE * delta / static_cast<float>(Engine::get_singleton()->get_time_scale()), 0.f);
+  const float reach = camera_shake * camera_shake * SHAKE_SIZE;
+  camera->set_h_offset(UtilityFunctions::randf_range(-reach, reach));
+  camera->set_v_offset(UtilityFunctions::randf_range(-reach, reach));
 }

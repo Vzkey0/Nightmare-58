@@ -3,6 +3,8 @@
 
 #include <core/ai/behavior_tree.hpp>
 #include <core/distance.hpp>
+#include <core/health.hpp>
+#include <core/health_trail.hpp>
 #include <core/player/player_actions.hpp>
 #include <core/progression/skill_tree.hpp>
 
@@ -197,7 +199,18 @@ static void test_player_air_rules()
   air.press(PlayerAction::Attack);
   assert(air.update(STEP, false, false));
   assert(air.current() == PlayerAction::AirAttack);
+
+  // Landing right after the press must not cut the swing.
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::AirAttack);
+  while (air.elapsed() < timing.hit_start)
+  {
+    air.update(STEP, false, true);
+    assert(air.current() == PlayerAction::AirAttack);
+  }
   air.update(STEP, false, true);
+  assert(air.hitting());
+  for (float time = 0.f; time < timing.duration; time += STEP)
+    air.update(STEP, false, true);
   assert(air.current() == PlayerAction::None);
 
   PlayerActions waits;
@@ -205,6 +218,73 @@ static void test_player_air_rules()
   assert(!waits.update(STEP, false, false));
   assert(waits.update(STEP, false, true));
   assert(waits.current() == PlayerAction::Dodge);
+}
+
+static void test_player_hit_window()
+{
+  const ActionTiming & timing = PlayerActions::timing(PlayerAction::Attack);
+
+  PlayerActions attack;
+  assert(!attack.hitting());
+  attack.press(PlayerAction::Attack);
+  attack.update(STEP, false);
+  assert(!attack.hitting());
+  advance(attack, timing.hit_start + STEP);
+  assert(attack.hitting());
+  advance(attack, timing.hit_end - timing.hit_start);
+  assert(!attack.hitting());
+
+  PlayerActions dodge;
+  dodge.press(PlayerAction::Dodge);
+  dodge.update(STEP, false);
+  for (float time = 0.f; time < 1.f; time += STEP)
+  {
+    dodge.update(STEP, false);
+    assert(!dodge.hitting());
+  }
+}
+
+static void test_health()
+{
+  Health health(50);
+  health.damage(20);
+  assert(health.value() == 30);
+  assert(!health.dead());
+
+  health.damage(40);
+  assert(health.value() == 0);
+  assert(health.dead());
+
+  health.restore();
+  assert(health.value() == 50);
+}
+
+static void test_health_trail()
+{
+  HealthTrail trail;
+  trail.update(0.6f, STEP);
+  assert(trail.value() == 1.f);
+
+  for (float time = 0.f; time < HealthTrail::HOLD_TIME - 0.1f; time += STEP)
+    trail.update(0.6f, STEP);
+  assert(trail.value() == 1.f);
+
+  for (float time = 0.f; time < 0.3f; time += STEP)
+    trail.update(0.6f, STEP);
+  assert(trail.value() < 1.f && trail.value() > 0.6f);
+
+  for (float time = 0.f; time < 1.f; time += STEP)
+    trail.update(0.6f, STEP);
+  assert(trail.value() == 0.6f);
+
+  // A second hit during the slide holds the trail again.
+  trail.update(0.4f, STEP);
+  const float held = trail.value();
+  trail.update(0.4f, STEP);
+  assert(trail.value() == held);
+
+  trail.update(1.f, STEP);
+  assert(trail.value() == 1.f);
 }
 
 int main()
@@ -222,5 +302,8 @@ int main()
   test_player_move_cancel();
   test_player_dodge_button();
   test_player_air_rules();
+  test_player_hit_window();
+  test_health();
+  test_health_trail();
   return 0;
 }
