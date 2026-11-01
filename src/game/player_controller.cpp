@@ -95,13 +95,15 @@ void PlayerController::_ready()
   const NodePath root_path("armature_male/Skeleton3D:root");
   animator->set_root_motion_track(root_path);
   dodge_animation = animator->get_animation(dodge_clip[0]);
-  attack_animation = animator->get_animation(attack_clip[0]);
   dodge_root_track = dodge_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
-  attack_root_track = attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  for (int step = 0; step < ATTACK_CLIPS; ++step)
+  {
+    attack_animation[step] = animator->get_animation(attack_clip[step]);
+    attack_root_track[step] = attack_animation[step]->find_track(root_path, Animation::TYPE_POSITION_3D);
+  }
 
   Ref<AnimationLibrary> clips = animator->get_animation_library("");
   clips->add_animation(dodge_clip[1], dodge_animation);
-  clips->add_animation(attack_clip[1], attack_animation);
 
   play(idle_clip, 0.f);
   Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_CAPTURED);
@@ -160,6 +162,7 @@ void PlayerController::_physics_process(double delta_time)
     hit_targets();
 
   const PlayerAction action = actions.current();
+  const bool attacking = actions.combo_step() != PlayerActions::NO_COMBO_STEP;
   if (landed && !started && action == PlayerAction::None && !wants_to_move)
   {
     land_time = LAND_TIME;
@@ -170,7 +173,7 @@ void PlayerController::_physics_process(double delta_time)
   Vector3 velocity = get_velocity();
   velocity.y = 0.f;
 
-  if (action == PlayerAction::Dodge || action == PlayerAction::Attack)
+  if (action == PlayerAction::Dodge || attacking)
     velocity = Vector3(root_motion_step(delta)).rotated(UP, facing_yaw) / delta;
   else if (action == PlayerAction::AirAttack && grounded)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
@@ -192,7 +195,7 @@ void PlayerController::_physics_process(double delta_time)
   vertical_speed = on_floor && vertical_speed <= 0.f ? 0.f : vertical_speed - GRAVITY * delta;
   velocity.y = vertical_speed;
   set_velocity(velocity);
-  set_wall_min_slide_angle(action == PlayerAction::Attack ? ATTACK_SLIDE_ANGLE : WALK_SLIDE_ANGLE);
+  set_wall_min_slide_angle(attacking ? ATTACK_SLIDE_ANGLE : WALK_SLIDE_ANGLE);
   move_and_slide();
 
   turn_model(delta, speed);
@@ -214,7 +217,9 @@ void PlayerController::start_action(const Vector3 & wish)
       play(dodge_clip[chain], BLEND_TO_DODGE);
       break;
     case PlayerAction::Attack:
-      play(attack_clip[chain], BLEND_TO_ATTACK);
+    case PlayerAction::Attack2:
+    case PlayerAction::Attack3:
+      play(attack_clip[actions.combo_step()], BLEND_TO_ATTACK);
       break;
     case PlayerAction::Jump:
       vertical_speed = JUMP_SPEED;
@@ -264,8 +269,8 @@ Vector3 PlayerController::root_motion_step(float delta) const
   // Reading the curve on each tick instead of the mixer's per-render-frame delta: a tick
   // holds two or three render frames, and that uneven share made the dodge shake.
   const bool dodge = actions.current() == PlayerAction::Dodge;
-  const Ref<Animation> & clip = dodge ? dodge_animation : attack_animation;
-  const int track = dodge ? dodge_root_track : attack_root_track;
+  const Ref<Animation> & clip = dodge ? dodge_animation : attack_animation[actions.combo_step()];
+  const int track = dodge ? dodge_root_track : attack_root_track[actions.combo_step()];
   // Steps ahead of the clock, so the action already moves on the tick it starts.
   const float now = actions.elapsed();
   return clip->position_track_interpolate(track, now + delta) -

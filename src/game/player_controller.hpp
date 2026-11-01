@@ -41,6 +41,8 @@ private:
   void feel_hit(int damage);
   void end_hitstop();
 
+  static constexpr int ATTACK_CLIPS = 3;
+
   PlayerActions actions;
 
   godot::Node3D * model = nullptr;
@@ -67,15 +69,15 @@ private:
   godot::Vector3 camera_focus;
 
   godot::Ref<godot::Animation> dodge_animation;
-  godot::Ref<godot::Animation> attack_animation;
+  godot::Ref<godot::Animation> attack_animation[ATTACK_CLIPS];
   int dodge_root_track = -1;
-  int attack_root_track = -1;
+  int attack_root_track[ATTACK_CLIPS] = {};
 
-  // Each action has two names for one clip: a blend needs two different animations,
-  // so chaining a dodge into a dodge would otherwise snap.
+  // A dodge has two names for one clip: a blend needs two different animations, so
+  // chaining a dodge into a dodge would otherwise snap.
   int chain = 0;
   godot::StringName dodge_clip[2] = {"dodge_forward", "dodge_forward_chain"};
-  godot::StringName attack_clip[2] = {"attack_light_1", "attack_light_1_chain"};
+  godot::StringName attack_clip[ATTACK_CLIPS] = {"attack_light_1", "attack_light_2", "attack_light_3"};
   godot::StringName idle_clip = "idle";
   godot::StringName run_clip = "run";
   godot::StringName sprint_clip = "sprint";

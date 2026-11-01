@@ -38,8 +38,7 @@ El Carretón), finales múltiples, árbol de diálogo, Florentino y el Diablo.
 
 ### Combate
 
-Ataque ligero y pesado, esquiva, *parry* y fijado de objetivo, con barra de
-resistencia. Los botones presionados durante una animación se guardan y se
+Ataque ligero y pesado, esquiva y fijado de objetivo, con barra de resistencia. Los botones presionados durante una animación se guardan y se
 ejecutan al terminar.
 
 ### Decisiones de enemigos

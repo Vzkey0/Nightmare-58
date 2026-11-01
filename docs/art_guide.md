@@ -81,7 +81,15 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `land` | 0,4 s | Moverse o cualquier acción | Amortigua el aterrizaje |
 | `attack_air` | 0,7 s | Termina el golpe aunque toque el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
 | `dodge_forward` | 0,8 s, avanza 3,05 m | Acción 0,53 s, moverse 0,6 s | Esquiva baja |
-| `attack_light_1` | 1 s, avanza 0,7 m | Acción 0,63 s, moverse 0,73 s | Corte diagonal a dos manos |
+| `attack_light_1` | 1 s, avanza 0,7 m | Acción 0,63 s, moverse 0,73 s | Combo 1: corte diagonal a dos manos |
+| `attack_light_2` | 0,93 s, avanza 0,75 m | Acción 0,57 s, moverse 0,67 s | Combo 2: revés ascendente con el pie izquierdo |
+| `attack_light_3` | 1,4 s, avanza 0,9 m | Acción 0,93 s, moverse 1 s | Combo 3: golpe de arriba abajo con zancada y recuperación larga |
+
+**Combo:** pulsar ataque durante un golpe guarda el siguiente, y tras el tercero vuelve al
+primero. Dejar terminar el golpe, moverse después de su corte o esquivar lo reinicia. Cada
+golpe arranca en la pose donde el anterior permite encadenar (`AFTER_CUT` y `AFTER_BACKHAND`
+en `animate_protagonist.py`): si cambia esa pose o el tiempo de `next_action`, hay que
+actualizarlas.
 
 **Reglas tomadas de los souls-like y de animación de juegos:**
 
