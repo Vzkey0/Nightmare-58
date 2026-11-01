@@ -91,7 +91,7 @@ Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos br
 señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
 queda en el último cuadro, y reproducido al revés es como el esqueleto se rearma a los 12 s.
 
-**IA:** [`SkeletonEnemy`](../src/game/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
+**IA:** [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
 qué hacer y `EnemyActions` lo ejecuta. Un paseo se puede cambiar, un ataque no: un golpe solo lo
 interrumpe antes del barrido, y un combo aturde una vez cada 2,5 s. Deja de girar poco antes del golpe,
 para que esquivar tarde funcione.

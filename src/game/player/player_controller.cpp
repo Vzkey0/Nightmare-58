@@ -1,7 +1,7 @@
 #include "player_controller.hpp"
-#include "combat_target.hpp"
-#include "stat_bar.hpp"
-#include "weapon_trail.hpp"
+#include <game/enemies/combat_target.hpp>
+#include <game/ui/stat_bar.hpp>
+#include <game/weapons/weapon_trail.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
 #include <godot_cpp/classes/engine.hpp>

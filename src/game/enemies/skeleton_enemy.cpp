@@ -1,6 +1,6 @@
 #include "skeleton_enemy.hpp"
 #include "entity_distance.hpp"
-#include "player_controller.hpp"
+#include <game/player/player_controller.hpp>
 
 #include <godot_cpp/classes/mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>

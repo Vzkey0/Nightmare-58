@@ -3,13 +3,13 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "combat_target.hpp"
-#include "designar_check.hpp"
-#include "player_controller.hpp"
-#include "skeleton_enemy.hpp"
-#include "stat_bar.hpp"
-#include "training_dummy.hpp"
-#include "weapon_trail.hpp"
+#include <game/enemies/combat_target.hpp>
+#include <game/debug/designar_check.hpp>
+#include <game/player/player_controller.hpp>
+#include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/stat_bar.hpp>
+#include <game/enemies/training_dummy.hpp>
+#include <game/weapons/weapon_trail.hpp>
 
 using namespace godot;
 

@@ -1,5 +1,5 @@
 #include "training_dummy.hpp"
-#include "player_controller.hpp"
+#include <game/player/player_controller.hpp>
 
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>

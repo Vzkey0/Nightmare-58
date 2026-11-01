@@ -126,7 +126,7 @@ implementarse.
 ## J-005: Decisiones de enemigos 10 veces por segundo
 
 - **Estado:** Aceptada
-- **Código:** `src/game/skeleton_enemy.cpp`, `THINK_TIME`, y `src/core/ai/enemy_actions.hpp`
+- **Código:** `src/game/enemies/skeleton_enemy.cpp`, `THINK_TIME`, y `src/core/ai/enemy_actions.hpp`
 - **Crítico:** Sí. `EnemyActions::update` corre en cada tick físico, y `decide` 10 veces por segundo
 - **Datos:** hasta 8 enemigos activos; se midió también con 80
 - **Operaciones:** avanzar la acción en cada tick y recorrer el árbol al pensar. Domina el avance

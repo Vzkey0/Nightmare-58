@@ -1,5 +1,5 @@
 #include "combat_target.hpp"
-#include "stat_bar.hpp"
+#include <game/ui/stat_bar.hpp>
 
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/label3d.hpp>
