@@ -91,6 +91,10 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `attack_light_3` | 1,33 s, avanza 1,15 m | Esquiva 0,55 s, acción 0,85 s, moverse 0,95 s | Combo 3: salto con giro completo y el palo girando sobre la cabeza, y clavado al suelo a dos manos |
 | `attack_roll` | 0,8 s, avanza 1,1 m | Esquiva 0,33 s, acción 0,5 s, moverse 0,6 s | Estocada a una mano al salir de la voltereta |
 | `attack_run` | 1 s, avanza 2,35 m | Esquiva 0,4 s, acción 0,62 s, moverse 0,72 s | Atacar esprintando: golpe ascendente a dos manos que aprovecha la velocidad |
+| `attack_heavy` | 1,2 s, avanza 0,9 m | Esquiva 0,6 s, acción 0,85 s, moverse 0,95 s | Golpe pesado: alza el palo a dos manos, lo sostiene para que se lea y lo clava en el suelo |
+| `hurt` | 0,5 s | Acción 0,35 s, moverse 0,45 s | Recibir un golpe |
+| `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
+| `walk_back`, `strafe_left`, `strafe_right` | 0,4 s, en bucle | Siempre | Moverse a 2,2 m/s con el objetivo fijado; hacia delante usa `walk` |
 
 **Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
 sobre la raíz, y `lift` lo separa del suelo. Las poses se escriben como si no girara, y
@@ -108,6 +112,22 @@ paso que tocaba. Cada golpe arranca en la pose donde el anterior permite encaden
 **Atracción al objetivo:** al empezar un golpe, el personaje se orienta hacia el objetivo más
 cercano del grupo `targets` a menos de 4,5 m y 75° de la dirección pedida. También escala el
 avance del clip entre 0,25 y 1,6 veces para terminar a 1,3 m. Todo enemigo debe entrar a ese grupo.
+
+**Fijado:** rueda del mouse o R3. Fija el objetivo visible más cercano a 12 m y se suelta a 16 m, si
+cae o si pasa 1 s sin verse. Mover el mouse o el stick hacia un lado cambia de objetivo. La cámara
+sigue al objetivo y el personaje lo mira mientras camina; al esprintar o rodar corre libre, y la
+voltereta usa el mismo clip girado hacia donde se pide.
+
+**Resistencia:** cada acción gasta `stamina_cost`, y el esprint la gasta por segundo. Se recupera
+tras 0,5 s sin actuar. Una acción sale si queda algo; al llegar a 0 no se puede esprintar hasta
+recuperar el 25 %.
+
+**Recibir daño:** el golpe cancela lo que se esté haciendo. La voltereta es invulnerable durante
+0,43 s, y `hurt` también, para que dos golpes seguidos no encierren al jugador. Al morir reaparece
+donde empezó tras 3 s, hasta que existan los altares.
+
+**Dummy:** se arma 0,9 s brillando en rojo y gira los brazos estirados. Pega a 1,95 m, lo que
+alcanzan los brazos más el ancho del jugador.
 
 **Efectos:** `WeaponTrail` dibuja la estela del palo durante el barrido y el giro del tercer
 golpe. El nodo `Dust` de `player.tscn` levanta polvo al rodar, aterrizar, frenar y clavar el palo.
@@ -139,9 +159,22 @@ se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
   pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
 - **Cámara detrás:** el arma debe verse desde atrás en reposo.
 
-**Pendiente:** esquivas hacia atrás y a los lados, que hacen falta con el fijado de objetivo,
-e invulnerabilidad de la voltereta, cuando algo ataque al jugador. La mujer aún no tiene clips,
-y el palo es provisional: cambiar su malla no afecta a los clips.
+**Pendiente:** el palo es provisional: cambiar su malla no afecta a los clips.
+
+## Interfaz
+
+Abajo a la izquierda van vida y resistencia, junto a un rombo reservado para el café. Arriba al
+centro irá la barra del jefe y abajo a la derecha las lochas. No hay minimapa, brújula ni mira.
+
+- **Sin imágenes:** `StatBar` dibuja el marco y el relleno con polígonos de caras planas, así no
+  pierden nitidez. El relleno repite la punta del marco, por lo que encaja a cualquier valor.
+- **Vida:** verde sobre 60 %, ámbar sobre 35 %, naranja sobre 15 % y rojo por debajo. El color cambia
+  de golpe, y una franja pálida marca lo que quitó el último golpe.
+- **Resistencia:** cian, para no confundirse con la vida a medias ni perderse en el asfalto. Se
+  vuelve gris al agotarse.
+- **Contraste:** todo lleva contorno oscuro y una sombra escalonada hacia abajo y a la derecha, para
+  separarse del mundo 3D. El borde donde termina el relleno va más claro que el resto.
+- **Tamaño:** las medidas de `player.tscn` son para 1080 de alto, y el panel se escala a la ventana.
 
 ## Armas
 
