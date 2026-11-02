@@ -27,6 +27,10 @@ class ItemCatalog
 public:
   static constexpr ItemId COFFEE = 0;
   static constexpr ItemId CANDLE = 1;
+  static constexpr ItemId VINYL = 2;
+  static constexpr ItemId CARD = 3;
+  static constexpr ItemId TILE = 4;
+  static constexpr ItemId PHOTO = 5;
 
   static const ItemCatalog & instance();
 
