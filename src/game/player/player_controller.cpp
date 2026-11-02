@@ -384,6 +384,7 @@ void PlayerController::start_action(const Vector3 & wish)
   flourish_time = 0.f;
   step_scale = 1.f;
   animator->set_speed_scale(1.f);
+  current_clip = StringName(); // An action always starts its clip over, even the one running.
   chain = 1 - chain;
   hitbox->clear_exceptions();
 
@@ -1015,6 +1016,7 @@ void PlayerController::play(const StringName & clip, float blend)
   if (clip != current_clip)
   {
     animator->play(clip, blend);
+    animator->seek(0.0); // play() alone resumes a clip that is already running.
     current_clip = clip;
   }
 }
