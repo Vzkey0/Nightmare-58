@@ -1,12 +1,13 @@
 #pragma once
 
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/tween.hpp>
 
 #include <core/progression/item_catalog.hpp>
 
-// One item, drawn with shapes like the bars so it stays sharp at any size. A slot of the inventory
-// grid when framed, and the bare icon inside the HUD's medallion when not.
+// One item, with the icon rendered from its own model. A slot of the inventory grid when framed,
+// and the bare icon inside the HUD's medallion when not.
 class ItemSlot : public godot::Control
 {
   GDCLASS(ItemSlot, godot::Control)
@@ -24,9 +25,8 @@ public:
   void set_framed(bool value) { framed = value; }
 
 private:
-  void draw_icon(float size);
-
   ItemId item = NO_ITEM;
+  godot::Ref<godot::Texture2D> icon;
   int count = 0;
   bool selected = false;
   bool framed = true;

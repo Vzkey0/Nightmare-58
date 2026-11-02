@@ -747,6 +747,8 @@ static void test_item_catalog()
   assert(catalog.find("no_such_item") == NO_ITEM);
   for (ItemId item = 0; item < catalog.size(); ++item)
     assert(catalog.find(catalog[item].key) == item);
+  assert(catalog.find("machete") == ItemCatalog::MACHETE);
+  assert(catalog[ItemCatalog::MACHETE].kind == ItemKind::Weapon);
 }
 
 static void test_inventory_counts()

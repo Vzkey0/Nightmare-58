@@ -1,0 +1,46 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/move.ogg" id="move"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/adjust.ogg" id="adjust"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/accept.ogg" id="accept"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/back.ogg" id="back"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/tab.ogg" id="tab"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/open.ogg" id="open"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/close.ogg" id="close"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/ui/deny.ogg" id="deny"]
+
+[node name="UiSounds" type="Node"]
+process_mode = 3
+
+[node name="Move" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("move")
+volume_db = -3.0
+max_polyphony = 2
+
+[node name="Adjust" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("adjust")
+volume_db = -11.0
+
+[node name="Accept" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("accept")
+volume_db = -6.0
+
+[node name="Back" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("back")
+volume_db = -9.0
+
+[node name="Tab" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("tab")
+volume_db = -2.0
+
+[node name="Open" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("open")
+volume_db = -6.0
+
+[node name="Close" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("close")
+volume_db = -11.0
+
+[node name="Deny" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("deny")
+volume_db = -8.0

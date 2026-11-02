@@ -10,6 +10,7 @@ constexpr Item ITEMS[] = {
   {"baseball_card", "Cromo de béisbol", "El juego que antes se oía por radio.", ItemKind::Collectible, 90},
   {"domino_tile", "Ficha de dominó", "Doble seis. La mesa quedó incompleta.", ItemKind::Collectible, 60},
   {"family_photo", "Foto familiar", "Nadie en ella sigue en el país.", ItemKind::Collectible, 200},
+  {"machete", "Machete", "El óxido se comió el lomo. El filo sigue ahí.", ItemKind::Weapon, 0},
 };
 }
 

@@ -56,16 +56,17 @@ float GameSettings::mouse_scale()
   return sensitivity / static_cast<float>(DEFAULT_SENSITIVITY);
 }
 
-void GameSettings::step(int row, int direction)
+bool GameSettings::step(int row, int direction)
 {
+  int & value = row == 0 ? volume : sensitivity;
+  const int moved = CLAMP(value + direction, row == 0 ? 0 : 1, MAX_NOTCH);
+  if (moved == value)
+    return false;
+  value = moved;
   if (row == 0)
-  {
-    volume = CLAMP(volume + direction, 0, MAX_NOTCH);
     apply_volume();
-  }
-  else
-    sensitivity = CLAMP(sensitivity + direction, 1, MAX_NOTCH);
   write();
+  return true;
 }
 
 int GameSettings::click_direction(const Rect2 & row, float x)

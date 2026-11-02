@@ -17,6 +17,7 @@ public:
   static constexpr int NO_ID = -1;
 
   void _ready() override;
+  void _process(double delta) override;
 
   godot::String get_item_key() const { return item_key; }
   void set_item_key(const godot::String & value) { item_key = value; }
@@ -26,8 +27,10 @@ public:
   void set_pickup_id(int value) { pickup_id = value; }
 
 private:
+  void show_model();
   void on_body_entered(godot::Node3D * body);
 
+  godot::Node3D * spinner = nullptr;
   godot::String item_key = "coffee";
   int amount = 1;
   int pickup_id = NO_ID;

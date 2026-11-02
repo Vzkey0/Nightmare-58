@@ -14,6 +14,10 @@ config/name="Nightmare 58"
 run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.7")
 
+[autoload]
+
+UiSounds="*res://scenes/ui_sounds.tscn"
+
 [gui]
 
 theme/custom_font="res://fonts/Inter.ttf"

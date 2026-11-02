@@ -1,6 +1,7 @@
 #include "title_screen.hpp"
 #include "metal_plate.hpp"
 #include "game_settings.hpp"
+#include "ui_sounds.hpp"
 #include <game/world/save_file.hpp>
 
 #include <godot_cpp/classes/animation_player.hpp>
@@ -108,16 +109,19 @@ int TitleScreen::row_count() const
 
 void TitleScreen::move_cursor(int step)
 {
+  const int from = menu.cursor();
   MetalPlate::select_row(rows, menu.cursor(), false);
   menu.move_cursor(step, row_count());
   if (menu.screen() == MenuScreen::Title && menu.cursor() == ROW_CONTINUE && !any_saved)
     menu.move_cursor(step, row_count());
   MetalPlate::select_row(rows, menu.cursor(), true);
+  if (menu.cursor() != from)
+    UiSounds::play(this, "Move");
 }
 
 void TitleScreen::adjust_option(int direction)
 {
-  GameSettings::step(menu.cursor(), direction);
+  UiSounds::play(this, GameSettings::step(menu.cursor(), direction) ? "Adjust" : "Deny");
   MetalPlate::set_row_value(rows, menu.cursor(), GameSettings::row_value(menu.cursor()));
 }
 
@@ -190,6 +194,7 @@ void TitleScreen::go_back()
 {
   if (menu.screen() == MenuScreen::Title)
     return;
+  UiSounds::play(this, "Back");
   menu.back();
   refresh();
 }
@@ -214,6 +219,7 @@ void TitleScreen::accept()
 
 void TitleScreen::accept_main()
 {
+  UiSounds::play(this, "Accept");
   switch (menu.cursor())
   {
     case ROW_CONTINUE:
@@ -250,6 +256,7 @@ void TitleScreen::accept_slot()
 {
   chosen_slot = menu.cursor();
   const bool taken = SaveFile::exists(chosen_slot);
+  UiSounds::play(this, loading && !taken ? "Deny" : "Accept");
   if (loading && taken)
     start_game();
   else if (!loading && taken)
@@ -269,7 +276,11 @@ void TitleScreen::delete_slot()
 {
   chosen_slot = menu.cursor();
   if (!SaveFile::exists(chosen_slot))
+  {
+    UiSounds::play(this, "Deny");
     return;
+  }
+  UiSounds::play(this, "Accept");
   deleting = true;
   menu.open(MenuScreen::Confirm);
   refresh();
@@ -278,6 +289,7 @@ void TitleScreen::delete_slot()
 void TitleScreen::accept_confirm()
 {
   const bool yes = menu.cursor() == 0;
+  UiSounds::play(this, yes ? "Accept" : "Back");
   menu.back();
   if (yes && deleting)
   {
@@ -291,6 +303,7 @@ void TitleScreen::accept_confirm()
 
 void TitleScreen::on_name_submitted(const String & name)
 {
+  UiSounds::play(this, "Accept");
   PlayerProgress fresh;
   fresh.set_player_name(name.strip_edges().utf8().get_data());
   SaveFile::select(chosen_slot);

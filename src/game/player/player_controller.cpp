@@ -75,7 +75,7 @@ constexpr float RUN_TURN_TIME = 0.43f;
 
 constexpr float MAGNET_RANGE = 4.5f;
 constexpr float MAGNET_COS = 0.25f;  // About 75 degrees to each side of the input.
-constexpr float STRIKE_REACH = 1.3f; // How far from a target a blow should end its step.
+constexpr float STRIKE_REACH = 1.1f; // How far from a target a blow should end its step.
 
 constexpr float CAMERA_HEIGHT = 1.5f;
 constexpr float CAMERA_FOLLOW = 11.f;
@@ -92,7 +92,7 @@ constexpr float SLAM_SHAKE = 0.7f;
 constexpr float KICK_FOV = 6.f;
 constexpr float KICK_FADE = 5.f;
 
-constexpr float STICK_HALF = 0.8f;   // Half of the Hitbox capsule in player.tscn.
+constexpr float BLADE_HALF = 0.475f; // Half of the Hitbox capsule in player.tscn.
 constexpr float WHIRL_START = 0.12f; // The third blow's overhead spin, before its hit window.
 
 constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing sound.
@@ -128,9 +128,9 @@ const Color HEALTH_CRITICAL(0.9f, 0.1f, 0.15f);
 const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
 const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
 
-constexpr float STEP_VOLUME_WALK = -18.f;
-constexpr float STEP_VOLUME_RUN = -12.f;
-constexpr float STEP_VOLUME_SPRINT = -8.f;
+constexpr float STEP_VOLUME_WALK = -13.f;
+constexpr float STEP_VOLUME_RUN = -7.f;
+constexpr float STEP_VOLUME_SPRINT = -3.f;
 
 float damp(float rate, float delta)
 {
@@ -496,12 +496,12 @@ void PlayerController::hit_targets()
 void PlayerController::update_weapon_effects(float delta)
 {
   const PlayerAction action = actions.current();
-  const Transform3D stick = hitbox->get_global_transform();
-  const Vector3 tip = stick.xform(Vector3(0, STICK_HALF, 0));
+  const Transform3D blade = hitbox->get_global_transform();
+  const Vector3 tip = blade.xform(Vector3(0, BLADE_HALF, 0));
   const bool whirling = action == PlayerAction::Attack3 && actions.elapsed() >= WHIRL_START &&
                         actions.elapsed() < PlayerActions::timing(action).hit_end;
   if (whirling || actions.hitting())
-    trail->add_sample(stick.origin, tip);
+    trail->add_sample(blade.origin, tip);
 
   const ActionTiming & timing = PlayerActions::timing(action);
   const float time = actions.elapsed();
@@ -897,7 +897,7 @@ void PlayerController::update_hud(float delta)
 // Only on change: building these strings on each frame would reserve memory for nothing.
 void PlayerController::refresh_hud()
 {
-  lochas_label->set_text(vformat("%d lochas", save.lochas()));
+  lochas_label->set_text(String::num_int64(save.lochas()));
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
 }

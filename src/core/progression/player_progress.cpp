@@ -18,6 +18,7 @@ bool in_range(int value, int low, int high)
 PlayerProgress::PlayerProgress() : taken(static_cast<Designar::nat_t>(MAX_PICKUPS), false)
 {
   items.add(ItemCatalog::COFFEE, START_COFFEE);
+  items.add(ItemCatalog::MACHETE, 1);
   quick.add(ItemCatalog::COFFEE);
 }
 

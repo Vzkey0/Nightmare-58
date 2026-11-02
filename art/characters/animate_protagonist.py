@@ -5,8 +5,8 @@ Run it after build_protagonist.py and paint_protagonist.py, which write a model 
   blender --background art/characters/protagonist.blend --python art/characters/animate_protagonist.py
 
 Clips are authored like a control rig: key poses set the root, hips, spine, feet and the
-stick, and inverse kinematics solves legs and arms on every sampled frame. Feet therefore
-stay planted and both hands stay on the stick, which plain bone keys cannot guarantee.
+blade, and inverse kinematics solves legs and arms on every sampled frame. Feet therefore
+stay planted and both hands stay on the blade, which plain bone keys cannot guarantee.
 
 Keys are written in frames at 30 fps, the usual unit for reading timing, and baked at 60 fps.
 Forward is the character's front; +x is its left, as in the skeleton.
@@ -14,11 +14,16 @@ Forward is the character's front; +x is its left, as in the skeleton.
 
 import math
 import os
+import sys
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
 HERE = os.path.dirname(os.path.abspath(bpy.data.filepath or __file__))
+sys.path.insert(0, os.path.join(HERE, "..", "props"))
+
+import machete
+
 GLB_PATH = os.path.join(HERE, "..", "..", "game", "models", "characters", "protagonist_male.glb")
 
 AUTHOR_FPS = 30
@@ -27,13 +32,10 @@ BAKE_FPS = 60
 # Follow-through: the farther from the hips, the later a part arrives.
 DELAYS = {
   "spine_rot": 0.4, "chest_rot": 0.8, "head_rot": 1.4,
-  "grip": 1.0, "aim": 1.4, "slide": 1.0, "hand_l": 1.6,
+  "grip": 1.0, "aim": 1.4, "hand_l": 1.6,
 }
 
-# The Hitbox in game/scenes/player.tscn must cover the stick from end to end.
-STICK_BACK = 0.55
-STICK_FRONT = 1.05
-STICK_RADIUS = 0.019
+LEFT_GRIP = 0.1 # How far behind the right hand the left one closes on the handle.
 PALM_LENGTH = 0.095
 FINGER_CURL = 75.0
 TUMBLE_PIVOT = 0.44
@@ -158,11 +160,11 @@ class Rig:
     self.place("fingers" + side, Quaternion(fold, math.radians(curl)) @ delta)
     self.place("thumb" + side, Quaternion(fold, math.radians(curl * 0.3)) @ delta)
 
-  def grip_delta(self, side, shoulder, grip, stick):
-    """Hand orientation around the stick: the thumb runs along it, as with a bat."""
+  def grip_delta(self, side, shoulder, grip, blade):
+    """Hand orientation around the blade: the thumb runs along it, as with a bat."""
     toward = grip - shoulder
-    hand_axis = (toward - toward.project(stick)).normalized()
-    return aim_delta(self.direction("hand" + side), FORWARD, hand_axis, stick), hand_axis
+    hand_axis = (toward - toward.project(blade)).normalized()
+    return aim_delta(self.direction("hand" + side), FORWARD, hand_axis, blade), hand_axis
 
   def cup_hand(self, lower, pose):
     """The left hand follows the forearm, or turns to keep what it holds along pose["cup"]."""
@@ -206,19 +208,19 @@ class Rig:
       planted = at(*ball)
       self.leg(side, planted.lerp(turned(planted + lift), free), *foot_rot, foot_turn)
 
-    stick = turn @ at(*pose["aim"]).normalized()
+    blade = turn @ at(*pose["aim"]).normalized()
     grip = turned(root + at(*pose["grip"]))
     shoulder_r = hips_at + chest @ Vector((-0.2, 0, 0.47))
     shoulder_l = hips_at + chest @ Vector((0.2, 0, 0.47))
 
-    grip_r, hand_axis = self.grip_delta("_r", shoulder_r, grip, stick)
+    grip_r, hand_axis = self.grip_delta("_r", shoulder_r, grip, blade)
     self.arm("_r", grip - hand_axis * PALM_LENGTH, turn @ at(*pose["pole_r"]), chest)
     self.hand("_r", grip_r, FINGER_CURL)
-    self.place("weapon", aim_delta(FORWARD, self.direction("hand_r"), stick, hand_axis), grip - stick * pose["slide"])
+    self.place("weapon", aim_delta(FORWARD, self.direction("hand_r"), blade, hand_axis), grip)
 
     held = max(0.0, min(1.0, pose["left_on"]))
-    grip_left = grip - stick * pose["left_dist"]
-    grip_l, hand_axis_l = self.grip_delta("_l", shoulder_l, grip_left, stick)
+    grip_left = grip - blade * LEFT_GRIP
+    grip_l, hand_axis_l = self.grip_delta("_l", shoulder_l, grip_left, blade)
     wrist_held = grip_left - hand_axis_l * PALM_LENGTH
     self.arm("_l", turned(root + at(*pose["hand_l"])).lerp(wrist_held, held), turn @ at(*pose["pole_l"]), chest)
     lower = self.world["lower_arm_l"].to_quaternion() @ self.rest["lower_arm_l"].to_quaternion().inverted()
@@ -305,12 +307,10 @@ GUARD = {
   "foot_r_rot": (0, -8),
   "foot_l": (0.19, -0.2, 0.0),
   "foot_l_rot": (0, 28),
-  # One-handed and out to the side: the camera sits behind, so a stick held in front hides.
+  # One-handed and out to the side: the camera sits behind, so a machete held in front hides.
   "grip": (-0.34, 0.1, 0.86),
   "aim": (-0.3, 0.75, -0.59),
-  "slide": -0.05,
   "left_on": 0.0,
-  "left_dist": 0.38,
   "hand_l": (0.33, 0.04, 0.84),
   "pole_r": (-0.2, -0.8, -0.4),
   "pole_l": (0.2, -0.8, -0.4),
@@ -392,12 +392,10 @@ def run_clip(name, speed, frames, stance, lean, drop, swing, step=1.0):
     "foot_r": run_foot(-0.125, 0.5, speed, frames, stance, step),
     "foot_l_rot": foot_rot(0.0, 5),
     "foot_r_rot": foot_rot(0.5, -5),
-    # The right arm swings less: it carries the stick, trailing low behind the run.
+    # The right arm swings less: it carries the blade, trailing low behind the run.
     "grip": lambda p: (-0.33, 0.08 + 0.11 * wave(p, 0.04), 0.99 - 0.03 * wave(p, 0.04)),
     "aim": lambda p: (0.05 + 0.02 * wave(p, 0.04), 0.93, 0.36 + 0.03 * wave(p, 0.04)),
-    "slide": [(0, 0.5)],
     "left_on": [(0, 0.0)],
-    "left_dist": [(0, 0.38)],
     "hand_l": lambda p: (0.25, 0.1 - swing * wave(p, 0.04), 1.04 - 0.08 * wave(p, 0.04)),
     "pole_r": [(0, (-0.5, -0.8, -0.6))],
     "pole_l": [(0, (0.5, -0.9, -0.5))],
@@ -410,7 +408,7 @@ AIR = dict(GUARD)
 AIR.update({
   "hips_pos": (0.0, 0.0, -0.05), "hips_rot": (4, 0, 0), "spine_rot": (2, 0, 0), "chest_rot": (2, 0, 0),
   "foot_r": (-0.13, 0.14, 0.4), "foot_r_rot": (5, -5), "foot_l": (0.13, -0.16, 0.3), "foot_l_rot": (45, 5),
-  "grip": (-0.35, 0.12, 1.12), "aim": (0.05, 0.9, 0.3), "slide": 0.4,
+  "grip": (-0.35, 0.12, 1.12), "aim": (0.05, 0.9, 0.3),
   "hand_l": (0.32, 0.22, 1.2), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
 })
 
@@ -443,14 +441,14 @@ def fall_clip():
 def land_clip():
   return Clip("land", 12, timeline(
     (0, dict(GUARD, **{
-      "hips_pos": (0.0, 0.02, -0.1), "grip": AIR["grip"], "aim": AIR["aim"], "slide": 0.3, "hand_l": (0.34, 0.15, 1.05),
+      "hips_pos": (0.0, 0.02, -0.1), "grip": AIR["grip"], "aim": AIR["aim"], "hand_l": (0.34, 0.15, 1.05),
     })),
     (3, {
       "hips_pos": (0.0, 0.05, -0.3), "hips_rot": (24, 10, 0), "head_rot": (12, 0, 0),
       "grip": (-0.36, 0.2, 0.74), "aim": (-0.1, 0.9, -0.2), "hand_l": (0.34, 0.22, 0.72),
     }),
     (6, {"hips_pos": (0.0, 0.03, -0.24), "hips_rot": (18, 12, 0)}),
-    (12, {key: GUARD[key] for key in ("hips_pos", "hips_rot", "head_rot", "grip", "aim", "slide", "hand_l")}),
+    (12, {key: GUARD[key] for key in ("hips_pos", "hips_rot", "head_rot", "grip", "aim", "hand_l")}),
   ))
 
 
@@ -458,23 +456,23 @@ def air_attack_clip():
   """A falling overhead blow; the knees stay tucked so the swing reads against the jump."""
   tucked = {"foot_r": (-0.13, 0.3, 0.2), "foot_r_rot": (-5, -5), "foot_l": (0.13, 0.1, 0.24), "foot_l_rot": (25, 5)}
   return Clip("attack_air", 21, timeline(
-    (0, dict(AIR, **{"grip": (-0.24, 0.2, 1.3), "aim": (-0.08, 0.3, 0.95), "slide": 0.0, "left_on": 0.3})),
+    (0, dict(AIR, **{"grip": (-0.24, 0.2, 1.3), "aim": (-0.08, 0.3, 0.95), "left_on": 0.3})),
     (4, {"grip": (-0.12, -0.02, 1.62), "aim": (-0.15, -0.8, 0.55), "left_on": 1.0, "hips_rot": (-10, 0, 0), "chest_rot": (-6, 0, 0)}),
     (6, {"grip": (-0.12, -0.06, 1.64), "aim": (-0.15, -0.85, 0.48)}),
     (8, {"grip": (-0.08, 0.35, 1.45), "aim": (-0.05, 0.45, 0.9)}),
     (10, {"grip": (-0.04, 0.6, 0.98), "aim": (0.03, 0.92, 0.1), "hips_rot": (18, 0, 0)}),
     (12, dict(tucked, **{"grip": (0.0, 0.5, 0.72), "aim": (0.05, 0.75, -0.65), "hips_rot": (28, 0, 0), "chest_rot": (8, 0, 0)})),
-    (17, dict(tucked, **{"grip": (0.0, 0.5, 0.72), "aim": (0.05, 0.75, -0.65), "left_on": 1.0, "slide": 0.0, "hips_rot": (26, 0, 0)})),
-    (21, {key: AIR[key] for key in ("hips_rot", "chest_rot", "foot_r", "foot_r_rot", "foot_l", "foot_l_rot", "grip", "aim", "slide")}),
+    (17, dict(tucked, **{"grip": (0.0, 0.5, 0.72), "aim": (0.05, 0.75, -0.65), "left_on": 1.0, "hips_rot": (26, 0, 0)})),
+    (21, {key: AIR[key] for key in ("hips_rot", "chest_rot", "foot_r", "foot_r_rot", "foot_l", "foot_l_rot", "grip", "aim")}),
     (21, {"left_on": 0.0}),
   ))
 
 
-# The body curled into a ball around TUMBLE_PIVOT, both hands on a stick held across the
-# shins: the stick lies along the roll's axis, the only way 1.6 m fits through a roll.
+# The body curled into a ball around TUMBLE_PIVOT, both hands on the handle over the shins and
+# the blade along the roll's axis, where it never meets the ground.
 TUCK = {
   "hips_pos": (0.0, -0.24, -0.52), "hips_rot": (58, 0, 0), "spine_rot": (24, 0, 0), "chest_rot": (22, 0, 0), "head_rot": (72, 0, 0),
-  "grip": (-0.2, 0.28, 0.3), "aim": (-1.0, 0.02, 0.0), "slide": 0.45, "left_on": 1.0, "left_dist": 0.4,
+  "grip": (0.02, 0.28, 0.3), "aim": (-1.0, 0.02, 0.0), "left_on": 1.0,
   "pole_r": (-0.7, 0.2, 0.6), "pole_l": (0.7, 0.2, 0.6),
 }
 
@@ -501,7 +499,7 @@ def dodge_clip():
       "hips_pos": (0.0, 0.08, -0.3), "hips_rot": (38, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (14, 0, 0), "head_rot": (30, 0, 0),
       "foot_r": (GUARD["foot_r"][0], GUARD["foot_r"][1] + 0.3, 0.0), "foot_r_rot": (0, -6),
       "foot_l": GUARD["foot_l"], "foot_l_rot": (42, 20),
-      "grip": (-0.26, 0.3, 0.68), "aim": (-0.78, 0.45, -0.25), "slide": 0.3, "left_on": 0.3,
+      "grip": (-0.26, 0.3, 0.68), "aim": (-0.78, 0.45, -0.25), "left_on": 0.3,
     }),
     (4, dict(TUCK, tumble=66.0, feet_free=1.0, **tucked_feet(1.05))),
     (7, dict(TUCK, tumble=160.0, feet_free=1.0, **tucked_feet(1.8))),
@@ -511,7 +509,7 @@ def dodge_clip():
       "root": landed, "tumble": 360.0, "feet_free": 0.0,
       "hips_pos": (0.0, -0.1, -0.46), "hips_rot": (40, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (22, 0, 0),
       "foot_r": land_r, "foot_r_rot": (0, -8), "foot_l": land_l, "foot_l_rot": (0, 12),
-      "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "slide": 0.4, "left_on": 1.0,
+      "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "left_on": 1.0,
     }),
     (17, {"left_on": 0.4, "foot_r": land_r, "foot_r_rot": (24, -8), "foot_l": land_l, "foot_l_rot": (0, 18)}),
     (18, {"root": 3.08, "hips_pos": (0.0, -0.03, -0.3), "hips_rot": (24, 10, 0), "head_rot": (12, 0, 0)}),
@@ -525,7 +523,7 @@ def recovery(distance):
   return {
     "root": distance, "hips_pos": GUARD["hips_pos"], "hips_rot": GUARD["hips_rot"], "spine_rot": GUARD["spine_rot"],
     "chest_rot": GUARD["chest_rot"], "head_rot": GUARD["head_rot"], "grip": GUARD["grip"], "aim": GUARD["aim"],
-    "slide": GUARD["slide"], "left_on": GUARD["left_on"], "hand_l": GUARD["hand_l"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
+    "left_on": GUARD["left_on"], "hand_l": GUARD["hand_l"], "pole_r": GUARD["pole_r"], "pole_l": GUARD["pole_l"],
     "foot_r": (GUARD["foot_r"][0], GUARD["foot_r"][1] + distance, 0.0), "foot_r_rot": GUARD["foot_r_rot"],
     "foot_l": (GUARD["foot_l"][0], GUARD["foot_l"][1] + distance, 0.0), "foot_l_rot": GUARD["foot_l_rot"],
   }
@@ -544,15 +542,15 @@ def held(pose, root):
 # next one opens here, so the blend between them has nothing to travel.
 AFTER_CUT = dict(GUARD, **{
   "hips_pos": (-0.03, 0.07, -0.21), "hips_rot": (24, 38, -4), "spine_rot": (7, 14, 0), "chest_rot": (8, 16, 0),
-  "head_rot": (14, 10, 0), "grip": (0.22, 0.4, 0.74), "aim": (0.74, 0.46, -0.5), "slide": 0.0, "left_on": 1.0,
+  "head_rot": (14, 10, 0), "grip": (0.22, 0.4, 0.74), "aim": (0.74, 0.46, -0.5), "left_on": 1.0,
   "foot_r": (-0.16, 0.21, 0.0), "foot_l": (0.18, -0.6, 0.09), "foot_l_rot": (30, 24),
   "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0),
 })
 
-# The stick reaches its full length here: the right hand slides to its end and the left lets go.
+# The sweep's end: the left hand lets go and the blade finishes high on the right.
 AFTER_SWEEP = dict(GUARD, **{
   "hips_pos": (0.03, 0.04, -0.2), "hips_rot": (5, -44, 4), "spine_rot": (2, -12, 0), "chest_rot": (-3, -20, 0),
-  "head_rot": (6, -12, 0), "grip": (-0.46, 0.2, 1.36), "aim": (-0.86, -0.1, 0.46), "slide": -0.42, "left_on": 0.0,
+  "head_rot": (6, -12, 0), "grip": (-0.46, 0.2, 1.36), "aim": (-0.86, -0.1, 0.46), "left_on": 0.0,
   "hand_l": (0.42, -0.1, 1.05), "foot_r": (-0.16, -0.25, 0.0), "foot_r_rot": (30, -12), "foot_l": (0.19, 0.09, 0.0), "foot_l_rot": (0, 8),
   "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0),
 })
@@ -561,7 +559,7 @@ AFTER_SWEEP = dict(GUARD, **{
 AFTER_ROLL = dict(GUARD, **{
   "hips_pos": (0.0, -0.1, -0.46), "hips_rot": (40, 4, 0), "spine_rot": (14, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (22, 0, 0),
   "foot_r": (-0.15, 0.12, 0.0), "foot_r_rot": (0, -8), "foot_l": (0.15, -0.12, 0.0), "foot_l_rot": (0, 12),
-  "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "slide": 0.4, "left_on": 1.0, "left_dist": 0.4,
+  "grip": (-0.26, 0.24, 0.5), "aim": (-0.9, 0.42, -0.1), "left_on": 1.0,
 })
 
 
@@ -576,7 +574,7 @@ def attack_clip():
   }
   return Clip("attack_light_1", 24, timeline(
     (0, dict(GUARD)),
-    (2, {"grip": (-0.22, 0.2, 1.26), "aim": (-0.08, 0.3, 0.95), "slide": 0.0, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
+    (2, {"grip": (-0.22, 0.2, 1.26), "aim": (-0.08, 0.3, 0.95), "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
     (3, {"left_on": 1.0, "foot_r": GUARD["foot_r"], "foot_r_rot": GUARD["foot_r_rot"]}),
     (4, dict(raised, root=-0.05)),
     (5, dict(raised, root=-0.03, foot_r=(-0.15, 0.3, 0.1), foot_r_rot=(-10, -10), foot_l=GUARD["foot_l"], foot_l_rot=GUARD["foot_l_rot"])),
@@ -596,8 +594,8 @@ def attack_clip():
 
 
 def attack_2_clip():
-  """The sweep: the cut's low pose winds further, the left foot crosses over and the stick
-  whips around at full length, pulled through the right hand as the left lets go."""
+  """The sweep: the cut's low pose winds further, the left foot crosses over and the blade
+  whips around on the right arm as the left hand lets go."""
   distance = 0.75
   planted_r = AFTER_CUT["foot_r"]
   planted_l = (0.19, 0.55, 0.0)
@@ -610,11 +608,11 @@ def attack_2_clip():
     (3, {"root": 0.05, "grip": (0.33, 0.3, 0.8), "aim": (0.88, 0.3, -0.38), "foot_l": (0.2, -0.3, 0.1), "foot_l_rot": (24, 18)}),
     (5, {
       "root": 0.25, "hips_pos": (0.0, 0.05, -0.15), "hips_rot": (10, 0, 1), "spine_rot": (4, -6, 0), "chest_rot": (2, -10, 0), "head_rot": (8, -2, 0),
-      "grip": (0.02, 0.6, 1.02), "aim": (0.12, 0.93, 0.3), "slide": 0.0, "left_on": 1.0, "hand_l": (0.3, 0.3, 1.0), "foot_l": (0.2, 0.3, 0.12), "foot_l_rot": (-8, 10),
+      "grip": (0.02, 0.6, 1.02), "aim": (0.12, 0.93, 0.3), "left_on": 1.0, "hand_l": (0.3, 0.3, 1.0), "foot_l": (0.2, 0.3, 0.12), "foot_l_rot": (-8, 10),
     }),
     (7, {
       "root": 0.36, "hips_rot": (6, -30, 3), "spine_rot": (2, -12, 0), "chest_rot": (-2, -18, 0), "head_rot": (6, -12, 0),
-      "grip": (-0.3, 0.5, 1.3), "aim": (-0.78, 0.5, 0.34), "slide": -0.25, "left_on": 0.2, "foot_l": planted_l, "foot_l_rot": (-4, 8),
+      "grip": (-0.3, 0.5, 1.3), "aim": (-0.78, 0.5, 0.34), "left_on": 0.2, "foot_l": planted_l, "foot_l_rot": (-4, 8),
     }),
     (9, dict(held(AFTER_SWEEP, 0.42), foot_r=planted_r, foot_l=planted_l)),
     (14, dict(held(AFTER_SWEEP, 0.46), foot_r=planted_r, foot_l=planted_l)),
@@ -624,15 +622,15 @@ def attack_2_clip():
 
 
 def attack_3_clip():
-  """The closer: it jumps out of the sweep, whirls the stick overhead through a full turn in the
+  """The closer: it jumps out of the sweep, whirls the blade overhead through a full turn in the
   air and comes down with both hands into the ground, staying low long enough to pay for it."""
   distance = 1.15
-  high = {"grip": (-0.05, 0.25, 1.72), "aim": (0.0, 1.0, 0.03), "slide": 0.2}
-  raised = {"grip": (-0.12, -0.08, 1.66), "aim": (-0.12, -0.88, 0.42), "slide": 0.0}
+  high = {"grip": (-0.05, 0.25, 1.72), "aim": (0.0, 1.0, 0.03)}
+  raised = {"grip": (-0.12, -0.08, 1.66), "aim": (-0.12, -0.88, 0.42)}
   body = {"hips_pos": (0.0, 0.0, -0.1), "hips_rot": (0, -10, 0), "spine_rot": (0, 0, 0), "chest_rot": (-4, 0, 0), "head_rot": (4, 0, 0)}
   slam = {
     "hips_pos": (-0.01, 0.09, -0.36), "hips_rot": (36, 6, 0), "spine_rot": (10, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (18, 0, 0),
-    "grip": (0.0, 0.6, 0.62), "aim": (0.02, 0.8, -0.6), "slide": 0.0, "left_on": 1.0,
+    "grip": (0.0, 0.6, 0.5), "aim": (0.02, 0.8, -0.6), "left_on": 1.0,
     "foot_r": (-0.17, 1.14, 0.0), "foot_r_rot": GUARD["foot_r_rot"], "foot_l": (0.19, 0.6, 0.0), "foot_l_rot": (36, 8),
   }
   air_feet = lambda root: {
@@ -642,7 +640,7 @@ def attack_3_clip():
     (0, dict(AFTER_SWEEP, spin=0.0, lift=0.0, feet_free=0.0)),
     (2, {
       "hips_pos": (0.02, -0.02, -0.32), "hips_rot": (16, -30, 2), "spine_rot": (4, -8, 0), "chest_rot": (6, -16, 0), "head_rot": (8, -8, 0),
-      "grip": (-0.3, 0.1, 1.5), "aim": (-0.4, -0.4, 0.82), "slide": 0.0, "feet_free": 0.0, "lift": 0.0,
+      "grip": (-0.3, 0.1, 1.5), "aim": (-0.4, -0.4, 0.82), "feet_free": 0.0, "lift": 0.0,
       "foot_r": AFTER_SWEEP["foot_r"], "foot_r_rot": (10, -12), "foot_l": AFTER_SWEEP["foot_l"], "foot_l_rot": (0, 8),
     }),
     (3, {"left_on": 1.0, "spin": 8.0}),
@@ -664,14 +662,14 @@ def attack_3_clip():
 
 
 def attack_roll_clip():
-  """Out of a roll: it stays low, pulls the stick back at the hip and drives a one-handed thrust
-  on a long lunge. The stick's whole length goes ahead of the hand."""
+  """Out of a roll: it stays low, pulls the blade back at the hip and drives a one-handed thrust
+  on a long lunge."""
   distance = 1.1
   lunge_r = (-0.17, 1.45, 0.0)
   lunge_l = (0.18, 0.34, 0.0)
   thrust = {
     "hips_pos": (-0.02, 0.12, -0.32), "hips_rot": (30, 20, -2), "spine_rot": (8, 8, 0), "chest_rot": (8, 10, 0), "head_rot": (12, 8, 0),
-    "grip": (-0.05, 0.75, 1.12), "aim": (0.02, 1.0, 0.02), "slide": -0.38, "left_on": 0.0, "hand_l": (0.34, -0.3, 1.0),
+    "grip": (-0.05, 0.75, 1.12), "aim": (0.02, 1.0, 0.02), "left_on": 0.0, "hand_l": (0.34, -0.3, 1.0),
     "pole_r": (-0.6, -0.5, -0.8), "pole_l": (0.6, -0.6, -0.6),
     "foot_r": lunge_r, "foot_r_rot": GUARD["foot_r_rot"], "foot_l": lunge_l, "foot_l_rot": (40, 22),
   }
@@ -679,7 +677,7 @@ def attack_roll_clip():
     (0, dict(AFTER_ROLL)),
     (3, {
       "root": 0.1, "hips_pos": (0.0, -0.06, -0.36), "hips_rot": (24, -20, 0), "chest_rot": (6, -16, 0), "head_rot": (12, -2, 0),
-      "grip": (-0.2, -0.2, 0.95), "aim": (0.05, 0.95, 0.05), "slide": 0.0, "left_on": 0.8,
+      "grip": (-0.2, -0.2, 0.95), "aim": (0.05, 0.95, 0.05), "left_on": 0.8,
       "foot_r": AFTER_ROLL["foot_r"], "foot_r_rot": AFTER_ROLL["foot_r_rot"], "foot_l": AFTER_ROLL["foot_l"], "foot_l_rot": (24, 14),
     }),
     (5, {"root": 0.5, "foot_r": (-0.16, 0.9, 0.12), "foot_r_rot": (-10, -8), "foot_l": AFTER_ROLL["foot_l"]}),
@@ -691,7 +689,7 @@ def attack_roll_clip():
 
 
 def attack_run_clip():
-  """Out of a sprint: the left foot plants and the run's speed throws the stick from low behind
+  """Out of a sprint: the left foot plants and the run's speed throws the blade from low behind
   the body up over the left shoulder, on two hands. The root brakes from sprint speed."""
   distance = 2.35
   plant_l = (0.13, 0.78, 0.0)
@@ -704,13 +702,13 @@ def attack_run_clip():
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (19, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, -0.35, 0.12), "foot_r_rot": (30, -5), "foot_l": (0.125, 0.3, 0.06), "foot_l_rot": (-6, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
       "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
     (2, {
       "root": 0.44, "hips_pos": (0.0, 0.02, -0.2), "hips_rot": (26, -22, 3), "spine_rot": (6, -8, 0), "chest_rot": (6, -10, 0), "head_rot": (8, 0, 0),
       "foot_l": plant_l, "foot_l_rot": (-4, 5), "foot_r": (-0.14, 0.1, 0.2), "foot_r_rot": (40, -5),
-      "grip": (-0.42, -0.2, 0.82), "aim": (-0.3, -0.62, -0.5), "slide": 0.0, "left_on": 0.6,
+      "grip": (-0.42, -0.2, 0.82), "aim": (-0.3, -0.62, -0.5), "left_on": 0.6,
     }),
     (3, {"left_on": 1.0}),
     (4, {"root": 0.9, "hips_rot": (22, -14, 2), "grip": (-0.4, -0.05, 0.72), "aim": (-0.35, 0.4, -0.55), "foot_l": plant_l, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
@@ -724,24 +722,24 @@ def attack_run_clip():
     }),
     (10, dict(finish, root=1.85, foot_r=landed_r, foot_r_rot=(-2, -8), foot_l=(0.15, 1.35, 0.16), foot_l_rot=(40, 14))),
     (13, dict(finish, root=2.1, foot_r=landed_r, foot_r_rot=GUARD["foot_r_rot"], foot_l=(0.17, 1.85, 0.06), foot_l_rot=(20, 18))),
-    (18, dict(finish, root=2.25, foot_r=landed_r, foot_l=(0.18, 2.05, 0.0), foot_l_rot=GUARD["foot_l_rot"], left_on=1.0, slide=0.0)),
+    (18, dict(finish, root=2.25, foot_r=landed_r, foot_l=(0.18, 2.05, 0.0), foot_l_rot=GUARD["foot_l_rot"], left_on=1.0)),
     (30, recovery(distance)),
   ))
 
 
 def attack_heavy_clip():
-  """The heavy blow: both hands haul the stick behind the head, the body holds there leaning back
+  """The heavy blow: both hands haul the blade behind the head, the body holds there leaning back
   long enough to read, and all of it comes down on a long step into the ground."""
   distance = 0.9
-  raised = {"grip": (-0.14, -0.1, 1.62), "aim": (-0.1, -0.86, 0.5), "slide": 0.0}
+  raised = {"grip": (-0.14, -0.1, 1.62), "aim": (-0.1, -0.86, 0.5)}
   slam = {
     "hips_pos": (-0.01, 0.09, -0.38), "hips_rot": (38, 6, 0), "spine_rot": (10, 0, 0), "chest_rot": (12, 0, 0), "head_rot": (18, 0, 0),
-    "grip": (0.0, 0.6, 0.6), "aim": (0.02, 0.8, -0.6), "slide": 0.0,
+    "grip": (0.0, 0.6, 0.5), "aim": (0.02, 0.8, -0.6),
     "foot_r": (-0.17, 0.92, 0.0), "foot_r_rot": GUARD["foot_r_rot"], "foot_l": (0.19, 0.2, 0.0), "foot_l_rot": (36, 8),
   }
   return Clip("attack_heavy", 36, timeline(
     (0, dict(GUARD)),
-    (3, {"grip": (-0.24, 0.18, 1.3), "aim": (-0.1, 0.3, 0.95), "slide": 0.0, "left_on": 0.6, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
+    (3, {"grip": (-0.24, 0.18, 1.3), "aim": (-0.1, 0.3, 0.95), "left_on": 0.6, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
     (6, dict(raised, root=-0.06, left_on=1.0, hips_pos=(0.0, -0.06, -0.14), hips_rot=(-8, -14, 0), chest_rot=(-8, -10, 0), head_rot=(0, -4, 0))),
     (11, dict(raised, root=-0.08, hips_pos=(0.0, -0.08, -0.16), foot_r=GUARD["foot_r"], foot_r_rot=GUARD["foot_r_rot"], foot_l=GUARD["foot_l"], foot_l_rot=GUARD["foot_l_rot"])),
     (13, {
@@ -758,7 +756,7 @@ def attack_heavy_clip():
 
 
 def hurt_clip():
-  """Thrown back by a blow: the chest goes first, the left foot catches the weight and the stick
+  """Thrown back by a blow: the chest goes first, the left foot catches the weight and the blade
   flies out to the side before the guard comes back."""
   return Clip("hurt", 15, timeline(
     (0, dict(GUARD)),
@@ -847,7 +845,7 @@ def lock_clip(name, move, feet_apart):
   hips_x, hips_forward, hips_z = GUARD["hips_pos"]
   pitch, yaw, _ = GUARD["hips_rot"]
   channels = {key: [(0, GUARD[key])] for key in (
-    "spine_rot", "chest_rot", "head_rot", "grip", "aim", "slide", "left_on", "left_dist", "hand_l", "pole_r", "pole_l",
+    "spine_rot", "chest_rot", "head_rot", "grip", "aim", "left_on", "hand_l", "pole_r", "pole_l",
   )}
   channels.update({
     "root": [(0, 0.0)],
@@ -871,7 +869,7 @@ def run_start_clip():
     (5, {
       "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (22, -6, -3), "spine_rot": (5, 6, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
       "foot_r": (-0.125, LANDING_REACH, 0.0), "foot_r_rot": (-8, -5), "foot_l": (0.125, -0.25, 0.22), "foot_l_rot": (58, 5),
-      "grip": (-0.33, 0.0, 0.98), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "hand_l": (0.25, 0.3, 1.0),
+      "grip": (-0.33, 0.0, 0.98), "aim": (0.05, 0.93, 0.36), "hand_l": (0.25, 0.3, 1.0),
       "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
     (10, {
@@ -884,12 +882,12 @@ def run_start_clip():
 
 def run_stop_clip():
   """Braking from a run: the right foot digs in ahead, the body leans back against its own
-  weight and the stick carries on forward before it settles."""
+  weight and the blade carries on forward before it settles."""
   return Clip("run_stop", 15, timeline(
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, -0.1, 0.1), "foot_r_rot": (20, -5), "foot_l": (0.125, 0.1, 0.0), "foot_l_rot": (0, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
       "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
     (3, {
@@ -897,7 +895,7 @@ def run_stop_clip():
       "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (-14, -6), "foot_l": (0.14, -0.1, 0.0), "foot_l_rot": (26, 10),
       "grip": (-0.34, 0.3, 0.96), "aim": (-0.1, 0.9, 0.0), "hand_l": (0.3, 0.2, 1.0),
     }),
-    (6, {"hips_pos": (0.0, -0.05, -0.2), "hips_rot": (3, 10, 0), "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (0, -8), "grip": (-0.34, 0.26, 0.9), "aim": (-0.22, 0.86, -0.3), "slide": 0.1}),
+    (6, {"hips_pos": (0.0, -0.05, -0.2), "hips_rot": (3, 10, 0), "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (0, -8), "grip": (-0.34, 0.26, 0.9), "aim": (-0.22, 0.86, -0.3)}),
     (10, {"foot_r": (-0.15, 0.3, 0.05), "foot_r_rot": (4, -8), "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"], "hips_pos": (0.01, -0.02, -0.14)}),
     (15, recovery(0.0)),
   ))
@@ -905,12 +903,12 @@ def run_stop_clip():
 
 def run_turn_clip():
   """A hard turn at speed, played while the model swings around: the outside foot plants wide,
-  the body drops into the corner and the stick trails."""
+  the body drops into the corner and the blade trails."""
   return Clip("run_turn", 13, timeline(
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, 0.1, 0.0), "foot_r_rot": (0, -5), "foot_l": (0.125, -0.1, 0.1), "foot_l_rot": (20, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "slide": 0.5, "left_on": 0.0, "left_dist": 0.38,
+      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
       "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
     }),
     (3, {
@@ -958,37 +956,25 @@ CLIPS = [
 ]
 
 
-def build_stick(armature):
-  """Placeholder weapon: it follows the weapon bone, so swapping the mesh keeps every clip."""
-  stale = bpy.data.objects.get("stick")
-  if stale:
-    bpy.data.objects.remove(stale)
+def build_weapon(armature):
+  """The machete follows the weapon bone, with its edge on the side the fingers close toward."""
+  for name in ("machete", "blade"):
+    stale = bpy.data.objects.get(name)
+    if stale:
+      bpy.data.objects.remove(stale)
   rest = armature.data.bones["weapon"]
-  sides = 6
-  verts = []
-  for along in (-STICK_BACK, STICK_FRONT):
-    for side in range(sides):
-      angle = math.tau * side / sides
-      offset = Vector((math.cos(angle) * STICK_RADIUS, along, math.sin(angle) * STICK_RADIUS))
-      verts.append(tuple(rest.head_local + rest.matrix_local.to_3x3() @ offset))
-  faces = [[i, (i + 1) % sides, sides + (i + 1) % sides, sides + i] for i in range(sides)]
-  faces += [list(range(sides - 1, -1, -1)), list(range(sides, sides * 2))]
-  mesh = bpy.data.meshes.new("stick")
-  mesh.from_pydata(verts, [], faces)
-  material = bpy.data.materials.get("stick") or bpy.data.materials.new("stick")
-  material.diffuse_color = (0.22, 0.13, 0.07, 1.0)
-  # The exporter reads the node, not the viewport color.
-  material.use_nodes = True
-  bsdf = material.node_tree.nodes.get("Principled BSDF")
-  bsdf.inputs["Base Color"].default_value = material.diffuse_color
-  bsdf.inputs["Roughness"].default_value = 0.9
-  mesh.materials.append(material)
-  stick = bpy.data.objects.new("stick", mesh)
-  bpy.context.scene.collection.objects.link(stick)
-  stick.parent = armature
-  stick.vertex_groups.new(name="weapon").add(list(range(len(verts))), 1.0, "REPLACE")
-  stick.modifiers.new("armature", "ARMATURE").object = armature
-  return stick
+  hand = armature.data.bones["hand_r"]
+  blade = -FORWARD
+  edge = (hand.tail_local - hand.head_local)
+  edge = (edge - edge.project(blade)).normalized()
+  back = -edge
+  turn = Matrix((blade.cross(back), blade, back)).transposed().to_4x4()
+  weapon = machete.build()
+  weapon.data.transform(Matrix.Translation(rest.head_local) @ turn)
+  weapon.parent = armature
+  weapon.vertex_groups.new(name="weapon").add(list(range(len(weapon.data.vertices))), 1.0, "REPLACE")
+  weapon.modifiers.new("armature", "ARMATURE").object = armature
+  return weapon
 
 
 def bake(armature, rig, clip, moved=("root", "hips", "weapon")):
@@ -1018,9 +1004,9 @@ def bake(armature, rig, clip, moved=("root", "hips", "weapon")):
   print("clip", clip.name, "frames", steps, "seconds", round(steps / BAKE_FPS, 3), "max stretch", round(rig.max_stretch, 3))
 
 
-def export(armature, body, stick):
+def export(armature, body, weapon):
   for other in bpy.data.objects:
-    other.hide_set(other not in (armature, body, stick))
+    other.hide_set(other not in (armature, body, weapon))
   display_x = armature.location.x
   armature.location.x = 0.0
   armature.animation_data.action = None
@@ -1045,12 +1031,12 @@ def main():
   scene.render.fps = BAKE_FPS
   armature = bpy.data.objects["armature_male"]
   body = bpy.data.objects["protagonist_male"]
-  stick = build_stick(armature)
+  weapon = build_weapon(armature)
   armature.animation_data_create()
   rig = Rig(armature)
   for clip in CLIPS:
     bake(armature, rig, clip)
-  export(armature, body, stick)
+  export(armature, body, weapon)
   bpy.ops.wm.save_mainfile()
 
 

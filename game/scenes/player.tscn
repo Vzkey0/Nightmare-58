@@ -1,54 +1,106 @@
-[gd_scene load_steps=27 format=3]
+[gd_scene load_steps=43 format=3]
 
 [ext_resource type="PackedScene" path="res://models/characters/protagonist_male.glb" id="1_model"]
+[ext_resource type="PackedScene" path="res://models/props/coffee.glb" id="cup_model"]
+[ext_resource type="PackedScene" path="res://models/props/return_candle.glb" id="candle_model"]
+[ext_resource type="Texture2D" path="res://ui/icons/lochas.png" id="lochas_icon"]
+[ext_resource type="Texture2D" path="res://ui/icons/chapel.png" id="chapel_icon"]
 [ext_resource type="FontFile" path="res://fonts/Cinzel.ttf" id="cinzel"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_1.wav" id="swing_1"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_2.wav" id="swing_2"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_3.wav" id="swing_3"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_4.wav" id="swing_4"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_heavy_1.wav" id="swing_heavy_1"]
-[ext_resource type="AudioStreamWAV" path="res://audio/player/swing_heavy_2.wav" id="swing_heavy_2"]
-[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_wood.ogg" id="hit_wood"]
-[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_chop.ogg" id="hit_chop"]
-[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_stone.ogg" id="slam_stone"]
-[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_cloth.ogg" id="roll_cloth"]
-[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land.ogg" id="roll_land"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_1.ogg" id="swing_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_4.ogg" id="swing_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_5.ogg" id="swing_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_6.ogg" id="swing_6"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_1.ogg" id="swing_heavy_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_2.ogg" id="swing_heavy_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_3.ogg" id="swing_heavy_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_4.ogg" id="swing_heavy_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_1.ogg" id="hit_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_2.ogg" id="hit_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_3.ogg" id="hit_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_4.ogg" id="hit_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_5.ogg" id="hit_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_1.ogg" id="slam_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_2.ogg" id="slam_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_3.ogg" id="slam_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_1.ogg" id="roll_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_2.ogg" id="roll_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_3.ogg" id="roll_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_1.ogg" id="roll_land_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_2.ogg" id="roll_land_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_3.ogg" id="roll_land_3"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_1.ogg" id="step_1"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_2.ogg" id="step_2"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_3.ogg" id="step_3"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_4.ogg" id="step_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_5.ogg" id="step_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_6.ogg" id="step_6"]
 
 [sub_resource type="AudioStreamRandomizer" id="swing_sound"]
-random_pitch = 1.12
+random_pitch = 1.1
 random_volume_offset_db = 1.5
-streams_count = 4
+streams_count = 6
 stream_0/stream = ExtResource("swing_1")
 stream_1/stream = ExtResource("swing_2")
 stream_2/stream = ExtResource("swing_3")
 stream_3/stream = ExtResource("swing_4")
+stream_4/stream = ExtResource("swing_5")
+stream_5/stream = ExtResource("swing_6")
 
 [sub_resource type="AudioStreamRandomizer" id="heavy_swing_sound"]
 random_pitch = 1.08
 random_volume_offset_db = 1.5
-streams_count = 2
+streams_count = 4
 stream_0/stream = ExtResource("swing_heavy_1")
 stream_1/stream = ExtResource("swing_heavy_2")
+stream_2/stream = ExtResource("swing_heavy_3")
+stream_3/stream = ExtResource("swing_heavy_4")
 
 [sub_resource type="AudioStreamRandomizer" id="hit_sound"]
 random_pitch = 1.1
 random_volume_offset_db = 1.5
-streams_count = 2
-stream_0/stream = ExtResource("hit_wood")
-stream_1/stream = ExtResource("hit_chop")
+streams_count = 5
+stream_0/stream = ExtResource("hit_1")
+stream_1/stream = ExtResource("hit_2")
+stream_2/stream = ExtResource("hit_3")
+stream_3/stream = ExtResource("hit_4")
+stream_4/stream = ExtResource("hit_5")
+
+[sub_resource type="AudioStreamRandomizer" id="slam_sound"]
+random_pitch = 1.08
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("slam_1")
+stream_1/stream = ExtResource("slam_2")
+stream_2/stream = ExtResource("slam_3")
+
+[sub_resource type="AudioStreamRandomizer" id="roll_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("roll_1")
+stream_1/stream = ExtResource("roll_2")
+stream_2/stream = ExtResource("roll_3")
+
+[sub_resource type="AudioStreamRandomizer" id="roll_land_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("roll_land_1")
+stream_1/stream = ExtResource("roll_land_2")
+stream_2/stream = ExtResource("roll_land_3")
 
 [sub_resource type="AudioStreamRandomizer" id="step_sound"]
 random_pitch = 1.1
 random_volume_offset_db = 1.5
-streams_count = 4
+streams_count = 6
 stream_0/stream = ExtResource("step_1")
 stream_1/stream = ExtResource("step_2")
 stream_2/stream = ExtResource("step_3")
 stream_3/stream = ExtResource("step_4")
+stream_4/stream = ExtResource("step_5")
+stream_5/stream = ExtResource("step_6")
 
 [sub_resource type="StandardMaterial3D" id="trail_material"]
 transparency = 1
@@ -91,46 +143,9 @@ width = 256
 height = 4
 fill_to = Vector2(1, 0)
 
-[sub_resource type="StandardMaterial3D" id="cup_material"]
-albedo_color = Color(0.9, 0.87, 0.8, 1)
-roughness = 0.6
-
-[sub_resource type="CylinderMesh" id="cup_mesh"]
-material = SubResource("cup_material")
-top_radius = 0.038
-bottom_radius = 0.03
-height = 0.09
-radial_segments = 10
-rings = 1
-
-[sub_resource type="StandardMaterial3D" id="candle_material"]
-albedo_color = Color(0.92, 0.88, 0.72, 1)
-roughness = 0.7
-
-[sub_resource type="CylinderMesh" id="candle_mesh"]
-material = SubResource("candle_material")
-top_radius = 0.014
-bottom_radius = 0.014
-height = 0.2
-radial_segments = 8
-rings = 1
-
-[sub_resource type="StandardMaterial3D" id="flame_material"]
-albedo_color = Color(1, 0.62, 0.15, 1)
-emission_enabled = true
-emission = Color(1, 0.55, 0.12, 1)
-emission_energy_multiplier = 4.0
-
-[sub_resource type="SphereMesh" id="flame_mesh"]
-material = SubResource("flame_material")
-radius = 0.016
-height = 0.05
-radial_segments = 8
-rings = 4
-
-[sub_resource type="CapsuleShape3D" id="stick_shape"]
-radius = 0.06
-height = 1.6
+[sub_resource type="CapsuleShape3D" id="blade_shape"]
+radius = 0.09
+height = 0.95
 
 [node name="Player" type="PlayerController"]
 collision_layer = 2
@@ -294,24 +309,18 @@ bone_name = "weapon"
 [node name="HandItem" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
 bone_name = "hand_l"
 
-[node name="Cup" type="MeshInstance3D" parent="Model/armature_male/Skeleton3D/HandItem"]
+[node name="Cup" parent="Model/armature_male/Skeleton3D/HandItem" instance=ExtResource("cup_model")]
 visible = false
 transform = Transform3D(0.949, 0.316, 0, 0, 0, 1, 0.316, -0.949, 0, -0.038, 0.085, -0.013)
-mesh = SubResource("cup_mesh")
 
-[node name="Candle" type="MeshInstance3D" parent="Model/armature_male/Skeleton3D/HandItem"]
+[node name="Candle" parent="Model/armature_male/Skeleton3D/HandItem" instance=ExtResource("candle_model")]
 visible = false
 transform = Transform3D(0.949, 0.316, 0, 0, 0, 1, 0.316, -0.949, 0, -0.013, 0.085, -0.057)
-mesh = SubResource("candle_mesh")
-
-[node name="Flame" type="MeshInstance3D" parent="Model/armature_male/Skeleton3D/HandItem/Candle"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.115, 0)
-mesh = SubResource("flame_mesh")
 
 [node name="Hitbox" type="ShapeCast3D" parent="Model/armature_male/Skeleton3D/WeaponBone"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
 enabled = false
-shape = SubResource("stick_shape")
+shape = SubResource("blade_shape")
 target_position = Vector3(0, 0, 0)
 collision_mask = 4
 
@@ -409,14 +418,15 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -252.0
-offset_top = -68.0
-offset_right = -44.0
+offset_left = -132.0
+offset_top = -58.0
+offset_right = -36.0
 offset_bottom = -32.0
 theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
-theme_override_font_sizes/font_size = 22
-text = "0 lochas"
+theme_override_font_sizes/font_size = 18
+text = "0"
 horizontal_alignment = 2
+vertical_alignment = 1
 
 [node name="Plate" type="MetalPlate" parent="Hud/LochasLabel"]
 show_behind_parent = true
@@ -424,12 +434,23 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -14.0
-offset_top = -4.0
-offset_right = 14.0
-offset_bottom = 4.0
+offset_left = -8.0
+offset_top = -3.0
+offset_right = 10.0
+offset_bottom = 3.0
 mouse_filter = 2
 style = 1
+
+[node name="Icon" type="TextureRect" parent="Hud/LochasLabel"]
+layout_mode = 0
+offset_left = -7.0
+offset_top = -4.0
+offset_right = 27.0
+offset_bottom = 30.0
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("lochas_icon")
+expand_mode = 1
 
 [node name="Prompt" type="Label" parent="Hud"]
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
@@ -542,11 +563,22 @@ offset_bottom = 112.0
 theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 38
 
+[node name="TitleIcon" type="TextureRect" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 16.0
+offset_right = 604.0
+offset_bottom = 120.0
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("chapel_icon")
+expand_mode = 1
+
 [node name="TabLeft" type="Label" parent="Hud/Menu/Sheet"]
 layout_mode = 0
 offset_left = 36.0
 offset_top = 122.0
-offset_right = 312.0
+offset_right = 232.0
 offset_bottom = 162.0
 theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
@@ -565,9 +597,32 @@ offset_bottom = 0.0
 mouse_filter = 2
 style = 2
 
+[node name="TabMiddle" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 122.0
+offset_right = 428.0
+offset_bottom = 162.0
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabMiddle"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+style = 1
+
 [node name="TabRight" type="Label" parent="Hud/Menu/Sheet"]
 layout_mode = 0
-offset_left = 328.0
+offset_left = 436.0
 offset_top = 122.0
 offset_right = 604.0
 offset_bottom = 162.0
@@ -682,36 +737,31 @@ polygon = PackedVector2Array(0, -5, 5, 0, 0, 5, -5, 0)
 
 [node name="Swing" type="AudioStreamPlayer" parent="Sounds"]
 stream = SubResource("swing_sound")
-volume_db = -6.0
+volume_db = -5.0
 max_polyphony = 2
 
 [node name="HeavySwing" type="AudioStreamPlayer" parent="Sounds"]
 stream = SubResource("heavy_swing_sound")
-volume_db = -4.0
-pitch_scale = 0.75
 max_polyphony = 2
 
 [node name="Hit" type="AudioStreamPlayer" parent="Sounds"]
 stream = SubResource("hit_sound")
-volume_db = -3.0
 max_polyphony = 3
 
 [node name="Slam" type="AudioStreamPlayer" parent="Sounds"]
-stream = ExtResource("slam_stone")
-pitch_scale = 0.7
+stream = SubResource("slam_sound")
 
 [node name="Roll" type="AudioStreamPlayer" parent="Sounds"]
-stream = ExtResource("roll_cloth")
-volume_db = -4.0
-pitch_scale = 1.3
+stream = SubResource("roll_sound")
+volume_db = -6.0
 
 [node name="RollLand" type="AudioStreamPlayer" parent="Sounds"]
-stream = ExtResource("roll_land")
-volume_db = -8.0
+stream = SubResource("roll_land_sound")
+volume_db = -10.0
 
 [node name="Step" type="AudioStreamPlayer" parent="Sounds"]
 stream = SubResource("step_sound")
-volume_db = -12.0
+volume_db = -7.0
 max_polyphony = 3
 
 [node name="CameraPivot" type="Node3D" parent="."]

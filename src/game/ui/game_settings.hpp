@@ -12,7 +12,7 @@ void load();
 float mouse_scale();
 
 // Moves a row one notch, applies it at once and writes it to disk.
-void step(int row, int direction);
+bool step(int row, int direction); // False when the value was already at its limit.
 
 // Which way a click on a row moves it: its < lowers, its > raises, and its name does nothing.
 int click_direction(const godot::Rect2 & row, float x);
