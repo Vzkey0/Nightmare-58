@@ -164,6 +164,16 @@ class Rig:
     hand_axis = (toward - toward.project(stick)).normalized()
     return aim_delta(self.direction("hand" + side), FORWARD, hand_axis, stick), hand_axis
 
+  def cup_hand(self, lower, pose):
+    """The left hand follows the forearm, or turns to keep what it holds along pose["cup"]."""
+    hold = pose.get("cup_on", 0.0)
+    if hold <= 0.0:
+      return lower
+    cup = at(*pose["cup"]).normalized()
+    forearm = self.world["lower_arm_l"].to_3x3().col[1]
+    hand_axis = (forearm - forearm.project(cup)).normalized()
+    return lower.slerp(aim_delta(self.direction("hand_l"), FORWARD, hand_axis, cup), hold)
+
   def solve(self, pose):
     self.world.clear()
     self.local.clear()
@@ -212,7 +222,8 @@ class Rig:
     wrist_held = grip_left - hand_axis_l * PALM_LENGTH
     self.arm("_l", turned(root + at(*pose["hand_l"])).lerp(wrist_held, held), turn @ at(*pose["pole_l"]), chest)
     lower = self.world["lower_arm_l"].to_quaternion() @ self.rest["lower_arm_l"].to_quaternion().inverted()
-    self.hand("_l", lower.slerp(grip_l, held), 25.0 + (FINGER_CURL - 25.0) * held)
+    curl = pose.get("hand_l_curl", 25.0)
+    self.hand("_l", self.cup_hand(lower, pose).slerp(grip_l, held), curl + (FINGER_CURL - curl) * held)
 
 
 def tangents(times, values):
@@ -776,6 +787,42 @@ def death_clip():
   ))
 
 
+UPRIGHT = (0.0, 0.0, 1.0)
+
+
+def drink_clip():
+  """A sip with the free hand: the head tips back and the body stays open to a blow. USE_ITEM in
+  player_actions.cpp heals at 0.45 s, the middle of the sip, and frees the player at 0.9 s."""
+  raised = {"hand_l": (0.22, 0.26, 1.1), "hand_l_curl": 70.0, "cup_on": 1.0, "cup": UPRIGHT, "pole_l": (0.6, -0.5, -0.9), "head_rot": (2, 0, 0)}
+  return Clip("drink", 27, timeline(
+    (0, dict(GUARD, hand_l_curl=25.0, cup_on=0.0, cup=UPRIGHT)),
+    (5, raised),
+    (10, {
+      "hand_l": (0.12, 0.2, 1.4), "cup": (0.0, -0.6, 0.8), "pole_l": (0.45, -0.5, -1.0),
+      "hips_rot": (4, 14, 0), "chest_rot": (-4, -7, 0), "head_rot": (-22, 0, 0),
+    }),
+    (17, {"hand_l": (0.11, 0.18, 1.43), "cup": (0.0, -0.8, 0.6), "hips_rot": (3, 14, 0), "chest_rot": (-5, -7, 0), "head_rot": (-26, 0, 0)}),
+    (22, dict(raised, hips_rot=GUARD["hips_rot"], chest_rot=GUARD["chest_rot"])),
+    (27, dict(recovery(0.0), hand_l_curl=25.0, cup_on=0.0, cup=UPRIGHT)),
+  ))
+
+
+def use_candle_clip():
+  """The candle held up before the face, the head bowed over it. The player is gone at 0.45 s, so
+  the last frames play at the chapel."""
+  raised = {
+    "hand_l": (0.13, 0.28, 1.16), "hand_l_curl": 70.0, "cup_on": 1.0, "pole_l": (0.6, -0.5, -0.9),
+    "head_rot": (24, 0, 0), "chest_rot": (10, -7, 0),
+  }
+  return Clip("use_candle", 27, timeline(
+    (0, dict(GUARD, hand_l_curl=25.0, cup_on=0.0, cup=UPRIGHT)),
+    (6, raised),
+    (13, {"hand_l": (0.12, 0.3, 1.24), "head_rot": (30, 0, 0), "chest_rot": (12, -7, 0)}),
+    (20, raised),
+    (27, dict(recovery(0.0), hand_l_curl=25.0, cup_on=0.0)),
+  ))
+
+
 # PlayerController::LOCK_SPEED must match this speed.
 LOCK_SPEED = 2.2
 LOCK_FRAMES = 12
@@ -903,6 +950,8 @@ CLIPS = [
   attack_heavy_clip(),
   hurt_clip(),
   death_clip(),
+  drink_clip(),
+  use_candle_clip(),
   lock_clip("walk_back-loop", (0.0, -1.0), 0.15),
   lock_clip("strafe_left-loop", (1.0, 0.0), 0.2),
   lock_clip("strafe_right-loop", (-1.0, 0.0), 0.2),

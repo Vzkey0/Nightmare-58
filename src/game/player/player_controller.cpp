@@ -5,6 +5,7 @@
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/ui/item_slot.hpp>
 #include <game/world/save_file.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
@@ -182,7 +183,9 @@ void PlayerController::_ready()
   stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
   lochas_label = get_node<Label>("Hud/LochasLabel");
-  item_label = get_node<Label>("Hud/Panel/ItemLabel");
+  cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
+  candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
+  item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
   prompt_label = get_node<Label>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
@@ -305,6 +308,11 @@ void PlayerController::_physics_process(double delta_time)
 
   const PlayerAction action = actions.current();
   const bool attacking = actions.stepping_attack();
+  if (action != PlayerAction::UseItem)
+  {
+    cup->set_visible(false);
+    candle->set_visible(false);
+  }
   const bool stunned = action == PlayerAction::Hurt || action == PlayerAction::Dead;
   const CombatTarget * locked = locked_target();
   const bool strafing = locked != nullptr && !actions.sprinting();
@@ -410,9 +418,10 @@ void PlayerController::start_action(const Vector3 & wish)
       bend_towards_target(wish);
       break;
     case PlayerAction::UseItem:
-      // ponytail: no drink clip yet, so it stands still. Its own task will add one.
-      play(idle_clip, BLEND_TO_DODGE);
       item_in_use = save.quick_slots().current();
+      play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
+      cup->set_visible(item_in_use == ItemCatalog::COFFEE);
+      candle->set_visible(item_in_use == ItemCatalog::CANDLE);
       save.inventory().remove(item_in_use);
       refresh_hud();
       return;
@@ -857,6 +866,7 @@ void PlayerController::update_hud(float delta)
   stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
 
   prompt_label->set_visible(!menu->is_open());
+  lochas_label->set_visible(!menu->is_open());
   if (toast_time > 0.f)
   {
     toast_time -= delta;
@@ -875,7 +885,7 @@ void PlayerController::refresh_hud()
 {
   lochas_label->set_text(vformat("%d lochas", save.lochas()));
   const ItemId item = save.quick_slots().current();
-  item_label->set_text(item == NO_ITEM ? String() : vformat("%s\nx%d", String::utf8(ItemCatalog::instance()[item].name), save.inventory().count(item)));
+  item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
 }
 
 void PlayerController::show_toast(const String & text)

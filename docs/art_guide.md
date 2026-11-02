@@ -140,6 +140,8 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `attack_heavy` | 1,2 s, avanza 0,9 m | Esquiva 0,6 s, acción 0,85 s, moverse 0,95 s | Golpe pesado: alza el palo a dos manos, lo sostiene para que se lea y lo clava en el suelo |
 | `hurt` | 0,5 s | Acción 0,35 s, moverse 0,45 s | Recibir un golpe |
 | `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
+| `drink` | 0,9 s | Ninguna; un golpe la corta | Sorbo de café con la mano libre; cura a los 0,45 s, a mitad del sorbo |
+| `use_candle` | 0,9 s | Ninguna; un golpe la corta | Alza la vela ante la cara; a los 0,45 s lleva a la última capilla |
 | `walk_back`, `strafe_left`, `strafe_right` | 0,4 s, en bucle | Siempre | Moverse a 2,2 m/s con el objetivo fijado; hacia delante usa `walk` |
 
 **Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
@@ -205,13 +207,27 @@ se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
   pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
 - **Cámara detrás:** el arma debe verse desde atrás en reposo.
 
-**Pendiente:** el palo es provisional: cambiar su malla no afecta a los clips.
+**Objetos en la mano:** los canales `cup_on` y `cup` hacen que la mano izquierda mantenga el objeto
+en la dirección pedida, en vez de seguir al antebrazo. La taza y la vela son nodos bajo `HandItem`
+en `player.tscn`, y `PlayerController` solo muestra el que se está usando.
+
+**Pendiente:** el palo, la taza y la vela son provisionales: cambiar sus mallas no afecta a los clips.
 
 ## Interfaz
 
-Abajo a la izquierda van vida y resistencia, junto a un rombo reservado para el café. Arriba al
-centro irá la barra del jefe y abajo a la derecha las lochas. No hay minimapa, brújula ni mira.
+Abajo a la izquierda van vida y resistencia, junto a un rombo con el objeto en mano y su cantidad.
+Arriba al centro irá la barra del jefe y abajo a la derecha las lochas. No hay minimapa, brújula ni mira.
 
+- **Bronce:** `BronzePlate` dibuja metal cepillado con degradados, vetas finas, biseles y sombras
+  escalonadas, sin texturas. Su patrón es fijo para que no parpadee al redibujar.
+- **Fuentes:** Cinzel en títulos e Inter en el resto, ambas con licencia OFL en `game/fonts`.
+- **Paleta:** bronce, en `ui_palette.hpp`. Vida y resistencia conservan sus colores para
+  leerse en combate.
+- **Menús:** un panel oscuro a la derecha deja ver el mundo. El inventario tiene pestañas (`Z` y `C`),
+  cuadrícula de 5 columnas, detalle del objeto y orden con `R`.
+- **Mouse:** el cursor aparece mientras hay un menú abierto. Pasar por encima selecciona, el clic
+  izquierdo acepta y el derecho vuelve.
+- **Íconos:** `ItemSlot` dibuja cada objeto con formas simples, también en el rombo del HUD.
 - **Sin imágenes:** `StatBar` dibuja el marco y el relleno con polígonos de caras planas, así no
   pierden nitidez. El relleno repite la punta del marco, por lo que encaja a cualquier valor.
 - **Vida:** verde sobre 60 %, ámbar sobre 35 %, naranja sobre 15 % y rojo por debajo. El color cambia

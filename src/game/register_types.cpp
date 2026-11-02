@@ -7,7 +7,9 @@
 #include <game/debug/designar_check.hpp>
 #include <game/player/player_controller.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/bronze_plate.hpp>
 #include <game/ui/game_menu.hpp>
+#include <game/ui/item_slot.hpp>
 #include <game/ui/stat_bar.hpp>
 #include <game/enemies/training_dummy.hpp>
 #include <game/weapons/weapon_trail.hpp>
@@ -29,6 +31,8 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);
+    GDREGISTER_RUNTIME_CLASS(ItemSlot);
+    GDREGISTER_RUNTIME_CLASS(BronzePlate);
     GDREGISTER_RUNTIME_CLASS(Chapel);
     GDREGISTER_RUNTIME_CLASS(LostLochas);
     GDREGISTER_RUNTIME_CLASS(LootPickup);
