@@ -2,7 +2,7 @@
 
 namespace
 {
-// COFFEE and CANDLE in item_catalog.hpp must match their place here.
+// The ids in item_catalog.hpp must match their place here.
 constexpr Item ITEMS[] = {
   {"coffee", "Café", "Cura una parte de la vida. Se recarga en las capillas.", ItemKind::Consumable, 0},
   {"return_candle", "Vela de retorno", "Te devuelve a la última capilla.", ItemKind::Consumable, 40},

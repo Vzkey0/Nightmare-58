@@ -1,4 +1,5 @@
 #include "stat_bar.hpp"
+#include "ui_palette.hpp"
 
 #include <godot_cpp/classes/geometry2d.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -9,9 +10,9 @@ using namespace godot;
 
 namespace
 {
-const Color FRAME_LIT(0.6f, 0.57f, 0.6f);
-const Color FRAME_SHADE(0.34f, 0.32f, 0.36f);
-const Color BACK(0.075f, 0.07f, 0.1f, 0.92f);
+const Color FRAME_LIT = UiPalette::BRONZE;
+const Color FRAME_SHADE = UiPalette::BORDER;
+const Color BACK(0.078f, 0.051f, 0.039f, 0.92f);
 const Color TRAIL(0.85f, 0.79f, 0.66f);
 const Color OUTLINE(0.015f, 0.015f, 0.025f);
 const Vector2 SHADOW_OFFSET(4.f, 5.f);
