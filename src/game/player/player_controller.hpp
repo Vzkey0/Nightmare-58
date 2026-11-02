@@ -29,6 +29,8 @@ class WeaponTrail;
 
 // Translates input and animation into movement; the rules live in PlayerActions.
 // The body never rotates: the Model child turns, and CameraPivot follows on its own.
+class ItemSlot;
+
 class PlayerController : public godot::CharacterBody3D
 {
   GDCLASS(PlayerController, godot::CharacterBody3D)
@@ -127,11 +129,14 @@ private:
   godot::AudioStreamPlayer * roll_land_sound = nullptr;
   godot::AudioStreamPlayer * step_sound = nullptr;
   godot::Control * hud_panel = nullptr;
+  godot::Control * death_screen = nullptr;
   StatBar * health_bar = nullptr;
   StatBar * stamina_bar = nullptr;
   godot::Node2D * lock_marker = nullptr;
   godot::Label * lochas_label = nullptr;
-  godot::Label * item_label = nullptr;
+  godot::Node3D * cup = nullptr;
+  godot::Node3D * candle = nullptr;
+  ItemSlot * item_slot = nullptr;
   godot::Label * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
@@ -194,6 +199,8 @@ private:
   godot::StringName attack_heavy_clip = "attack_heavy";
   godot::StringName hurt_clip = "hurt";
   godot::StringName death_clip = "death";
+  godot::StringName drink_clip = "drink";
+  godot::StringName use_candle_clip = "use_candle";
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
   godot::StringName walk_back_clip = "walk_back";

@@ -1072,6 +1072,25 @@ static void test_player_use_item()
   assert(hit.current() == PlayerAction::Hurt);
 }
 
+static void test_player_name()
+{
+  PlayerProgress progress;
+  assert(progress.player_name() == PlayerProgress::DEFAULT_NAME);
+
+  progress.set_player_name("Ana María");
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.player_name() == "Ana María");
+
+  progress.set_player_name("Ana\nlochas 999");
+  assert(progress.player_name() == "Ana");
+
+  PlayerProgress old;
+  assert(old.from_text("nightmare58 1\nlochas 5\n"));
+  assert(old.player_name() == PlayerProgress::DEFAULT_NAME);
+  assert(old.lochas() == 5);
+}
+
 static void test_menu_stack()
 {
   MenuStack menu;
@@ -1151,5 +1170,6 @@ int main()
   test_stamina_regen_scale();
   test_player_use_item();
   test_menu_stack();
+  test_player_name();
   return 0;
 }

@@ -7,7 +7,8 @@ al juego ni se copia tal cual.
 ## Estilo
 
 - **Facetado:** caras planas y visibles, con *flat shading*. Pocos polígonos bien
-  puestos, no un modelo detallado y simplificado después.
+  puestos, no un modelo detallado y simplificado después. La excepción es el protagonista,
+  con sombreado suave y textura pintada, para que destaque contra el mundo facetado.
 - **Color antes que textura:** color plano por material o paleta en una imagen
   pequeña. Sin texturas fotográficas.
 - **Siluetas legibles:** cada personaje se reconoce solo por su contorno.
@@ -36,26 +37,37 @@ paquetes comerciales: por eso no se reutilizan.
 
 ## Protagonista
 
-Hay dos protagonistas con diseños distintos.
+Hay un protagonista
 
-**Hombre:** venezolano, de contextura atlética y piel morena. Pelo corto y rizado con
-puntas claras, cejas gruesas, barba corta, argolla en la nariz y expansores. Lleva la
-chaqueta tricolor con ocho estrellas y un parche de la bandera, pantalón negro y
-botines negros de una sola pieza, lisos por detrás, con costura amarilla, franja
-gris con ojales, lengüeta y tirador. La cámara del juego va detrás de él, así que
-la espalda lleva también estrellas y un 58 estilo camiseta, por el +58 del título. Es el
-personaje con más detalle del juego.
+**Hombre:** venezolano, de contextura atlética y piel morena, con el nivel de acabado de Link
+en Breath of the Wild. Pelo oscuro en mechones ondulados y puntas claras, cejas gruesas, ojos
+grandes, barba corta, argolla en la nariz y expansores. Lleva abierta la chaqueta tricolor hasta
+media pierna, con ocho estrellas y un parche de la bandera, franela blanca, cinturón, pantalón
+negro y botines negros de una sola pieza, lisos por detrás, con costura amarilla, franja gris con
+ojales, lengüeta y tirador. La cámara del juego va detrás de él, así que la espalda lleva
+también estrellas y un 58 estilo camiseta, por el +58 del título. Es el personaje con más
+detalle del juego.
 
-**Mujer:** pelo negro con flequillo y dos trenzas facetadas con anillo de metal, cara
-en sombra, camiseta negra corta con estampado de cara con colmillos, cinturón con
-hebilla, pantalón cargo ancho y rasgado, y botas negras.
 
 [build_protagonist.py](../art/characters/build_protagonist.py) genera ambos, guarda
 `protagonist.blend` y exporta `protagonist_male.glb` y `protagonist_female.glb`.
 Están en pose A y ya tienen esqueleto, con los mismos 27 huesos en ambos para poder
 compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y golpes;
-`weapon` es el punto de agarre del arma. El hombre suma cuatro huesos `hem_*` para el borde de
-la chaqueta, sin claves en los clips.
+`weapon` es el punto de agarre del arma. El hombre suma 30 huesos sin claves en los clips:
+`jacket_front`, `jacket_side` y `jacket_back` con tres por cadena, y `hair_front`, `hair_side` y
+`hair_back` con dos, todos a cada lado.
+
+[paint_protagonist.py](../art/characters/paint_protagonist.py) despliega las UV, hornea posición,
+normales y oclusión, y pinta una sola textura de 2048 px por posición en el cuerpo, así las costuras
+de la UV no se notan. Hay que correrlo después de `build_protagonist.py`:
+
+```bash
+blender --background art/characters/protagonist.blend --python art/characters/paint_protagonist.py
+```
+
+Las sombras van en bandas rotas con ruido, para que parezca gouache y no un render. La cara se
+pinta completa, sin ojos ni cejas en la malla. La oclusión se hornea con los brazos abiertos, porque
+en pose A dejaría una mancha en el pecho.
 
 ## Esqueleto
 
@@ -106,8 +118,8 @@ navegación en la avenida.
 ## Animaciones
 
 [animate_protagonist.py](../art/characters/animate_protagonist.py) genera los clips y
-exporta `protagonist_male.glb` con ellos. Hay que correrlo después de
-`build_protagonist.py`, porque ese script exporta el modelo sin animaciones:
+exporta `protagonist_male.glb` con ellos. Hay que correrlo de último, después de
+`build_protagonist.py` y `paint_protagonist.py`, porque antes el modelo no tiene animaciones:
 
 ```bash
 blender --background art/characters/protagonist.blend --python art/characters/animate_protagonist.py
@@ -140,6 +152,8 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `attack_heavy` | 1,2 s, avanza 0,9 m | Esquiva 0,6 s, acción 0,85 s, moverse 0,95 s | Golpe pesado: alza el palo a dos manos, lo sostiene para que se lea y lo clava en el suelo |
 | `hurt` | 0,5 s | Acción 0,35 s, moverse 0,45 s | Recibir un golpe |
 | `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
+| `drink` | 0,9 s | Ninguna; un golpe la corta | Sorbo de café con la mano libre; cura a los 0,45 s, a mitad del sorbo |
+| `use_candle` | 0,9 s | Ninguna; un golpe la corta | Alza la vela ante la cara; a los 0,45 s lleva a la última capilla |
 | `walk_back`, `strafe_left`, `strafe_right` | 0,4 s, en bucle | Siempre | Moverse a 2,2 m/s con el objetivo fijado; hacia delante usa `walk` |
 
 **Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
@@ -179,10 +193,12 @@ alcanzan los brazos más el ancho del jugador.
 golpe. El nodo `Dust` de `player.tscn` levanta polvo al rodar, aterrizar, frenar y clavar el palo.
 El clavado añade temblor y un empujón de cámara.
 
-**Chaqueta:** `HemSprings` en `player.tscn` mueve el borde con los resortes nativos de Godot.
-Trabaja en el espacio del nodo `Model`: en coordenadas del mundo, cada giro del personaje arrastra
-todo el borde. Rigidez 4 y arrastre 0,6 dan unos 30° de pico en carrera y hasta 70° un instante en la voltereta y el giro; `WaistCollision` evita que entre
-al cuerpo, y con un radio mayor empuja el frente al inclinarse.
+**Chaqueta y pelo:** `ClothSprings` en `player.tscn` los mueve con los resortes nativos de Godot,
+en 12 cadenas. Trabaja en el espacio del nodo `Model`: en coordenadas del mundo, cada giro del
+personaje arrastra toda la tela. La chaqueta usa rigidez 3 y arrastre 0,55, y el pelo rigidez 6 y
+arrastre 0,5. Las solapas cuelgan del pecho, y los lados y la espalda de la cadera; no tienen
+peso en las piernas. `WaistCollision`, `ThighLeft` y `ThighRight` apartan la tela del cuerpo, y
+`HeadCollision` evita que el pelo entre al cráneo.
 
 **Sonido:** los sonidos del jugador están en `Sounds` en `player.tscn`, con tono aleatorio. Solo
 se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
@@ -205,13 +221,32 @@ se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
   pelvis, y las curvas no se pasan de largo para que un pie fijo siga fijo.
 - **Cámara detrás:** el arma debe verse desde atrás en reposo.
 
-**Pendiente:** el palo es provisional: cambiar su malla no afecta a los clips.
+**Objetos en la mano:** los canales `cup_on` y `cup` hacen que la mano izquierda mantenga el objeto
+en la dirección pedida, en vez de seguir al antebrazo. La taza y la vela son nodos bajo `HandItem`
+en `player.tscn`, y `PlayerController` solo muestra el que se está usando.
+
+**Pendiente:** el palo, la taza y la vela son provisionales: cambiar sus mallas no afecta a los clips.
 
 ## Interfaz
 
-Abajo a la izquierda van vida y resistencia, junto a un rombo reservado para el café. Arriba al
-centro irá la barra del jefe y abajo a la derecha las lochas. No hay minimapa, brújula ni mira.
+Abajo a la izquierda van vida y resistencia, junto a un rombo con el objeto en mano y su cantidad.
+Arriba al centro irá la barra del jefe y abajo a la derecha las lochas. No hay minimapa, brújula ni mira.
 
+- **Inicio:** `title.tscn` es la primera escena: primer plano del protagonista bajo la lluvia, con
+  logo y menú a la derecha. Abre, carga, crea y borra las 5 partidas.
+- **Pausa:** Esc o Start detienen el juego; el inventario no.
+- **Metal:** `MetalPlate` dibuja metal cepillado con degradados, vetas finas, biseles y sombras
+  escalonadas, sin texturas. Su patrón es fijo para que no parpadee al redibujar.
+- **Fuentes:** Cinzel en títulos e Inter en el resto, ambas con licencia OFL en `game/fonts`.
+- **Paleta:** azul acero, en `ui_palette.hpp`, para combinar con la lluvia del Inicio.
+- **Selección:** la fila o casilla elegida hace un pequeño pop con un tween. Las filas no se
+  reconstruyen al cambiar de selección, para que la animación pueda verse. Vida y resistencia conservan sus colores para
+  leerse en combate.
+- **Menús:** un panel oscuro a la derecha deja ver el mundo. El inventario tiene pestañas (`Z` y `C`),
+  cuadrícula de 5 columnas, detalle del objeto y orden con `R`.
+- **Mouse:** el cursor aparece mientras hay un menú abierto. Pasar por encima selecciona, el clic
+  izquierdo acepta y el derecho vuelve.
+- **Íconos:** `ItemSlot` dibuja cada objeto con formas simples, también en el rombo del HUD.
 - **Sin imágenes:** `StatBar` dibuja el marco y el relleno con polígonos de caras planas, así no
   pierden nitidez. El relleno repite la punta del marco, por lo que encaja a cualquier valor.
 - **Vida:** verde sobre 60 %, ámbar sobre 35 %, naranja sobre 15 % y rojo por debajo. El color cambia
@@ -270,7 +305,7 @@ Son valores de partida; se ajustan si el juego los necesita.
 
 | Tipo | Triángulos |
 |---|---|
-| Personaje principal | 3.000 a 6.000 |
+| Personaje principal | Hasta 15.000 |
 | Enemigo común | 2.000 a 4.000 |
 | Jefe | 5.000 a 10.000 |
 | Objeto pequeño | 50 a 500 |

@@ -25,8 +25,12 @@ public:
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
+  static constexpr const char * DEFAULT_NAME = "Sin nombre";
 
   PlayerProgress();
+
+  const std::string & player_name() const { return name; }
+  void set_player_name(const std::string & value);
 
   int lochas() const { return wallet; }
   int day() const { return days; }
@@ -70,6 +74,7 @@ private:
   PlayerStats levels;
   QuickSlots quick;
   DeathMark mark;
+  std::string name = DEFAULT_NAME;
 
   // J-012: pickup ids are small and dense, so one bit each is the smallest and fastest answer.
   Designar::DynBitSet taken;

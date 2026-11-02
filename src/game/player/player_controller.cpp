@@ -5,6 +5,8 @@
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/ui/game_settings.hpp>
+#include <game/ui/item_slot.hpp>
 #include <game/world/save_file.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
@@ -97,6 +99,7 @@ constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing so
 
 constexpr float HURT_PUSH = 4.f;
 constexpr float RESPAWN_TIME = 3.f;
+constexpr float DEATH_FADE = 0.6f;
 
 constexpr int COFFEE_HEAL = 45;
 constexpr float TOAST_TIME = 2.5f;
@@ -177,12 +180,16 @@ void PlayerController::_ready()
   roll_sound = get_node<AudioStreamPlayer>("Sounds/Roll");
   roll_land_sound = get_node<AudioStreamPlayer>("Sounds/RollLand");
   step_sound = get_node<AudioStreamPlayer>("Sounds/Step");
+  GameSettings::load();
   hud_panel = get_node<Control>("Hud/Panel");
+  death_screen = get_node<Control>("Hud/DeathScreen");
   health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
   stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
   lochas_label = get_node<Label>("Hud/LochasLabel");
-  item_label = get_node<Label>("Hud/Panel/ItemLabel");
+  cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
+  candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
+  item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
   prompt_label = get_node<Label>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
@@ -232,9 +239,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
   Input * input = Input::get_singleton();
   const bool captured = input->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED;
 
-  if (event->is_action_pressed("ui_cancel"))
+  if (event->is_action_pressed("pause"))
   {
-    input->set_mouse_mode(captured ? Input::MOUSE_MODE_VISIBLE : Input::MOUSE_MODE_CAPTURED);
+    menu->open(MenuScreen::Pause);
     return;
   }
 
@@ -246,8 +253,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
     lock_flick += motion->get_relative().x;
     return;
   }
-  camera_yaw -= motion->get_relative().x * mouse_sensitivity;
-  camera_pitch -= motion->get_relative().y * mouse_sensitivity;
+  const float sensitivity = mouse_sensitivity * GameSettings::mouse_scale();
+  camera_yaw -= motion->get_relative().x * sensitivity;
+  camera_pitch -= motion->get_relative().y * sensitivity;
 }
 
 void PlayerController::_process(double delta)
@@ -305,6 +313,11 @@ void PlayerController::_physics_process(double delta_time)
 
   const PlayerAction action = actions.current();
   const bool attacking = actions.stepping_attack();
+  if (action != PlayerAction::UseItem)
+  {
+    cup->set_visible(false);
+    candle->set_visible(false);
+  }
   const bool stunned = action == PlayerAction::Hurt || action == PlayerAction::Dead;
   const CombatTarget * locked = locked_target();
   const bool strafing = locked != nullptr && !actions.sprinting();
@@ -371,6 +384,7 @@ void PlayerController::start_action(const Vector3 & wish)
   flourish_time = 0.f;
   step_scale = 1.f;
   animator->set_speed_scale(1.f);
+  current_clip = StringName(); // An action always starts its clip over, even the one running.
   chain = 1 - chain;
   hitbox->clear_exceptions();
 
@@ -410,9 +424,10 @@ void PlayerController::start_action(const Vector3 & wish)
       bend_towards_target(wish);
       break;
     case PlayerAction::UseItem:
-      // ponytail: no drink clip yet, so it stands still. Its own task will add one.
-      play(idle_clip, BLEND_TO_DODGE);
       item_in_use = save.quick_slots().current();
+      play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
+      cup->set_visible(item_in_use == ItemCatalog::COFFEE);
+      candle->set_visible(item_in_use == ItemCatalog::CANDLE);
       save.inventory().remove(item_in_use);
       refresh_hud();
       return;
@@ -850,6 +865,14 @@ void PlayerController::update_hud(float delta)
   const float scale = get_viewport()->get_visible_rect().size.y / HUD_BASE_HEIGHT;
   hud_panel->set_scale(Vector2(scale, scale));
 
+  const bool dead = health.dead();
+  death_screen->set_visible(dead);
+  if (dead)
+  {
+    const float appear = MIN((RESPAWN_TIME - respawn_time) / DEATH_FADE, 1.f);
+    death_screen->set_modulate(Color(1.f, 1.f, 1.f, appear * MIN(respawn_time / DEATH_FADE, 1.f)));
+  }
+
   health_trail.update(health.ratio(), delta);
   health_bar->set_values(health.ratio(), health_trail.value());
   health_bar->set_fill_color(health_color(health.ratio()));
@@ -857,6 +880,7 @@ void PlayerController::update_hud(float delta)
   stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
 
   prompt_label->set_visible(!menu->is_open());
+  lochas_label->set_visible(!menu->is_open());
   if (toast_time > 0.f)
   {
     toast_time -= delta;
@@ -875,7 +899,7 @@ void PlayerController::refresh_hud()
 {
   lochas_label->set_text(vformat("%d lochas", save.lochas()));
   const ItemId item = save.quick_slots().current();
-  item_label->set_text(item == NO_ITEM ? String() : vformat("%s\nx%d", String::utf8(ItemCatalog::instance()[item].name), save.inventory().count(item)));
+  item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
 }
 
 void PlayerController::show_toast(const String & text)
@@ -992,6 +1016,7 @@ void PlayerController::play(const StringName & clip, float blend)
   if (clip != current_clip)
   {
     animator->play(clip, blend);
+    animator->seek(0.0); // play() alone resumes a clip that is already running.
     current_clip = clip;
   }
 }
