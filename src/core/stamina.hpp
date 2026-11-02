@@ -29,7 +29,7 @@ public:
       wait -= delta;
       return;
     }
-    current = std::min(current + REGEN_RATE * delta, maximum);
+    current = std::min(current + REGEN_RATE * regen_scale * delta, maximum);
     out_of_breath = out_of_breath && ratio() < WINDED_UNTIL;
   }
 
@@ -40,6 +40,8 @@ public:
     out_of_breath = false;
   }
 
+  void set_regen_scale(float scale) { regen_scale = scale; }
+
   float ratio() const { return current / maximum; }
   bool can_act() const { return current > 0.f; }
   bool winded() const { return out_of_breath; }
@@ -48,5 +50,6 @@ private:
   float maximum;
   float current;
   float wait = 0.f;
+  float regen_scale = 1.f;
   bool out_of_breath = false;
 };

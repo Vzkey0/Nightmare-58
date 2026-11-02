@@ -7,9 +7,13 @@
 #include <game/debug/designar_check.hpp>
 #include <game/player/player_controller.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/game_menu.hpp>
 #include <game/ui/stat_bar.hpp>
 #include <game/enemies/training_dummy.hpp>
 #include <game/weapons/weapon_trail.hpp>
+#include <game/world/chapel.hpp>
+#include <game/world/loot_pickup.hpp>
+#include <game/world/lost_lochas.hpp>
 
 using namespace godot;
 
@@ -24,6 +28,10 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(SkeletonEnemy);
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
+    GDREGISTER_RUNTIME_CLASS(GameMenu);
+    GDREGISTER_RUNTIME_CLASS(Chapel);
+    GDREGISTER_RUNTIME_CLASS(LostLochas);
+    GDREGISTER_RUNTIME_CLASS(LootPickup);
   }
 }
 

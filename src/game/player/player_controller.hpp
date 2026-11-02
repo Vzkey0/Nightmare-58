@@ -8,6 +8,7 @@
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/cpu_particles3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
+#include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -17,9 +18,13 @@
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/progression/player_progress.hpp>
 
-class StatBar;
+class Chapel;
 class CombatTarget;
+class GameMenu;
+class LostLochas;
+class StatBar;
 class WeaponTrail;
 
 // Translates input and animation into movement; the rules live in PlayerActions.
@@ -32,6 +37,7 @@ protected:
   static void _bind_methods();
 
 public:
+  void _enter_tree() override; // Loads the game before any _ready, so pickups can ask about it.
   void _ready() override;
   void _process(double delta) override;
   void _physics_process(double delta) override;
@@ -46,6 +52,13 @@ public:
   void take_hit(int damage, const godot::Vector3 & attacker);
   bool is_dead() const { return health.dead(); }
   int respawn_count() const { return respawns; } // Enemies go back to their places on each one.
+
+  const PlayerProgress & progress() const { return save; }
+  void earn(int lochas);
+  void pick_up(const godot::String & item_key, int amount, int pickup_id);
+  void set_nearby_chapel(Chapel * chapel);
+  void recover_lochas();
+  bool raise_stat(Stat stat);
 
   // Shared by every enemy around the player, however many there are.
   AttackTurns & attack_turns() { return turns; }
@@ -67,7 +80,17 @@ private:
   void feel_hit(int damage);
   void end_hitstop();
   void respawn();
+  void rest();
+  void apply_stats();
+  void place_at_saved_chapel();
+  void drop_lochas();
+  void clear_dropped_lochas();
+  void read_item_input();
+  void use_item();
+  void update_progress(float delta);
   void update_hud(float delta);
+  void refresh_hud();
+  void show_toast(const godot::String & text);
 
   CombatTarget * locked_target() const;
   float yaw_towards(const godot::Node3D * node) const;
@@ -81,10 +104,10 @@ private:
   void update_lock(float delta);
 
   static constexpr int ATTACK_CLIPS = 3;
-  static constexpr int MAX_HEALTH = 100;
 
   PlayerActions actions;
-  Health health{MAX_HEALTH};
+  PlayerProgress save;
+  Health health{PlayerStats::BASE_HEALTH};
   HealthTrail health_trail;
   LockOnList lock_candidates;
   AttackTurns turns;
@@ -107,6 +130,13 @@ private:
   StatBar * health_bar = nullptr;
   StatBar * stamina_bar = nullptr;
   godot::Node2D * lock_marker = nullptr;
+  godot::Label * lochas_label = nullptr;
+  godot::Label * item_label = nullptr;
+  godot::Label * prompt_label = nullptr;
+  godot::Label * toast_label = nullptr;
+  GameMenu * menu = nullptr;
+  Chapel * nearby_chapel = nullptr;
+  LostLochas * dropped_lochas = nullptr;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.
   float run_speed = 4.6f;
@@ -132,6 +162,9 @@ private:
   godot::Vector3 spawn_point;
   float respawn_time = 0.f;
   int respawns = 0;
+  float regen_carry = 0.f; // Health comes in whole points; a slow rate adds up across ticks.
+  float toast_time = 0.f;
+  ItemId item_in_use = NO_ITEM;
 
   uint64_t lock_id = 0; // An id and not a pointer: a target may be freed while locked.
   float lock_hidden_time = 0.f;
@@ -190,4 +223,8 @@ private:
   godot::StringName attack_input = "attack";
   godot::StringName heavy_attack_input = "attack_heavy";
   godot::StringName lock_input = "lock_on";
+  godot::StringName interact_input = "interact";
+  godot::StringName use_item_input = "use_item";
+  godot::StringName next_item_input = "next_item";
+  godot::StringName inventory_input = "inventory";
 };

@@ -89,7 +89,7 @@ blender --background art/characters/skeleton.blend --python art/characters/anima
 
 Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos brillan más durante esa
 señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
-queda en el último cuadro, y reproducido al revés es como el esqueleto se rearma a los 12 s.
+queda en el último cuadro, y el esqueleto queda así hasta que el jugador descansa o muere.
 
 **IA:** [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
 qué hacer y `EnemyActions` lo ejecuta. Un paseo se puede cambiar, un ataque no: un golpe solo lo

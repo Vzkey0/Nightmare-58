@@ -27,18 +27,19 @@ implementarse.
 |---|---|---|
 | Zonas | Árbol n-ario | Pendiente |
 | Combos y estados alterados | Listas | Pendiente |
-| Objeto rápido | Lista recorrida en círculo | Pendiente |
-| Fantasma y rastro | Lista de posiciones | Pendiente |
+| Objeto rápido | Lista recorrida en círculo | J-013 |
+| Rastro de enemigos | Lista de posiciones | Pendiente |
 | Búfer de inputs | Cola | J-004 |
-| Menús anidados | Pila | Pendiente |
+| Menús anidados | Pila | J-014 |
 | Ataque del jefe | Heap | Pendiente |
-| Base de objetos | Tabla hash | Pendiente |
+| Base de objetos | Tabla hash | J-007 |
 | Bestiario | Trie | Pendiente |
 | Lock-on | `insertion_sort` | Pendiente |
 | Rutas de enemigos | `NavigationAgent3D` de Godot | Pendiente: hoy caminan en línea recta |
-| Inventario | `merge_sort` | Pendiente |
+| Inventario | `merge_sort` | J-008 y J-009 |
 | Récords | `quicksort` | Pendiente |
-| Botín, nivel, fase, tasa de cambio | `binary_search` | Pendiente |
+| Botín | `binary_search` | J-010: gana el recorrido lineal |
+| Nivel, fase, tasa de cambio | `binary_search` | Pendiente |
 
 ## Fichas
 
@@ -170,3 +171,167 @@ implementarse.
   El valor del contador es tan bajo porque el compilador simplifica el ciclo; indica que no pesa, no
   su costo exacto.
 - **Conclusión:** el contador es más corto y soporta cualquier cantidad de enemigos sin que se conozcan
+
+## J-007: Base de objetos con `HashMap` y `DynArray`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/item_catalog.hpp`, `ItemCatalog`
+- **Crítico:** No. Se busca al recoger un objeto y al cargar la partida
+- **Datos:** 6 objetos hoy y unos 30 al terminar el capítulo; se midió con 30 y 300
+- **Operaciones:** traducir una clave de texto a un `ItemId` y leer un objeto por `ItemId`. Domina
+  la lectura por `ItemId`
+- **Elegida:** `HashMap` de clave a `ItemId`, `O(1)` promedio, y `DynArray` indexado por `ItemId`,
+  `O(1)`. El texto solo se usa en los bordes: escenas y partidas guardadas
+- **Descartadas:** `binary_search` sobre claves ordenadas y recorrido lineal perdieron en la medición.
+  Guardar solo números en las escenas ahorra la tabla, pero una partida guardada dejaría de servir al
+  reordenar el catálogo
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación:
+
+  | Claves | `HashMap` | `binary_search` | Lineal |
+  |---|---|---|---|
+  | 30 | 10 a 15,5 | 30 a 32,5 | 36,5 a 42,5 |
+  | 300 | 12 a 16,5 | 64,5 a 66,5 | 258,5 a 343,5 |
+
+- **Conclusión:** la tabla es unas 3 veces más rápida que la búsqueda binaria con 30 claves y casi no
+  cambia con el tamaño
+
+## J-008: Cantidades del inventario indexadas por `ItemId`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/inventory.hpp`, `Inventory::counts`
+- **Crítico:** No. Cambia al recoger o usar un objeto
+- **Datos:** un contador por objeto del catálogo; se midió con 30 y 300
+- **Operaciones:** sumar, restar y consultar cantidades. Dominan esas tres
+- **Elegida:** `DynArray` con una cantidad por `ItemId`. Todo es `O(1)` y sin búsqueda
+- **Descartadas:** una lista de pilas obliga a buscar la pila en `O(n)` en cada cambio, y solo ahorraría
+  unos enteros, porque el catálogo es pequeño
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación:
+
+  | Objetos | Por `ItemId` | Buscando la pila |
+  |---|---|---|
+  | 30 | 1,5 | 4,5 a 6 |
+  | 300 | 1,5 | 41,5 a 50 |
+
+- **Conclusión:** como un `ItemId` ya es un índice, buscar sería trabajo sin ninguna ganancia
+
+## J-009: Orden del inventario con `merge_sort`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/inventory.cpp`, `Inventory::sorted`
+- **Crítico:** No. Corre al abrir o cambiar el menú, nunca en cada frame
+- **Datos:** hasta 30 filas; se midió también con 300
+- **Operaciones:** ordenar por recientes y, encima, por tipo o por valor
+- **Elegida:** `merge_sort`. `O(n lg n)` siempre y estable, algo que el orden en dos pasadas necesita.
+  `test_inventory_sort_is_stable` comprueba la estabilidad de la versión de DeSiGNAR
+- **Descartadas:** `insertion_sort` también es estable y ganó con 30 filas, pero es `O(n²)` y pierde por
+  más del doble con 300. `heap_sort` y `quicksort` no son estables
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación, incluida la copia del arreglo:
+
+  | Filas | `merge_sort` | `insertion_sort` | Solo la copia |
+  |---|---|---|---|
+  | 30 | 153,5 a 189,5 | 126,5 a 166,5 | 29 a 40,5 |
+  | 300 | 3705 a 5870,5 | 10090,5 a 10351,5 | 80 a 95 |
+
+- **Conclusión:** con el tamaño esperado la diferencia es de unos 25 ns en un menú, sin efecto real. Se
+  prefiere el peor caso garantizado, porque un inventario más grande no empeora
+
+## J-010: Tabla de loot con recorrido lineal
+
+- **Estado:** Aceptada. Cambia lo propuesto en el PDD (`binary_search`)
+- **Código:** `src/core/progression/loot_table.hpp`, `LootTable::pick`
+- **Crítico:** No. Corre una vez por enemigo muerto
+- **Datos:** 8 entradas por tabla; se midió con 6 y 60
+- **Operaciones:** elegir una entrada según un número al azar
+- **Elegida:** pesos acumulados en un `DynArray` y recorrido lineal, `O(n)`
+- **Descartadas:** `binary_search` es `O(lg n)`, pero fue más lento en los dos tamaños: sus saltos son
+  impredecibles y la versión de DeSiGNAR es recursiva
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación:
+
+  | Entradas | Lineal | `binary_search` |
+  |---|---|---|
+  | 6 | 7,5 a 8,5 | 9 a 10 |
+  | 60 | 18,5 a 20 | 23,5 a 24 |
+
+- **Conclusión:** la opción con mejor complejidad no es la mejor con este tamaño. El recorrido es más
+  corto y más rápido
+
+## J-011: Rastro del fantasma con `FixedQueue`
+
+- **Estado:** Retirada. El fantasma se quitó del juego, así que esta estructura ya no existe. La
+  medición se hizo antes de quitarlo
+- **Código:** ninguno
+- **Crítico:** Sí. Corría durante la partida, 5 veces por segundo
+- **Datos:** 100 puntos, que son 20 s; se midió también con 1000
+- **Operaciones:** agregar un punto y soltar el más viejo. Al morir se copia a un `DynArray`, que el
+  fantasma lee por índice en `O(1)` en cada tick
+- **Elegida:** `FixedQueue`. Todo es `O(1)` y nunca reserva memoria
+- **Descartadas:** `SLList` reserva un nodo en cada punto y fue unas 10 veces más lenta. `DynQueue` rindió
+  parecido, pero puede reservar memoria, algo innecesario con una capacidad fija
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación. El programa ya no incluye esta prueba:
+
+  | Capacidad | `FixedQueue` | `SLList` | `DynQueue` |
+  |---|---|---|---|
+  | 100 | 3 | 29 a 34,5 | 4,5 |
+  | 1000 | 3 | 26,5 a 39 | 4,5 |
+
+- **Conclusión:** el rastro es una ventana de tamaño fijo, justo lo que hace una cola circular. El fantasma
+  gasta lo mismo por tick sea cual sea el largo del camino
+
+## J-012: Objetos recogidos con `DynBitSet`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/player_progress.hpp`, `PlayerProgress::taken`
+- **Crítico:** No. Se consulta al cargar una escena y cambia al recoger
+- **Datos:** hasta 256 objetos colocados en los niveles; se midió con 40 y 400
+- **Operaciones:** marcar un id y consultar si está marcado. Domina la consulta
+- **Elegida:** `DynBitSet`. Las dos operaciones son `O(1)` y gasta un bit por objeto
+- **Descartadas:** `HashSet` fue unas 3 veces más lento y gasta memoria por nodo; un `DynArray` de ids
+  recorrido en cada consulta es `O(n)` y crece mal
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 operaciones, en tres
+  ejecuciones, en nanosegundos por operación:
+
+  | Objetos | `DynBitSet` | `HashSet` | Recorrer una lista |
+  |---|---|---|---|
+  | 40 | 1,5 a 2 | 5 a 7 | 7,5 a 9,5 |
+  | 400 | 1,5 a 2 | 5 a 9 | 78 a 120,5 |
+
+- **Conclusión:** los ids son enteros pequeños y densos, el mejor caso para un conjunto de bits
+
+## J-013: Objeto rápido con `FixedQueue`
+
+- **Estado:** Aceptada. Cambia lo propuesto en el PDD (lista recorrida en círculo)
+- **Código:** `src/core/progression/quick_slots.hpp`, `QuickSlots::slots`
+- **Crítico:** No. Corre al pulsar el botón
+- **Datos:** 4 espacios como máximo
+- **Operaciones:** leer el objeto actual y pasar al siguiente
+- **Elegida:** `FixedQueue`. El frente es el objeto en la mano, y pasar al siguiente es sacarlo y volverlo
+  a poner. Ambos pasos son `O(1)` y no reservan memoria
+- **Descartadas:** una lista circular da lo mismo, pero reserva nodos y hay que mantener los enlaces. Un
+  arreglo con índice obliga a mantener ese índice a mano
+- **Medición:** No aplica
+- **Conclusión:** la rotación ya existe en una cola, igual que en J-003
+
+## J-014: Menús anidados con `FixedStack`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/menu_stack.hpp`, `MenuStack::screens`
+- **Crítico:** No. Corre con la entrada del jugador
+- **Datos:** 2 niveles hoy; 4 como máximo
+- **Operaciones:** abrir una pantalla, volver y leer la actual
+- **Elegida:** `FixedStack`. Todo es `O(1)`, y cada entrada guarda su cursor, así que al volver se regresa
+  a la fila que se dejó
+- **Descartadas:** una sola variable con la pantalla actual obliga a saber a mano a dónde volver y pierde
+  el cursor. `DynStack` puede reservar memoria sin necesidad
+- **Medición:** No aplica
+- **Conclusión:** los menús se cierran en orden inverso al que se abren, que es exactamente una pila

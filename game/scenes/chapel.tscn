@@ -1,0 +1,54 @@
+[gd_scene load_steps=7 format=3]
+
+[sub_resource type="SphereShape3D" id="reach"]
+radius = 2.6
+
+[sub_resource type="StandardMaterial3D" id="stone"]
+albedo_color = Color(0.62, 0.6, 0.56, 1)
+
+[sub_resource type="BoxMesh" id="altar"]
+material = SubResource("stone")
+size = Vector3(1.4, 1, 0.8)
+
+[sub_resource type="BoxMesh" id="cross_post"]
+material = SubResource("stone")
+size = Vector3(0.14, 1.2, 0.14)
+
+[sub_resource type="BoxMesh" id="cross_arm"]
+material = SubResource("stone")
+size = Vector3(0.7, 0.14, 0.14)
+
+[sub_resource type="BoxShape3D" id="altar_shape"]
+size = Vector3(1.4, 1, 0.8)
+
+[node name="Chapel" type="Chapel"]
+collision_layer = 0
+collision_mask = 2
+
+[node name="Reach" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("reach")
+
+[node name="Altar" type="StaticBody3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Altar"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("altar_shape")
+
+[node name="Block" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("altar")
+
+[node name="CrossPost" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+mesh = SubResource("cross_post")
+
+[node name="CrossArm" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+mesh = SubResource("cross_arm")
+
+[node name="Candle" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0.6)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 0.5
+omni_range = 6.0

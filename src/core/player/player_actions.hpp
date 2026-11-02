@@ -6,7 +6,7 @@
 #include <core/stamina.hpp>
 
 // Attack, Attack2 and Attack3 stay together: PlayerController::attack_clip follows this order.
-enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack, RollAttack, RunAttack, HeavyAttack, Hurt, Dead };
+enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack, RollAttack, RunAttack, HeavyAttack, Hurt, Dead, UseItem };
 
 // Seconds from the start of the clip. duration must match the clip in
 // art/characters/animate_protagonist.py.
@@ -21,7 +21,7 @@ struct ActionTiming
   float hit_end = 0.f;
   int damage = 0;
   float dodge_cancel = 0.f; // A dodge may interrupt from here on; 0 waits for next_action.
-  float ground_hit = 0.f;   // When the body or the weapon lands; 0 never does.
+  float ground_hit = 0.f;   // When the body or the weapon lands, or an item takes effect; 0 never does.
   float stamina_cost = 0.f;
 };
 
@@ -73,6 +73,7 @@ public:
   float elapsed() const { return action_time; }
   float stamina_ratio() const { return stamina.ratio(); }
   bool winded() const { return stamina.winded(); }
+  void set_stamina_regen(float scale) { stamina.set_regen_scale(scale); }
 
   bool invulnerable() const
   {

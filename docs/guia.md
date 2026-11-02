@@ -298,7 +298,7 @@ Godot no ve los cambios de C++ hasta que compilas y lo vuelves a abrir.
 
 **Si creas una clase para Godot:**
 
-1. Crea el `.hpp` y el `.cpp` en la subcarpeta de `src/game/` que le toque (`enemies/`, `player/`, `weapons/`, `ui/` o `debug/`).
+1. Crea el `.hpp` y el `.cpp` en la subcarpeta de `src/game/` que le toque (`enemies/`, `player/`, `weapons/`, `ui/`, `world/` o `debug/`).
 2. Agrega el `.cpp` a `add_library(nightmare58_ext ...)` en `CMakeLists.txt`.
 3. Regístrala con `GDREGISTER_CLASS(TuClase)` en `src/game/register_types.cpp`.
 4. Compila y abre Godot. La clase aparece en **Añadir nodo**.
