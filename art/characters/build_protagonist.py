@@ -1,6 +1,8 @@
 # Builds the male and female protagonist from code so proportions can be tweaked and rebuilt.
 # Faces -Y with feet on the origin, in A-pose for rigging. +X is the character's left.
+# The male is colored afterwards by paint_protagonist.py; the female keeps flat materials.
 #   blender --background --python art/characters/build_protagonist.py
+import bisect
 import math
 import os
 import random
@@ -19,21 +21,7 @@ VARIANTS = {
   "male": {
     "height_scale": 1.0,
     "display_x": -0.7,
-    "torso": [
-      (0.98, 0.095, 0.14, 0), (1.08, 0.098, 0.15, 0), (1.20, 0.106, 0.168, 0), (1.32, 0.113, 0.195, 0),
-      (1.40, 0.105, 0.195, 0), (1.445, 0.082, 0.145, 0.005), (1.49, 0.062, 0.075, 0.005),
-    ],
     "skin": "skin_tan",
-    "bare_arms": False,
-    "pelvis_top": (0.112, 0.16),
-    "neck": [(1.455, 0.07, 0.082, 0.014), (1.495, 0.058, 0.061, 0.012), (1.53, 0.052, 0.053, 0.008), (1.565, 0.053, 0.055, 0.004), (1.6, 0.055, 0.058, 0.002)],
-    "head": [
-      (1.518, 0.036, 0.04, -0.042), (1.535, 0.056, 0.062, -0.03), (1.56, 0.078, 0.074, -0.012),
-      (1.585, 0.086, 0.076, -0.004), (1.61, 0.09, 0.078, 0), (1.635, 0.093, 0.081, 0), (1.66, 0.096, 0.083, 0),
-      (1.69, 0.096, 0.083, 0), (1.72, 0.087, 0.075, 0.005), (1.75, 0.04, 0.036, 0.005),
-    ],
-    "head_bands": {0: "stubble", 1: "stubble"},
-    "nose": None,
     "fingers": True,
     "arm_shift": -0.03,
     "arm_scale": 1.08,
@@ -42,7 +30,6 @@ VARIANTS = {
     "height_scale": 0.96,
     "display_x": 0.7,
     "skin": "skin",
-    "bare_arms": True,
     "torso": [
       (0.98, 0.095, 0.14, 0), (1.06, 0.085, 0.118, 0), (1.18, 0.095, 0.128, 0), (1.30, 0.118, 0.16, -0.01),
       (1.38, 0.108, 0.172, -0.004), (1.44, 0.08, 0.145, 0.005), (1.49, 0.055, 0.052, 0.005),
@@ -83,21 +70,22 @@ COLORS = {
   "metal": (0.70, 0.70, 0.72),
   "print_light": (0.88, 0.88, 0.85),
   "print_mid": (0.48, 0.48, 0.50),
-  "skin_tan": (0.70, 0.49, 0.36),
-  "stubble": (0.42, 0.30, 0.24),
-  "lips": (0.56, 0.33, 0.28),
+  "skin_tan": (0.66, 0.44, 0.31),
+  "head_skin": (0.66, 0.44, 0.31),
+  "ear_gauge": (0.10, 0.09, 0.09),
   "eye_white": (0.90, 0.88, 0.84),
   "iris": (0.13, 0.08, 0.06),
-  "hair_dark": (0.12, 0.09, 0.08),
-  "hair_light": (0.62, 0.55, 0.44),
+  "hair_lock": (0.13, 0.09, 0.07),
   "flag_yellow": (0.98, 0.76, 0.10),
-  "flag_blue": (0.10, 0.16, 0.62),
   "flag_red": (0.82, 0.08, 0.10),
   "white": (0.95, 0.95, 0.93),
+  "tee_rib": (0.84, 0.84, 0.82),
+  "jacket_shell": (0.82, 0.08, 0.10),
+  "jacket_sleeve": (0.82, 0.08, 0.10),
+  "jacket_lining": (0.30, 0.06, 0.09),
+  "zipper_tape": (0.12, 0.13, 0.17),
   "pants_black": (0.13, 0.13, 0.15),
-  "pants_pocket": (0.2, 0.2, 0.23),
   "flag_red_dark": (0.58, 0.05, 0.07),
-  "seam": (0.27, 0.27, 0.31),
   "boot_leather": (0.15, 0.15, 0.16),
   "boot_sole": (0.06, 0.06, 0.065),
   "boot_soft": (0.34, 0.34, 0.36),
@@ -120,7 +108,8 @@ HEAD_LIFT = 0.032
 
 surfaces = {}
 parts = []
-head_parts = []
+# Per lock: how far along it each vertex sits, and the two bones of its chain, if any.
+hair_weights = {}
 variant = None
 
 
@@ -283,31 +272,20 @@ def clear():
 def build_body():
   skin = variant["skin"]
   tube("torso", rings(variant["torso"]), skin, n=10)
-  tube("neck", rings(variant["neck"]), skin, n=10 if variant["fingers"] else 8)
-  tube("head", rings(variant["head"]), skin, n=14 if variant["fingers"] else 10, bands=variant["head_bands"])
-  if variant["nose"]:
-    tube("nose", variant["nose"], skin, n=4)
-  if variant["bare_arms"]:
-    both("arm", arm_path(ARM_PATH), skin)
-  if variant["fingers"]:
-    both("hand", arm_path([
-      ((0.375, -0.02, 0.89), 0.03, 0.02),
-      ((0.395, -0.025, 0.83), 0.05, 0.023),
-      ((0.405, -0.03, 0.79), 0.046, 0.019),
-    ]), skin, n=6)
-    for i, (y, length) in enumerate(((-0.066, 0.07), (-0.042, 0.082), (-0.018, 0.078), (0.006, 0.062))):
-      both(f"finger_{i}", arm_path([
-        ((0.404, y, 0.795), 0.0095, 0.0095),
-        ((0.416, y, 0.795 - length * 0.55), 0.0085, 0.0085),
-        ((0.424, y - 0.002, 0.795 - length), 0.0065, 0.0065),
-      ]), skin, n=4)
-  else:
-    both("hand", arm_path([
-      ((0.375, -0.02, 0.89), 0.03, 0.02),
-      ((0.395, -0.025, 0.83), 0.048, 0.022),
-      ((0.41, -0.03, 0.77), 0.042, 0.018),
-      ((0.42, -0.03, 0.72), 0.02, 0.01),
-    ]), skin, n=6)
+  tube("neck", rings(variant["neck"]), skin, n=8)
+  tube("head", rings(variant["head"]), skin, n=10, bands=variant["head_bands"])
+  tube("nose", variant["nose"], skin, n=4)
+  both("arm", arm_path(ARM_PATH), skin)
+  both("hand", arm_path([
+    ((0.375, -0.02, 0.89), 0.03, 0.02),
+    ((0.395, -0.025, 0.83), 0.048, 0.022),
+    ((0.41, -0.03, 0.77), 0.042, 0.018),
+    ((0.42, -0.03, 0.72), 0.02, 0.01),
+  ]), skin, n=6)
+  thumb(skin)
+
+
+def thumb(skin):
   both("thumb", arm_path([
     ((0.375, -0.045, 0.86), 0.012, 0.012),
     ((0.38, -0.075, 0.81), 0.012, 0.011),
@@ -466,195 +444,6 @@ def build_face():
     ], "hair", depth=0.004, lift=0.001)
 
 
-def jacket_body():
-  """Vest of the flag jacket; dropping the rings at the center draws the color chevrons."""
-  # Entries are (height, front-back radius, width radius, center drop).
-  levels = [
-    (0.985, 0.13, 0.178, 0.0), (1.03, 0.13, 0.178, 0.0), (1.14, 0.125, 0.176, 0.02),
-    (1.205, 0.124, 0.184, 0.09), (1.30, 0.128, 0.21, 0.07), (1.37, 0.124, 0.214, 0.05),
-    (1.425, 0.11, 0.186, 0.0), (1.46, 0.092, 0.135, 0.0), (1.485, 0.074, 0.093, 0.0),
-  ]
-  band_colors = ["flag_red"] * 3 + ["flag_blue"] * 2 + ["flag_yellow"] * 3
-  n = 16
-  verts = []
-  for z, front_back, width, drop in levels:
-    for k in range(n):
-      angle = 2 * math.pi * k / n
-      verts.append(Vector((
-        width * math.sin(angle),
-        -front_back * math.cos(angle),
-        z - drop * (1 - abs(math.sin(angle))),
-      )))
-  faces = []
-  face_materials = []
-  for i, color in enumerate(band_colors):
-    for k in range(n):
-      j = (k + 1) % n
-      faces.append((i * n + k, i * n + j, (i + 1) * n + j, (i + 1) * n + k))
-      face_materials.append(color)
-  faces.append(tuple(reversed(range(n))))
-  face_materials.append("flag_red")
-  faces.append(tuple((len(levels) - 1) * n + k for k in range(n)))
-  face_materials.append("flag_yellow")
-  add_object("jacket", verts, faces, face_materials)
-
-
-def star(name, surface, center, radius, back=False):
-  points = []
-  for k in range(10):
-    angle = math.pi / 2 + math.pi * k / 5
-    length = radius if k % 2 == 0 else radius * 0.42
-    points.append((center[0] + length * math.cos(angle), center[1] + length * math.sin(angle)))
-  decal(name, surface, points, "white", back=back)
-
-
-def jacket_collar():
-  """Folded collar, open at the front and higher at the back, so the neck can breathe."""
-  steps = 12
-  section = 4
-  verts = []
-  for k in range(steps + 1):
-    angle = math.radians(32 + 296 * k / steps)
-    top = 1.495 + 0.03 * (1 - math.cos(angle)) / 2
-    for extra, z in ((0.0, 1.465), (-0.004, top), (0.01, top - 0.004), (0.016, 1.468)):
-      verts.append(Vector((
-        (0.086 + extra) * math.sin(angle),
-        0.01 - (0.08 + extra) * math.cos(angle),
-        z,
-      )))
-  faces = []
-  for k in range(steps):
-    for level in range(section):
-      other = (level + 1) % section
-      faces.append((
-        k * section + level, k * section + other,
-        (k + 1) * section + other, (k + 1) * section + level,
-      ))
-  faces.append((3, 2, 1, 0))
-  last = steps * section
-  faces.append((last, last + 1, last + 2, last + 3))
-  add_object("collar", verts, faces, ["flag_yellow"] * len(faces))
-
-
-def jersey_segment(left, bottom, width, height, code, digit):
-  """One block of a 5 (digit 0) or 8 (digit 1) as an (x, z) rectangle."""
-  thickness = 0.014
-  right = left + width
-  top = bottom + height
-  middle = bottom + height / 2
-  if code == "t":
-    return [(left, top - thickness), (right, top - thickness), (right, top), (left, top)]
-  if code == "b":
-    return [(left, bottom), (right, bottom), (right, bottom + thickness), (left, bottom + thickness)]
-  if code == "m":
-    half = thickness / 2
-    return [(left, middle - half), (right, middle - half), (right, middle + half), (left, middle + half)]
-  if code == "l":
-    low = middle if digit == 0 else bottom
-    return [(left, low), (left + thickness, low), (left + thickness, top), (left, top)]
-  if code == "c":
-    return [(right - thickness, middle), (right, middle), (right, top), (right - thickness, top)]
-  return [(right - thickness, bottom), (right, bottom), (right, middle), (right - thickness, middle)]
-
-
-def build_jacket():
-  jacket_body()
-  sleeve = [(position, ru * 1.14, rv * 1.14) for position, ru, rv in arm_path(ARM_PATH)]
-  # A smaller, lower start keeps the shoulder inside the jacket instead of peaking.
-  (x, y, z), ru, rv = sleeve[0]
-  sleeve[0] = ((x, y, z - 0.05), ru * 0.8, rv * 0.8)
-  (x, y, z), ru, rv = sleeve[1]
-  sleeve[1] = ((x, y, z - 0.03), ru * 0.9, rv * 0.9)
-  bands = {0: "flag_yellow", 1: "flag_yellow", 2: "flag_blue", 3: "flag_blue"}
-  both("sleeve", sleeve, "flag_red", bands=bands)
-  tube("undershirt", [
-    ((0, 0.01, 1.455), 0.08, 0.094),
-    ((0, 0.01, 1.487), 0.066, 0.069),
-  ], "white", n=10)
-  jacket_collar()
-  tree = surfaces["jacket"]
-  zipper = []
-  for step in range(17):
-    z = 0.99 + step * 0.03
-    zipper.append((tuple(tree.ray_cast(Vector((0.0005, -2.0, z)), Vector((0, 1, 0)))[0] - Vector((0, 0.003, 0))), 0.005, 0.009))
-  tube("zipper", zipper, "white", n=4)
-  # Eight stars, as on the flag: six on the chest and one on each sleeve.
-  for sign, side in ((1, "l"), (-1, "r")):
-    for i, (x, z) in enumerate(((0.05, 1.205), (0.11, 1.245), (0.172, 1.285))):
-      star(f"star_{side}_{i}", "jacket", (sign * x, z), 0.03)
-    star(f"star_{side}_sleeve", "sleeve_" + side, (sign * 0.242, 1.225), 0.025)
-    # The third-person camera lives behind him, so the back carries the same stars.
-    for i, (x, z) in enumerate(((0.04, 1.21), (0.1, 1.25), (0.158, 1.285))):
-      star(f"star_back_{side}_{i}", "jacket", (sign * x, z), 0.03, back=True)
-  # Jersey-style 58 on the back: the country code that names the game.
-  for digit, (left, segments) in enumerate(((-0.062, "tlmrb"), (0.012, "tlcrbm"))):
-    for code in segments:
-      # Seen from behind, +X is on the viewer's left, so x flips to read correctly.
-      polygon = [(-x, z) for x, z in jersey_segment(left, 1.03, 0.05, 0.078, code, digit)]
-      decal(f"jersey_{digit}_{code}", "jacket", polygon, "white", back=True)
-  # Chest patch: the flag with its arc of eight stars.
-  left, right, top, stripe = 0.072, 0.138, 1.422, 0.0155
-  for i, color in enumerate(("flag_yellow", "flag_blue", "flag_red")):
-    upper = top - i * stripe
-    decal(f"flag_{color}", "jacket", [(left, upper), (right, upper), (right, upper - stripe), (left, upper - stripe)], color, lift=0.012)
-  decal("flag_border", "jacket", [(left - 0.004, top + 0.004), (right + 0.004, top + 0.004), (right + 0.004, top - 3 * stripe - 0.004), (left - 0.004, top - 3 * stripe - 0.004)], "white", lift=0.009)
-  for i in range(8):
-    angle = math.radians(155 - i * 130 / 7)
-    x = (left + right) / 2 + 0.021 * math.cos(angle)
-    z = top - 2.25 * stripe + 0.018 * math.sin(angle)
-    decal(f"flag_star_{i}", "jacket", [(x - 0.0022, z - 0.0016), (x + 0.0022, z - 0.0016), (x, z + 0.0026)], "white", lift=0.0135)
-  tube("jacket_hem", [
-    ((0, 0, 0.982), 0.133, 0.181),
-    ((0, 0, 1.012), 0.134, 0.182),
-  ], "flag_red_dark", n=16)
-  both("jacket_cuff", arm_path([
-    ((0.367, -0.015, 0.93), 0.036, 0.036),
-    ((0.378, -0.02, 0.885), 0.034, 0.032),
-  ]), "flag_red_dark")
-  pull_top, pull_bottom = (tree.ray_cast(Vector((0.0005, -2.0, z)), Vector((0, 1, 0)))[0] for z in (1.445, 1.41))
-  tube("zipper_pull", [
-    (tuple(pull_top - Vector((0, 0.008, 0))), 0.005, 0.007),
-    (tuple(pull_bottom - Vector((0, 0.008, 0))), 0.004, 0.005),
-  ], "metal", n=4)
-  for sign, side in ((1, "l"), (-1, "r")):
-    strip("jacket_pocket_" + side, "jacket", [(sign * 0.07, 1.115, 0.003), (sign * 0.14, 1.055, 0.003)], "flag_red_dark", depth=0.003)
-
-
-def build_street_pants():
-  tube("pelvis", [
-    ((0, 0, 0.78), 0.10, 0.13),
-    ((0, 0.008, 0.86), 0.128, 0.168),
-    ((0, 0.004, 0.93), 0.126, 0.17),
-    ((0, 0, 1.05), *variant["pelvis_top"]),
-  ], "pants_black", n=10)
-  both("leg", [
-    ((0.09, 0, 0.92), 0.108, 0.088),
-    ((0.098, 0, 0.76), 0.1, 0.09),
-    ((0.106, -0.004, 0.54), 0.083, 0.078),
-    ((0.112, 0, 0.5), 0.078, 0.073),
-    ((0.12, 0.004, 0.34), 0.07, 0.066),
-    ((0.125, 0.005, 0.24), 0.058, 0.052),
-    ((0.125, 0.005, 0.2), 0.05, 0.046),
-  ], "pants_black", n=10)
-  for sign, side in ((1, "l"), (-1, "r")):
-    surface = "leg_" + side
-    # A raised piece, because a flat patch breaks across the pelvis and leg facets.
-    pocket = []
-    for z, width in ((0.95, 0.056), (0.9, 0.056), (0.86, 0.05), (0.84, 0.028)):
-      hits = [
-        tree.ray_cast(Vector((sign * 0.085, 2.0, z)), Vector((0, -1, 0)))[0]
-        for tree in (surfaces["pelvis"], surfaces[surface])
-      ]
-      # The leg ends below the top of the pocket, so its ray can miss.
-      depth = max(hit.y for hit in hits if hit is not None)
-      pocket.append(((sign * 0.085, depth + 0.001, z), width, 0.004))
-    tube("pants_back_pocket_" + side, pocket, "pants_pocket", n=4, side=(1, 0, 0))
-    fold ={"depth": 0.003, "lift": 0.004}
-    strip("pants_pocket_" + side, "pelvis", [(sign * 0.075, 0.975, 0.0025), (sign * 0.145, 0.915, 0.0025)], "seam", **fold)
-    strip("pants_knee_a_" + side, surface, [(sign * 0.065, 0.565, 0.0025), (sign * 0.105, 0.55, 0.004), (sign * 0.15, 0.57, 0.0025)], "seam", **fold)
-    strip("pants_knee_b_" + side, surface, [(sign * 0.07, 0.505, 0.0025), (sign * 0.11, 0.495, 0.004), (sign * 0.15, 0.51, 0.0025)], "seam", **fold)
-
-
 def dashes(name, segments, mat):
   """Flat stitches. Each segment is (start, end, outward normal, half height vector)."""
   verts = []
@@ -789,125 +578,459 @@ def build_boots():
   boot("r", -1)
 
 
-def raise_head():
-  """Lifts the head, hair and face together, leaving a visible neck under the jaw."""
-  lift = Matrix.Translation((0, 0, HEAD_LIFT))
-  for obj in parts:
-    if obj.name.startswith(("head", "nose")) or obj in head_parts:
-      obj.data.transform(lift)
-      obj.data.update()
+def smooth(edge0, edge1, value):
+  amount = max(0.0, min(1.0, (value - edge0) / (edge1 - edge0)))
+  return amount * amount * (3 - 2 * amount)
 
 
-def build_curly_hair():
-  head_parts_start = len(parts)
-  build_curly_hair_parts()
-  build_male_face()
-  head_parts.extend(parts[head_parts_start:])
-  raise_head()
+def gauss(value, center, width):
+  return math.exp(-((value - center) / width) ** 2)
 
 
-def build_curly_hair_parts():
-  tube("hair_cap", [
-    ((0, 0.02, 1.565), 0.05, 0.058),
-    ((0, 0.04, 1.60), 0.056, 0.072),
-    ((0, 0.02, 1.65), 0.085, 0.086),
-    ((0, 0.006, 1.705), 0.096, 0.09),
-    ((0, 0.005, 1.75), 0.088, 0.08),
-    ((0, 0.005, 1.778), 0.04, 0.04),
-  ], "hair_dark", n=10)
-  rng = random.Random(58)
-  # Curls sit on top; the sides stay short, as in a fade.
-  index = 0
-  for radius, z, count, highlight in ((0.09, 1.725, 14, 0.08), (0.068, 1.76, 11, 0.22), (0.034, 1.78, 6, 0.35)):
-    for k in range(count):
-      angle = 2 * math.pi * (k + rng.random() * 0.4) / count
-      position = (radius * math.cos(angle), 0.004 + radius * 1.05 * math.sin(angle), z + rng.uniform(-0.008, 0.008))
-      size = rng.uniform(0.019, 0.027)
-      color = "hair_light" if rng.random() < highlight else "hair_dark"
-      clump(f"curl_{index}", position, (size, size, size * 0.85), color, 100 + index)
-      index += 1
-  for i, (x, z) in enumerate(((-0.05, 1.712), (-0.012, 1.703), (0.03, 1.708), (0.066, 1.72))):
-    clump(f"curl_front_{i}", (x, -0.086, z), (0.022, 0.019, 0.02), "hair_light" if i == 1 else "hair_dark", 140 + i)
+def spline(path, steps):
+  """Catmull-Rom through tube entries, so a few key rings give a soft form."""
+  rows = [(*position, ru, rv) for position, ru, rv in path]
+  last = len(rows) - 1
+  result = []
+  for i in range(last):
+    a, b, c, d = rows[max(i - 1, 0)], rows[i], rows[i + 1], rows[min(i + 2, last)]
+    for step in range(steps):
+      t = step / steps
+      result.append(tuple(
+        0.5 * (2 * q + (r - p) * t + (2 * p - 5 * q + 4 * r - s) * t * t + (3 * q - p - 3 * r + s) * t ** 3)
+        for p, q, r, s in zip(a, b, c, d)
+      ))
+  result.append(rows[last])
+  return [((x, y, z), ru, rv) for x, y, z, ru, rv in result]
 
 
-def male_nose():
-  """One piece rooted in the face: bridge, tip and wings share the same surface."""
-  # Entries are (height, root half width, root depth, side half width, side depth, ridge depth).
-  levels = [
-    (1.655, 0.011, -0.085, 0.007, -0.094, -0.097),
-    (1.622, 0.014, -0.08, 0.009, -0.1, -0.106),
-    (1.6, 0.024, -0.08, 0.018, -0.103, -0.114),
-    (1.588, 0.024, -0.08, 0.018, -0.1, -0.11),
-    (1.578, 0.016, -0.08, 0.011, -0.093, -0.098),
+def profile(table):
+  """Smooth curve through (input, output) pairs."""
+  table = sorted(table)
+  keys = [key for key, _ in table]
+  values = [value for _, value in table]
+  last = len(table) - 1
+  slopes = [
+    (values[min(i + 1, last)] - values[max(i - 1, 0)]) / (keys[min(i + 1, last)] - keys[max(i - 1, 0)])
+    for i in range(last + 1)
   ]
-  n = 5
-  verts = []
-  for z, root_width, root_y, side_width, side_y, ridge_y in levels:
-    verts += [
-      Vector((-root_width, root_y, z)), Vector((-side_width, side_y, z)), Vector((0, ridge_y, z)),
-      Vector((side_width, side_y, z)), Vector((root_width, root_y, z)),
-    ]
+
+  def evaluate(x):
+    x = max(keys[0], min(keys[last], x))
+    i = min(bisect.bisect_right(keys, x) - 1, last - 1)
+    span = keys[i + 1] - keys[i]
+    t = (x - keys[i]) / span
+    return (
+      (2 * t ** 3 - 3 * t ** 2 + 1) * values[i] + (t ** 3 - 2 * t ** 2 + t) * span * slopes[i]
+      + (3 * t ** 2 - 2 * t ** 3) * values[i + 1] + (t ** 3 - t ** 2) * span * slopes[i + 1]
+    )
+
+  return evaluate
+
+
+def ring_faces(rows, columns, closed=True):
   faces = []
-  for i in range(len(levels) - 1):
-    for k in range(n):
-      j = (k + 1) % n
-      faces.append((i * n + k, i * n + j, (i + 1) * n + j, (i + 1) * n + k))
-  faces.append(tuple(reversed(range(n))))
-  faces.append(tuple((len(levels) - 1) * n + k for k in range(n)))
-  add_object("nose", verts, faces, [variant["skin"]] * len(faces))
+  for i in range(rows - 1):
+    for k in range(columns if closed else columns - 1):
+      j = (k + 1) % columns
+      faces.append((i * columns + k, i * columns + j, (i + 1) * columns + j, (i + 1) * columns + k))
+  return faces
 
 
-def build_male_face():
-  male_nose()
-  chin = [
-    surfaces["head"].ray_cast(Vector((0.0004, -2.0, z)), Vector((0, 1, 0)))[0]
-    for z in (1.552, 1.54, 1.526)
-  ]
-  tube("goatee", [(tuple(point), 0.024, 0.004) for point in chin], "hair_dark", n=4, side=(1, 0, 0))
-  strip("mustache", "head", [
-    (-0.03, 1.578, 0.001), (-0.011, 1.581, 0.004), (0, 1.58, 0.003), (0.011, 1.581, 0.004), (0.03, 1.578, 0.001),
-  ], "stubble", depth=0.003)
-  strip("upper_lip", "head", [
-    (-0.027, 1.569, 0.001), (-0.012, 1.572, 0.004), (0, 1.5705, 0.0035), (0.012, 1.572, 0.004), (0.027, 1.569, 0.001),
-  ], "lips", depth=0.004)
-  strip("lower_lip", "head", [(-0.021, 1.564, 0.001), (0, 1.561, 0.006), (0.021, 1.564, 0.001)], "lips", depth=0.005)
-  strip("mouth_line", "head", [(-0.027, 1.568, 0.0012), (0, 1.5665, 0.0012), (0.027, 1.568, 0.0012)], "iris", depth=0.0055)
+def set_panel(obj, values):
+  """Per-vertex (across, along, seed) for the painter; hair streaks and fades with it."""
+  attribute = obj.data.attributes.new("panel", "FLOAT_VECTOR", "POINT")
+  attribute.data.foreach_set("vector", [channel for value in values for channel in value])
+
+
+# The skull is a stack of rings and the face a relief on it, so features stay where the texture expects.
+HEAD_WIDTH = profile([
+  (1.543, 0.016), (1.548, 0.036), (1.556, 0.053), (1.57, 0.068), (1.59, 0.077), (1.61, 0.083), (1.63, 0.088),
+  (1.66, 0.093), (1.70, 0.097), (1.74, 0.095), (1.78, 0.083), (1.81, 0.058), (1.828, 0.03), (1.835, 0.006),
+])
+HEAD_FRONT = profile([
+  (1.543, 0.074), (1.55, 0.086), (1.57, 0.095), (1.60, 0.098), (1.64, 0.1), (1.70, 0.108), (1.74, 0.106),
+  (1.78, 0.09), (1.81, 0.062), (1.828, 0.03), (1.835, 0.006),
+])
+HEAD_BACK = profile([
+  (1.543, 0.004), (1.56, 0.02), (1.60, 0.055), (1.64, 0.09), (1.70, 0.116), (1.76, 0.105), (1.80, 0.075),
+  (1.825, 0.035), (1.835, 0.006),
+])
+HEAD_ROWS = (
+  1.543, 1.548, 1.553, 1.559, 1.565, 1.571, 1.577, 1.583, 1.589, 1.595, 1.602, 1.609, 1.616, 1.623, 1.63,
+  1.637, 1.645, 1.653, 1.661, 1.669, 1.677, 1.686, 1.70, 1.72, 1.745, 1.77, 1.795, 1.815, 1.829, 1.835,
+)
+
+
+def face_relief(x, z):
+  side = abs(x)
+  return (
+    0.005 * gauss(z, 1.688, 0.012) * gauss(side, 0.04, 0.036)
+    - 0.009 * gauss(z, 1.663, 0.015) * gauss(side, 0.044, 0.026)
+    + 0.012 * gauss(x, 0, 0.0095) * smooth(1.685, 1.645, z) * smooth(1.6, 1.625, z)
+    + 0.015 * gauss(x, 0, 0.0125) * gauss(z, 1.63, 0.013)
+    + 0.0065 * gauss(side, 0.0165, 0.007) * gauss(z, 1.622, 0.0075)
+    - 0.002 * gauss(x, 0, 0.006) * gauss(z, 1.604, 0.005)
+    + 0.0042 * gauss(x, 0, 0.022) * gauss(z, 1.594, 0.0055)
+    + 0.0045 * gauss(x, 0, 0.017) * gauss(z, 1.58, 0.0062)
+    - 0.0022 * gauss(x, 0, 0.018) * gauss(z, 1.57, 0.0048)
+    + 0.0065 * gauss(x, 0, 0.027) * gauss(z, 1.554, 0.012)
+    + 0.0042 * gauss(side, 0.066, 0.02) * gauss(z, 1.628, 0.02)
+  )
+
+
+def head_point(angle, z):
+  """angle 0 looks at the front and grows towards the character's left."""
+  sine = math.sin(angle)
+  cosine = math.cos(angle)
+  x = HEAD_WIDTH(z) * math.copysign(abs(sine) ** 0.92, sine)
+  y = -cosine * (HEAD_FRONT(z) if cosine > 0 else HEAD_BACK(z))
+  if cosine > 0:
+    y -= face_relief(x, z) * smooth(0.0, 0.5, cosine)
+  return Vector((x, y, z))
+
+
+def build_head():
+  columns = 32
+  verts = []
+  for z in HEAD_ROWS:
+    for k in range(columns):
+      s = -1 + 2 * k / columns
+      verts.append(head_point(math.pi * (0.55 * s + 0.45 * s ** 3), z))
+  faces = ring_faces(len(HEAD_ROWS), columns)
+  faces.append(tuple(reversed(range(columns))))
+  faces.append(tuple((len(HEAD_ROWS) - 1) * columns + k for k in range(columns)))
+  add_object("head", verts, faces, ["head_skin"] * len(faces))
+  tube("neck", spline([
+    ((0, 0.014, 1.455), 0.084, 0.1), ((0, 0.016, 1.5), 0.068, 0.078), ((0, 0.014, 1.54), 0.062, 0.067),
+    ((0, 0.01, 1.58), 0.062, 0.064), ((0, 0.006, 1.625), 0.064, 0.066),
+  ], 2), "skin_tan", n=12)
   for sign, side in ((1, "l"), (-1, "r")):
-    strip("brow_ridge_" + side, "head", [
-      (sign * 0.008, 1.648, 0.009), (sign * 0.04, 1.655, 0.013), (sign * 0.076, 1.653, 0.007),
-    ], variant["skin"], depth=0.008)
-    strip("brow_" + side, "head", [
-      (sign * 0.011, 1.649, 0.006), (sign * 0.03, 1.657, 0.0085), (sign * 0.052, 1.661, 0.0075), (sign * 0.075, 1.657, 0.002),
-    ], "hair_dark", depth=0.005, lift=0.008)
-    strip("eye_" + side, "head", [
-      (sign * 0.024, 1.634, 0.0012), (sign * 0.036, 1.638, 0.0065), (sign * 0.052, 1.637, 0.0065), (sign * 0.067, 1.634, 0.0012),
-    ], "eye_white", depth=0.003)
-    strip("iris_" + side, "head", [
-      (sign * 0.04, 1.637, 0.0055), (sign * 0.051, 1.637, 0.0055),
-    ], "iris", depth=0.0025, lift=0.0028)
-    strip("eyelid_" + side, "head", [
-      (sign * 0.021, 1.635, 0.0012), (sign * 0.036, 1.6425, 0.0026), (sign * 0.053, 1.6415, 0.0026), (sign * 0.07, 1.635, 0.0012),
-    ], "hair_dark", depth=0.004, lift=0.001)
-    tube("ear_" + side, [
-      ((sign * 0.08, 0.008, 1.645), 0.012, 0.01),
-      ((sign * 0.09, 0.012, 1.62), 0.022, 0.009),
-      ((sign * 0.082, 0.004, 1.593), 0.01, 0.008),
-    ], variant["skin"], n=5)
+    tube("ear_" + side, spline([
+      ((sign * 0.086, 0.012, 1.682), 0.01, 0.006),
+      ((sign * 0.1, 0.022, 1.672), 0.021, 0.0065),
+      ((sign * 0.103, 0.026, 1.652), 0.021, 0.0065),
+      ((sign * 0.097, 0.018, 1.632), 0.015, 0.0065),
+      ((sign * 0.09, 0.008, 1.622), 0.011, 0.006),
+    ], 1), "skin_tan", n=6, side=(0, 1, 0))
     tube("gauge_" + side, [
-      ((sign * 0.082, 0.004, 1.586), 0.014, 0.014),
-      ((sign * 0.086, 0.004, 1.586), 0.014, 0.014),
-    ], "iris", n=8, side=(0, 1, 0))
+      ((sign * 0.088, 0.012, 1.625), 0.012, 0.012),
+      ((sign * 0.104, 0.012, 1.625), 0.012, 0.012),
+    ], "ear_gauge", n=8, side=(0, 1, 0))
+  tip = [
+    surfaces["head"].ray_cast(Vector((x, -2.0, z)), Vector((0, 1, 0)))[0]
+    for x, z in ((-0.008, 1.616), (0.0004, 1.61), (0.008, 1.616))
+  ]
   tube("nose_ring", [
-    ((-0.006, -0.097, 1.582), 0.0018, 0.0018),
-    ((0.0, -0.1, 1.574), 0.0018, 0.0018),
-    ((0.006, -0.097, 1.582), 0.0018, 0.0018),
-  ], "metal", n=4, side=(0, 0, 1))
+    ((-0.0055, tip[0].y + 0.004, 1.613), 0.0012, 0.0012),
+    ((-0.0028, tip[1].y - 0.002, 1.606), 0.0012, 0.0012),
+    ((0.0028, tip[1].y - 0.002, 1.606), 0.0012, 0.0012),
+    ((0.0055, tip[2].y + 0.004, 1.613), 0.0012, 0.0012),
+  ], "metal", n=5, side=(0, 0, 1))
+
+
+# Hair grows over this shell, which sits just outside the skull, so a lock can't enter the head.
+HAIR_CENTER = Vector((0, 0.004, 1.695))
+HAIR_RADII = Vector((0.102, 0.122, 0.15))
+# Across a lock: pointed to the sides, ridged on the outside.
+LOCK_SECTION = ((-1.0, 0.0), (0.0, 0.62), (1.0, 0.0), (0.45, -0.4), (-0.45, -0.4))
+# (start azimuth, start elevation, end azimuth, end elevation, width, tip flick, chain). Azimuth is
+# 0 at the front and grows towards the character's left. Mirrored entries are written out because
+# a parted head of hair is never symmetric.
+HAIR_LOCKS = [
+  # Fringe, parted left of center.
+  (6, 82, -34, 14, 0.066, 0.1, None),
+  (-10, 78, -58, 4, 0.062, 0.14, "front"),
+  (-28, 70, -74, -10, 0.056, 0.16, "front"),
+  (22, 80, 30, 16, 0.06, 0.1, None),
+  (38, 72, 60, 2, 0.058, 0.14, "front"),
+  (12, 74, 4, 24, 0.036, 0.06, None),
+  # Strands that frame the face.
+  (-56, 46, -82, -44, 0.04, 0.14, "front"),
+  (58, 44, 84, -40, 0.04, 0.14, "front"),
+  # Sides, tucked behind the ears so the gauges show.
+  (74, 64, 106, 4, 0.06, 0.2, "side"),
+  (92, 68, 124, -24, 0.062, 0.2, "side"),
+  (112, 66, 142, -36, 0.064, 0.2, "side"),
+  (-76, 62, -108, 2, 0.06, 0.2, "side"),
+  (-94, 68, -126, -26, 0.062, 0.2, "side"),
+  (-114, 66, -144, -34, 0.064, 0.2, "side"),
+  # Back of the head, over a longer layer that reaches the collar.
+  (134, 74, 152, -36, 0.066, 0.18, "back"),
+  (156, 80, 170, -42, 0.068, 0.14, "back"),
+  (184, 82, 198, -40, 0.068, 0.16, "back"),
+  (208, 78, 222, -36, 0.066, 0.18, "back"),
+  (128, 26, 144, -52, 0.05, 0.24, "back"),
+  (152, 30, 164, -56, 0.052, 0.22, "back"),
+  (176, 32, 184, -58, 0.052, 0.22, "back"),
+  (200, 30, 210, -54, 0.052, 0.22, "back"),
+  (224, 26, 232, -48, 0.05, 0.24, "back"),
+  # Top, for volume; the skull is painted as hair underneath.
+  (20, 88, 92, 46, 0.068, 0.1, None),
+  (-20, 88, -96, 42, 0.068, 0.1, None),
+  (70, 84, 150, 44, 0.07, 0.1, None),
+  (-70, 84, -150, 46, 0.07, 0.1, None),
+  (170, 88, 186, 30, 0.07, 0.1, None),
+  (50, 76, 118, 30, 0.056, 0.12, None),
+  (-48, 76, -122, 28, 0.056, 0.12, None),
+]
+HAIR_CHAINS = {}
+
+
+def shell_point(azimuth, elevation, lift):
+  a = math.radians(azimuth)
+  e = math.radians(elevation)
+  direction = Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
+  return HAIR_CENTER + Vector(d * r * (1 + lift) for d, r in zip(direction, HAIR_RADII))
+
+
+def lock_path(entry, seed):
+  az0, el0, az1, el1, _, flick, _ = entry
+  rng = random.Random(seed)
+  az1 += rng.uniform(-3, 3)
+  el1 += rng.uniform(-3, 3)
+  bulge = rng.uniform(0.11, 0.19)
+  wave = rng.uniform(5, 10) * rng.choice((-1, 1))
+  path = []
+  for i in range(7):
+    t = i / 6
+    # Falls off the crown quickly, then hangs and flicks out at the tip.
+    along = 1 - (1 - t) ** 1.6
+    lift = bulge * math.sin(min(t * 1.15, 1.0) * math.pi) + flick * t ** 3
+    azimuth = az0 + (az1 - az0) * t ** 0.8 + wave * math.sin(t * 5.5)
+    path.append(shell_point(azimuth, el0 + (el1 - el0) * along, lift))
+  return path
+
+
+def lock(name, path, width, chain):
+  verts = []
+  panel = []
+  count = len(path)
+  seed = random.Random(name).random()
+  for i, point in enumerate(path):
+    t = i / (count - 1)
+    tangent = (path[min(i + 1, count - 1)] - path[max(i - 1, 0)]).normalized()
+    outward = point - HAIR_CENTER
+    outward = (outward - outward.project(tangent)).normalized()
+    across = tangent.cross(outward)
+    half = width * 0.75 * min(1.0, 0.6 + t * 2.2) * (1 - t) ** 0.7 + 0.0008
+    for k, (a, b) in enumerate(LOCK_SECTION):
+      verts.append(point + across * a * half + outward * b * half)
+      panel.append((abs(a), t, seed))
+  columns = len(LOCK_SECTION)
+  faces = ring_faces(count, columns)
+  faces.append(tuple(reversed(range(columns))))
+  faces.append(tuple((count - 1) * columns + k for k in range(columns)))
+  obj = add_object(name, verts, faces, ["hair_lock"] * len(faces))
+  set_panel(obj, panel)
+  hair_weights[name] = ([value[1] for value in panel], chain)
+  return obj
+
+
+def chain_bones(prefix, path):
+  """Two bones along a lock; the mirrored side gets the same chain."""
+  name = f"hair_{prefix}"
+  if name in HAIR_CHAINS:
+    return
+  count = len(path) - 1
+  points = [path[round(count * t)] for t in (0.33, 0.66, 1.0)]
+  HAIR_CHAINS[name] = points
+
+
+def build_hair_locks():
+  for i, entry in enumerate(HAIR_LOCKS):
+    path = lock_path(entry, 58 + i)
+    prefix = entry[6]
+    if prefix and entry[0] > 0:
+      chain_bones(prefix, path)
+    side = "_l" if entry[0] >= 0 and entry[0] < 180 else "_r"
+    names = (f"hair_{prefix}_1{side}", f"hair_{prefix}_2{side}") if prefix else None
+    lock(f"lock_{i}", path, entry[4], names)
+
+
+JACKET_WIDTH = profile([
+  (0.56, 0.232), (0.64, 0.225), (0.72, 0.218), (0.80, 0.21), (0.88, 0.203), (0.96, 0.196), (1.03, 0.19),
+  (1.10, 0.188), (1.18, 0.192), (1.26, 0.205), (1.34, 0.222), (1.40, 0.226), (1.44, 0.198), (1.47, 0.14), (1.495, 0.092),
+])
+JACKET_DEPTH = profile([
+  (0.56, 0.168), (0.64, 0.16), (0.72, 0.152), (0.80, 0.146), (0.88, 0.14), (0.96, 0.134), (1.03, 0.128),
+  (1.10, 0.125), (1.18, 0.128), (1.26, 0.132), (1.34, 0.132), (1.40, 0.126), (1.44, 0.114), (1.47, 0.098), (1.495, 0.08),
+])
+# How far from the center each front edge hangs: the jacket opens wider towards the hem.
+JACKET_EDGE = profile([
+  (0.56, 0.2), (0.75, 0.16), (0.96, 0.125), (1.1, 0.104), (1.26, 0.092), (1.40, 0.074), (1.495, 0.048),
+])
+JACKET_HEM = 0.56
+JACKET_TOP = 1.495
+JACKET_ROWS = 24
+JACKET_COLUMNS = 46
+
+
+def jacket_gap(z):
+  return math.asin(JACKET_EDGE(z) / JACKET_WIDTH(z))
+
+
+def jacket_folds(angle, z):
+  """Long folds that open towards the hem; a real coat hangs in tubes, not as a cone."""
+  amount = 0.024 * smooth(1.04, 0.62, z)
+  return amount * (
+    0.62 * math.sin(7 * angle + 0.6) + 0.34 * math.sin(11 * angle + 2.1 + z * 3) + 0.5 * math.sin(4 * angle + 1.0)
+  )
+
+
+def jacket_point(angle, z, inset=0.0, folds=True):
+  fold = jacket_folds(angle, z) if folds else 0.0
+  return Vector((
+    (JACKET_WIDTH(z) - inset + fold) * math.sin(angle),
+    -(JACKET_DEPTH(z) - inset + fold) * math.cos(angle),
+    z,
+  ))
+
+
+def jacket_row(row):
+  return JACKET_TOP - (JACKET_TOP - JACKET_HEM) * (row / (JACKET_ROWS - 1)) ** 0.92
+
+
+def jacket_ring(z, inset=0.0):
+  gap = jacket_gap(z)
+  return [
+    jacket_point(gap + (2 * math.pi - 2 * gap) * column / JACKET_COLUMNS, z, inset)
+    for column in range(JACKET_COLUMNS + 1)
+  ]
+
+
+def build_jacket():
+  columns = JACKET_COLUMNS + 1
+  rows = [jacket_ring(jacket_row(row)) for row in range(JACKET_ROWS)]
+  faces = [tuple(reversed(face)) for face in ring_faces(JACKET_ROWS, columns, closed=False)]
+  add_object("jacket", [point for row in rows for point in row], faces, ["jacket_shell"] * len(faces), closed=False)
+  # The lining only shows when the front swings, so every other row is enough.
+  lining_rows = [jacket_ring(jacket_row(row), 0.008) for row in range(0, JACKET_ROWS, 2)]
+  faces = ring_faces(len(lining_rows), columns, closed=False)
+  add_object("jacket_lining", [point for row in lining_rows for point in row], faces, ["jacket_lining"] * len(faces), closed=False)
   for sign, side in ((1, "l"), (-1, "r")):
-    tube("sideburn_" + side, [
-      ((sign * 0.079, 0.012, 1.68), 0.012, 0.005),
-      ((sign * 0.08, 0.008, 1.64), 0.009, 0.004),
-      ((sign * 0.079, 0.0, 1.615), 0.004, 0.002),
-    ], "hair_dark", n=4)
+    path = []
+    for row in range(0, JACKET_ROWS, 2):
+      z = jacket_row(row)
+      gap = jacket_gap(z)
+      path.append((tuple(jacket_point(sign * gap, z, 0.004)), 0.0055, 0.008))
+    tube("jacket_zip_" + side, path, "zipper_tape", n=6)
+  hem = jacket_ring(JACKET_HEM, 0.004)
+  tube("jacket_hem", [(tuple(point), 0.009, 0.0075) for point in hem[::2]], "flag_red_dark", n=4, side=(0, 0, 1))
+  jacket_collar()
+  build_sleeves()
+  for sign, side in ((1, "l"), (-1, "r")):
+    strip("jacket_pocket_" + side, "jacket", [
+      (sign * 0.16, 0.9, 0.013), (sign * 0.2, 0.872, 0.013),
+    ], "flag_red_dark", depth=0.0045, lift=0.002)
+
+
+def jacket_collar():
+  """Folded collar, open at the front and higher at the back, so the neck can breathe."""
+  steps = 14
+  section = 4
+  verts = []
+  for k in range(steps + 1):
+    angle = math.radians(34 + 292 * k / steps)
+    top = 1.508 + 0.038 * (1 - math.cos(angle)) / 2
+    for extra, z in ((0.0, 1.478), (-0.004, top), (0.012, top - 0.004), (0.02, 1.482)):
+      verts.append(Vector((
+        (0.087 + extra) * math.sin(angle),
+        0.008 - (0.082 + extra) * math.cos(angle),
+        z,
+      )))
+  faces = []
+  for k in range(steps):
+    for level in range(section):
+      other = (level + 1) % section
+      faces.append((
+        k * section + level, k * section + other,
+        (k + 1) * section + other, (k + 1) * section + level,
+      ))
+  faces.append((3, 2, 1, 0))
+  last = steps * section
+  faces.append((last, last + 1, last + 2, last + 3))
+  add_object("collar", verts, faces, ["flag_yellow"] * len(faces))
+
+
+def build_sleeves():
+  keys = [
+    ((0.15, 0, 1.37), 0.05, 0.05),
+    ((0.197, 0, 1.362), 0.069, 0.071),
+    ((0.228, 0, 1.29), 0.065, 0.066),
+    ((0.25, -0.002, 1.22), 0.059, 0.06),
+    ((0.272, 0, 1.145), 0.057, 0.055),
+    ((0.29, -0.004, 1.095), 0.055, 0.054),
+    ((0.31, -0.01, 1.02), 0.053, 0.052),
+    ((0.33, -0.015, 0.955), 0.046, 0.046),
+    ((0.341, -0.018, 0.915), 0.042, 0.042),
+    ((0.347, -0.02, 0.89), 0.038, 0.038),
+  ]
+  rings_list = spline(keys, 2)
+  # Cloth bunches where the arm bends, as rings that alternate in size.
+  bunched = []
+  for i, (position, ru, rv) in enumerate(rings_list):
+    wrinkle = 0.0035 * (-1) ** i * (gauss(position[2], 1.12, 0.07) + 0.6 * gauss(position[2], 0.97, 0.05))
+    bunched.append((position, ru + wrinkle, rv + wrinkle))
+  both("sleeve", bunched, "jacket_sleeve", n=10)
+  both("jacket_cuff", [
+    ((0.336, -0.017, 0.93), 0.041, 0.041),
+    ((0.344, -0.019, 0.9), 0.044, 0.044),
+    ((0.352, -0.021, 0.872), 0.04, 0.04),
+    ((0.354, -0.021, 0.866), 0.034, 0.034),
+  ], "flag_red_dark", n=10)
+
+
+def build_tee():
+  tube("torso", spline([
+    ((0, 0, 0.99), 0.1, 0.148), ((0, 0, 1.08), 0.104, 0.154), ((0, -0.002, 1.18), 0.112, 0.167),
+    ((0, -0.006, 1.28), 0.119, 0.18), ((0, -0.004, 1.36), 0.114, 0.186), ((0, 0, 1.42), 0.098, 0.16),
+    ((0, 0.006, 1.46), 0.08, 0.108), ((0, 0.01, 1.485), 0.066, 0.074),
+  ], 2), "white", n=16)
+  tube("tee_rib", [
+    ((0, 0.012, 1.458), 0.086, 0.1),
+    ((0, 0.012, 1.474), 0.078, 0.088),
+    ((0, 0.012, 1.486), 0.072, 0.078),
+  ], "tee_rib", n=14)
+
+
+def build_legs():
+  tube("pelvis", spline([
+    ((0, 0, 0.84), 0.07, 0.09), ((0, 0.006, 0.9), 0.118, 0.166), ((0, 0.002, 0.97), 0.11, 0.158),
+    ((0, 0, 1.03), 0.104, 0.152),
+  ], 2), "pants_black", n=14)
+  both("leg", spline([
+    ((0.092, 0, 0.92), 0.105, 0.092), ((0.098, -0.004, 0.8), 0.098, 0.088), ((0.102, -0.01, 0.68), 0.09, 0.08),
+    ((0.107, -0.014, 0.56), 0.08, 0.07), ((0.11, -0.02, 0.5), 0.074, 0.066), ((0.113, -0.012, 0.44), 0.074, 0.067),
+    ((0.118, 0.004, 0.36), 0.076, 0.067), ((0.122, 0.006, 0.28), 0.066, 0.058), ((0.125, 0.006, 0.22), 0.061, 0.055),
+    ((0.125, 0.006, 0.18), 0.05, 0.046),
+  ], 2), "pants_black", n=12)
+  tube("belt", [
+    ((0, 0, 0.99), 0.113, 0.164),
+    ((0, 0, 1.0), 0.116, 0.167),
+    ((0, 0, 1.04), 0.112, 0.161),
+    ((0, 0, 1.05), 0.108, 0.157),
+  ], "leather", n=16)
+  decal("buckle", "belt", [(-0.03, 1.0), (0.03, 1.0), (0.03, 1.042), (-0.03, 1.042)], "metal", lift=0.004)
+  decal("buckle_center", "belt", [(-0.018, 1.01), (0.018, 1.01), (0.018, 1.032), (-0.018, 1.032)], "leather", lift=0.007)
+
+
+def build_hands():
+  skin = variant["skin"]
+  both("hand", arm_path(spline([
+    ((0.372, -0.02, 0.9), 0.028, 0.02),
+    ((0.382, -0.022, 0.86), 0.04, 0.021),
+    ((0.395, -0.025, 0.83), 0.05, 0.023),
+    ((0.404, -0.03, 0.795), 0.047, 0.019),
+  ], 1)), skin, n=8)
+  for i, (y, length) in enumerate(((-0.066, 0.07), (-0.042, 0.082), (-0.018, 0.078), (0.006, 0.062))):
+    both(f"finger_{i}", arm_path(spline([
+      ((0.404, y, 0.8), 0.0098, 0.0098),
+      ((0.414, y, 0.8 - length * 0.5), 0.0088, 0.0088),
+      ((0.42, y - 0.003, 0.8 - length * 0.85), 0.0078, 0.0078),
+      ((0.423, y - 0.006, 0.8 - length), 0.0048, 0.0048),
+    ], 1)), skin, n=5)
+  thumb(skin)
 
 
 def start(name):
@@ -915,16 +1038,30 @@ def start(name):
   variant = VARIANTS[name]
   surfaces.clear()
   parts.clear()
-  head_parts.clear()
+  hair_weights.clear()
 
 
-# On the jacket's surface, from the waist to the hem. HemSprings in player.tscn moves them, so
-# they have no keys in the clips, and only the male model has them: the female wears no jacket.
-HEM_BONES = {
-  "hem_front": ((0, -0.13, 1.1), (0, -0.133, 0.985), "hips"),
-  "hem_back": ((0, 0.13, 1.1), (0, 0.133, 0.985), "hips"),
-  "hem_l": ((0.178, 0, 1.1), (0.181, 0, 0.985), "hips"),
-}
+JACKET_CHAINS = (
+  # Name, position from the front edge (0) to the back center (1), heights, parent.
+  ("jacket_front", 0.1, (1.26, 1.03, 0.8, 0.565), "chest"),
+  ("jacket_side", 0.46, (1.03, 0.88, 0.72, 0.565), "hips"),
+  ("jacket_back", 0.84, (1.03, 0.88, 0.72, 0.565), "hips"),
+)
+
+
+def cloth_bones():
+  bones = {}
+  for prefix, along, heights, parent in JACKET_CHAINS:
+    for i in range(len(heights) - 1):
+      points = [
+        jacket_point(jacket_gap(z) + (math.pi - jacket_gap(z)) * along, z, folds=False)
+        for z in (heights[i], heights[i + 1])
+      ]
+      bones[f"{prefix}_{i + 1}_l"] = (tuple(points[0]), tuple(points[1]), f"{prefix}_{i}_l" if i else parent)
+  for chain, points in HAIR_CHAINS.items():
+    for i in range(len(points) - 1):
+      bones[f"{chain}_{i + 1}_l"] = (tuple(points[i]), tuple(points[i + 1]), f"{chain}_{i}_l" if i else "head")
+  return bones
 
 
 def skeleton():
@@ -941,7 +1078,7 @@ def skeleton():
   ankle = (ankle_x, 0.01, 0.1)
   ball = (ankle_x, -0.1, 0.04)
   toe = (ankle_x, -0.2, 0.04)
-  return (HEM_BONES if variant["fingers"] else {}) | {
+  return (cloth_bones() if variant["fingers"] else {}) | {
     # Carries root motion, so it sits on the ground and has no vertex weights.
     "root": ((0, 0, 0), (0, 0.2, 0), None),
     "hips": ((0, 0, 0.93), (0, 0, 1.05), "root"),
@@ -978,7 +1115,7 @@ def mirrored_bones(bones):
 def bone_candidates(part_name, side):
   """Bones a part may follow, so a thigh never gets pulled by the hand next to it."""
   name = part_name.split(".")[0]
-  if name.startswith(("arm", "sleeve", "hand", "jacket_cuff")) or (name.startswith("star") and "sleeve" in name):
+  if name.startswith(("arm", "sleeve", "hand", "jacket_cuff")):
     return ["chest", "shoulder" + side, "upper_arm" + side, "lower_arm" + side, "hand" + side, "fingers" + side]
   if name.startswith("finger"):
     return ["hand" + side, "fingers" + side]
@@ -988,9 +1125,12 @@ def bone_candidates(part_name, side):
     return ["lower_leg" + side, "foot" + side, "toes" + side]
   if name.startswith(("leg", "rip", "cargo", "pants")):
     return ["hips", "upper_leg" + side, "lower_leg" + side]
-  if name.startswith(("jacket", "star", "jersey", "flag")):
-    return ["hips", "spine", "chest", "shoulder_l", "shoulder_r", "hem_front", "hem_back", "hem_l", "hem_r"]
-  if name.startswith(("pelvis", "belt", "buckle", "fly")):
+  if name.startswith("jacket"):
+    cloth = [f"{chain}_{i}{twin}" for chain, *_ in JACKET_CHAINS for i in (1, 2, 3) for twin in ("_l", "_r")]
+    return ["hips", "spine", "chest", "shoulder_l", "shoulder_r"] + cloth
+  if name.startswith(("belt", "buckle")):
+    return ["hips", "spine"]
+  if name.startswith(("pelvis", "fly")):
     return ["hips", "spine", "upper_leg_l", "upper_leg_r"]
   if name == "neck":
     return ["chest", "neck", "head"]
@@ -999,10 +1139,7 @@ def bone_candidates(part_name, side):
   return ["hips", "spine", "chest", "shoulder_l", "shoulder_r"]
 
 
-HEAD_PREFIXES = (
-  "head", "nose", "hair", "curl", "mouth", "eye", "iris", "brow", "ear", "gauge", "goatee",
-  "mustache", "upper_lip", "lower_lip", "lips", "sideburn",
-)
+HEAD_PREFIXES = ("head", "nose", "hair", "mouth", "eye", "iris", "ear", "gauge")
 
 
 def segment_distance(point, head, tail):
@@ -1011,8 +1148,28 @@ def segment_distance(point, head, tail):
   return (point - (head + axis * amount)).length
 
 
+def assign_lock_weights(part, along, chain):
+  head = part.vertex_groups.new(name="head")
+  if chain is None:
+    head.add(list(range(len(along))), 1.0, "REPLACE")
+    return
+  first = part.vertex_groups.new(name=chain[0])
+  second = part.vertex_groups.new(name=chain[1])
+  for index, t in enumerate(along):
+    if t < 0.4:
+      head.add([index], 1 - t / 0.4, "REPLACE")
+      first.add([index], t / 0.4, "REPLACE")
+    else:
+      amount = min((t - 0.4) / 0.35, 1.0)
+      first.add([index], 1 - amount, "REPLACE")
+      second.add([index], amount, "REPLACE")
+
+
 def assign_weights(part, bones):
   name = part.name.split(".")[0]
+  if name in hair_weights:
+    assign_lock_weights(part, *hair_weights[name])
+    return
   if name.startswith(HEAD_PREFIXES):
     part.vertex_groups.new(name="head").add(list(range(len(part.data.vertices))), 1.0, "REPLACE")
     return
@@ -1025,7 +1182,7 @@ def assign_weights(part, bones):
     closeness = sorted(
       ((1.0 / (segment_distance(vertex.co, head, tail) + 0.015) ** 4, bone) for bone, head, tail in segments),
       reverse=True,
-    )[:3]
+    )[:4]
     total = sum(weight for weight, _ in closeness)
     for weight, bone in closeness:
       groups[bone].add([vertex.index], weight / total, "REPLACE")
@@ -1050,6 +1207,17 @@ def build_armature(name, bones, scale):
   return armature
 
 
+def finish_painted(body):
+  """Soft shading, and what paint_protagonist.py needs to color each face."""
+  mesh = body.data
+  mesh.shade_smooth()
+  mesh.set_sharp_from_angle(angle=math.radians(62))
+  region = mesh.attributes.new("region", "FLOAT", "FACE")
+  region.data.foreach_set("value", [polygon.material_index + 1 for polygon in mesh.polygons])
+  body["regions"] = [slot.name for slot in mesh.materials]
+  body["palette"] = {slot.name: list(COLORS[slot.name]) for slot in mesh.materials}
+
+
 def finish(name):
   bones = mirrored_bones(skeleton())
   for part in parts:
@@ -1062,6 +1230,8 @@ def finish(name):
   body.data.name = body.name
   body.data.transform(Matrix.Scale(variant["height_scale"], 4))
   body.data.update()
+  if variant["fingers"]:
+    finish_painted(body)
   armature = build_armature(name, bones, variant["height_scale"])
   body.parent = armature
   body.modifiers.new("armature", "ARMATURE").object = armature
@@ -1088,13 +1258,13 @@ def save():
 
 
 def stages_for(name, builders):
-  return [lambda: start(name), build_body] + builders + [lambda: finish(name)]
+  return [lambda: start(name)] + builders + [lambda: finish(name)]
 
 
 STAGES = (
   [clear]
-  + stages_for("male", [build_street_pants, build_boots, build_jacket, build_curly_hair])
-  + stages_for("female", [build_pants, build_shirt, build_hair, build_face])
+  + stages_for("male", [build_head, build_hair_locks, build_tee, build_legs, build_boots, build_jacket, build_hands])
+  + stages_for("female", [build_body, build_pants, build_shirt, build_hair, build_face])
   + [save]
 )
 
