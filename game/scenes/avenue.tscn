@@ -1,9 +1,11 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/training_dummy.tscn" id="3_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/skeleton_enemy.tscn" id="4_skeleton"]
+[ext_resource type="PackedScene" path="res://scenes/chapel.tscn" id="5_chapel"]
+[ext_resource type="PackedScene" path="res://scenes/loot_pickup.tscn" id="6_pickup"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.09, 0.1, 0.13, 1)
@@ -90,6 +92,19 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.1, 23)
 
 [node name="Skeleton3" parent="." instance=ExtResource("4_skeleton")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.1, 20)
+
+[node name="Chapel1" parent="." instance=ExtResource("5_chapel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.1, 31)
+
+[node name="PickupCoffee" parent="." instance=ExtResource("6_pickup")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.1, 28)
+item_key = "coffee"
+pickup_id = 0
+
+[node name="PickupCandle" parent="." instance=ExtResource("6_pickup")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.1, 22)
+item_key = "return_candle"
+pickup_id = 1
 
 [node name="Rain" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 26, 8)

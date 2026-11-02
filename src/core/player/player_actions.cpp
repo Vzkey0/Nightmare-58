@@ -16,6 +16,8 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
   // Past its duration on purpose: the clip must end before another air attack restarts it.
   static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f, 0.23f, 0.43f, 30, 0.f, 0.f, 16.f};
   static constexpr ActionTiming HURT{0.5f, 0.35f, 0.45f};
+  // A commitment: a blow during the first half loses the item, as in the souls games.
+  static constexpr ActionTiming USE_ITEM{0.9f, 0.9f, 0.9f, 0.f, 0.f, 0, 0.5f, 0.45f};
   // Only revive() ends it.
   static constexpr ActionTiming DEAD{1e9f, 1e9f, 1e9f};
 
@@ -43,6 +45,8 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
       return AIR_ATTACK;
     case PlayerAction::Dodge:
       return DODGE;
+    case PlayerAction::UseItem:
+      return USE_ITEM;
     default:
       return NONE;
   }

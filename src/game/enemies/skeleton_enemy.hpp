@@ -9,6 +9,7 @@
 
 #include <core/ai/behavior_tree.hpp>
 #include <core/ai/enemy_actions.hpp>
+#include <core/progression/loot_table.hpp>
 
 #include "combat_target.hpp"
 
@@ -42,7 +43,7 @@ private:
   void end_attack();
   void hit_player();
   void go_down(float delta);
-  void stand_up();
+  void pay_the_player();
   void reset();
 
   godot::Vector3 root_motion_step(float delta) const;
@@ -81,8 +82,6 @@ private:
   float circle_side = 1.f;
   float circle_gap = 3.f; // Each skeleton keeps its own distance, so they spread around the player.
   float step_scale = 1.f;
-  float down_time = 0.f;
-  float rise_time = 0.f;
   bool has_turn = false;
   int player_respawns = 0;
 

@@ -2,10 +2,14 @@
 #include "entity_distance.hpp"
 #include <game/player/player_controller.hpp>
 
+#include <game/world/loot_pickup.hpp>
+
 #include <godot_cpp/classes/mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/physics_direct_space_state3d.hpp>
 #include <godot_cpp/classes/physics_ray_query_parameters3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -64,9 +68,9 @@ constexpr float WAIT_MIN = 0.5f;
 constexpr float WAIT_MAX = 1.4f;
 constexpr float CHARGE_WAIT = 6.f;
 
-constexpr float DOWN_TIME = 12.f;
-constexpr float RISE_TIME = 2.2f; // Length of the death clip, played backwards.
 constexpr float HURT_PUSH = 2.2f;
+
+constexpr int LOCHAS_REWARD = 30;
 
 constexpr float EYE_REST = 1.3f;
 constexpr float EYE_FLARE = 7.f;
@@ -88,6 +92,23 @@ BehaviorTree::AttackQueue charge_attacks()
   BehaviorTree::AttackQueue attacks;
   attacks.put(Attack{static_cast<int>(EnemyAction::Lunge)});
   return attacks;
+}
+
+const LootTable & skeleton_loot()
+{
+  static const LootTable table = [] {
+    const ItemCatalog & catalog = ItemCatalog::instance();
+    LootTable loot;
+    loot.add(NO_ITEM, 75);
+    loot.add(ItemCatalog::COFFEE, 2);
+    loot.add(ItemCatalog::CANDLE, 8);
+    loot.add(catalog.find("gaita_vinyl"), 4);
+    loot.add(catalog.find("baseball_card"), 4);
+    loot.add(catalog.find("domino_tile"), 5);
+    loot.add(catalog.find("family_photo"), 2);
+    return loot;
+  }();
+  return table;
 }
 
 const StringName & attack_clip(EnemyAction action)
@@ -184,10 +205,9 @@ void SkeletonEnemy::_physics_process(double delta_time)
     return;
   }
 
-  rise_time = MAX(rise_time - delta, 0.f);
   think_time -= delta;
   sight_time -= delta;
-  if (!actions.busy() && rise_time == 0.f && think_time <= 0.f)
+  if (!actions.busy() && think_time <= 0.f)
     think();
 
   Vector3 velocity = get_velocity();
@@ -203,7 +223,7 @@ void SkeletonEnemy::_physics_process(double delta_time)
     if (actions.elapsed() >= timing.hit_start && actions.elapsed() - delta < timing.hit_start)
       swing_sound->play();
   }
-  else if (actions.busy() || rise_time > 0.f)
+  else if (actions.busy())
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
@@ -343,7 +363,7 @@ void SkeletonEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3
   {
     end_attack();
     actions.die();
-    down_time = DOWN_TIME;
+    pay_the_player();
     remove_from_group("targets");
     set_collision_layer(0);
     set_collision_mask(LEVEL_MASK);
@@ -365,20 +385,36 @@ void SkeletonEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3
   }
 }
 
+void SkeletonEnemy::pay_the_player()
+{
+  player->earn(LOCHAS_REWARD);
+
+  const LootTable & loot = skeleton_loot();
+  const ItemId item = loot.pick(UtilityFunctions::randi() % loot.total_weight());
+  if (item == NO_ITEM)
+    return;
+
+  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/loot_pickup.tscn");
+  LootPickup * pickup = Object::cast_to<LootPickup>(scene->instantiate());
+  pickup->set_item_key(ItemCatalog::instance()[item].key);
+  get_parent()->add_child(pickup);
+  pickup->set_global_position(get_global_position());
+}
+
 void SkeletonEnemy::go_down(float delta)
 {
-  // The bones stay where they fell, and put themselves together again by playing it backwards.
-  down_time -= delta;
-  if (down_time <= 0.f)
-    stand_up();
-
+  // The bones stay where they fell until the player rests or dies.
   vertical_speed = is_on_floor() ? 0.f : vertical_speed - GRAVITY * delta;
   set_velocity(Vector3(0, vertical_speed, 0));
   move_and_slide();
 }
 
-void SkeletonEnemy::stand_up()
+// The souls rule: dying or resting puts the whole street back, so the player never respawns
+// surrounded. It is also the only way the fallen get up, which keeps kills from paying twice.
+void SkeletonEnemy::reset()
 {
+  player_respawns = player->respawn_count();
+  end_attack();
   health.restore();
   actions.revive();
   add_to_group("targets");
@@ -387,19 +423,8 @@ void SkeletonEnemy::stand_up()
   context.aware = false;
   lost_time = 0.f;
   intent = BehaviorAction::Watch;
-  rise_time = RISE_TIME;
   attack_wait = WAIT_MAX;
-  animator->play_backwards(death_clip);
   current_clip = StringName();
-}
-
-// The souls rule: dying puts the whole street back, so the player never respawns surrounded.
-void SkeletonEnemy::reset()
-{
-  player_respawns = player->respawn_count();
-  end_attack();
-  stand_up();
-  rise_time = 0.f;
   charge_wait = 0.f;
   set_global_position(spawn_point);
   set_velocity(Vector3());

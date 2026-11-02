@@ -1,6 +1,8 @@
 #undef NDEBUG
 #include <cassert>
 
+#include <sort.hpp>
+
 #include <core/ai/attack_turns.hpp>
 #include <core/ai/behavior_tree.hpp>
 #include <core/ai/enemy_actions.hpp>
@@ -8,7 +10,13 @@
 #include <core/health.hpp>
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
+#include <core/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/progression/inventory.hpp>
+#include <core/progression/item_catalog.hpp>
+#include <core/progression/loot_table.hpp>
+#include <core/progression/player_progress.hpp>
+#include <core/progression/quick_slots.hpp>
 #include <core/progression/skill_tree.hpp>
 #include <core/stamina.hpp>
 
@@ -731,6 +739,368 @@ static void test_health_trail()
   assert(trail.value() == 1.f);
 }
 
+static void test_item_catalog()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  assert(catalog.find("coffee") == ItemCatalog::COFFEE);
+  assert(catalog.find("return_candle") == ItemCatalog::CANDLE);
+  assert(catalog.find("no_such_item") == NO_ITEM);
+  for (ItemId item = 0; item < catalog.size(); ++item)
+    assert(catalog.find(catalog[item].key) == item);
+}
+
+static void test_inventory_counts()
+{
+  Inventory bag;
+  assert(bag.is_empty());
+  assert(!bag.remove(ItemCatalog::CANDLE));
+
+  bag.add(ItemCatalog::CANDLE, 2);
+  assert(bag.count(ItemCatalog::CANDLE) == 2);
+  assert(!bag.remove(ItemCatalog::CANDLE, 3));
+  assert(bag.count(ItemCatalog::CANDLE) == 2);
+  assert(bag.remove(ItemCatalog::CANDLE, 2));
+  assert(bag.is_empty());
+  assert(bag.sorted(InventorySort::Recent).is_empty());
+}
+
+struct ByItem
+{
+  bool operator()(const ItemStack & a, const ItemStack & b) const { return a.item < b.item; }
+};
+
+// PDD: merge_sort is only the right choice if DeSiGNAR's version is stable.
+static void test_inventory_sort_is_stable()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const ItemId vinyl = catalog.find("gaita_vinyl");
+  const ItemId card = catalog.find("baseball_card");
+  const ItemId tile = catalog.find("domino_tile");
+  const ItemId photo = catalog.find("family_photo");
+
+  Inventory bag;
+  bag.add(vinyl);
+  bag.add(ItemCatalog::CANDLE);
+  bag.add(card);
+  bag.add(tile);
+  bag.add(photo);
+
+  const auto recent = bag.sorted(InventorySort::Recent);
+  assert(recent.size() == 5);
+  assert(recent[0].item == photo);
+  assert(recent[4].item == vinyl);
+
+  // Same kind: the newest stays first, because the second sort keeps the first one's order.
+  const auto kinds = bag.sorted(InventorySort::Kind);
+  assert(kinds[0].item == ItemCatalog::CANDLE);
+  assert(kinds[1].item == photo);
+  assert(kinds[2].item == tile);
+  assert(kinds[3].item == card);
+  assert(kinds[4].item == vinyl);
+
+  const auto worth = bag.sorted(InventorySort::Value);
+  assert(worth[0].item == photo);
+  assert(worth[4].item == ItemCatalog::CANDLE);
+
+  // Six rows may never reach the merge step, so also a size that really splits.
+  Designar::DynArray<ItemStack> rows;
+  for (int i = 0; i < 400; ++i)
+    rows.append(ItemStack{i % 3, 0, i});
+  Designar::merge_sort(rows, ByItem());
+  for (int i = 1; i < 400; ++i)
+    assert(rows[i - 1].item < rows[i].item || rows[i - 1].order < rows[i].order);
+}
+
+static void test_quick_slots()
+{
+  Inventory bag;
+  bag.add(ItemCatalog::COFFEE, 2);
+  bag.add(ItemCatalog::CANDLE);
+
+  QuickSlots slots;
+  assert(slots.current() == NO_ITEM);
+  slots.next(bag);
+  assert(slots.current() == NO_ITEM);
+
+  slots.add(ItemCatalog::COFFEE);
+  slots.add(ItemCatalog::CANDLE);
+  slots.add(ItemCatalog::COFFEE);
+  assert(slots.current() == ItemCatalog::COFFEE);
+  assert(slots.holds(ItemCatalog::CANDLE));
+  assert(!slots.holds(ItemCatalog::instance().find("domino_tile")));
+  assert(slots.current() == ItemCatalog::COFFEE);
+
+  slots.next(bag);
+  assert(slots.current() == ItemCatalog::CANDLE);
+  slots.next(bag);
+  assert(slots.current() == ItemCatalog::COFFEE);
+
+  // Out of candles: the turn skips them and lands back on the coffee.
+  bag.remove(ItemCatalog::CANDLE);
+  slots.next(bag);
+  assert(slots.current() == ItemCatalog::COFFEE);
+
+  // Out of everything: stays where it is.
+  bag.remove(ItemCatalog::COFFEE, 2);
+  slots.next(bag);
+  assert(slots.current() == ItemCatalog::COFFEE);
+}
+
+static void test_loot_table()
+{
+  LootTable table;
+  table.add(NO_ITEM, 6);
+  table.add(ItemCatalog::CANDLE, 3);
+  const ItemId tile = ItemCatalog::instance().find("domino_tile");
+  table.add(tile, 1);
+  assert(table.total_weight() == 10);
+  assert(table.pick(0) == NO_ITEM);
+  assert(table.pick(5) == NO_ITEM);
+  assert(table.pick(6) == ItemCatalog::CANDLE);
+  assert(table.pick(8) == ItemCatalog::CANDLE);
+  assert(table.pick(9) == tile);
+}
+
+static void test_player_stats()
+{
+  PlayerStats stats;
+  assert(stats.max_health() == 100);
+  assert(stats.next_cost() == 80);
+  stats.raise(Stat::Health);
+  assert(stats.max_health() == 110);
+  assert(stats.next_cost() == 120);
+  stats.raise(Stat::Speed);
+  assert(stats.speed_scale() > 1.03f && stats.speed_scale() < 1.05f);
+  assert(stats.total_levels() == 2);
+  for (int i = 0; i < 4; ++i)
+    stats.raise(Stat::Health);
+  assert(!stats.can_raise(Stat::Health));
+  assert(stats.max_health() == 150);
+}
+
+static void test_raising_a_stat()
+{
+  PlayerProgress progress;
+  assert(!progress.raise(Stat::Power));
+
+  progress.earn(100);
+  assert(progress.raise(Stat::Power));
+  assert(progress.lochas() == 20);
+  assert(!progress.raise(Stat::Power)); // The next level costs more than what is left.
+
+  progress.earn(100);
+  assert(progress.raise(Stat::Power));
+  assert(progress.lochas() == 0);
+  assert(progress.stats().level(Stat::Power) == 2);
+}
+
+static void test_coffee_capacity()
+{
+  PlayerProgress progress;
+  assert(progress.inventory().count(ItemCatalog::COFFEE) == PlayerProgress::START_COFFEE);
+  assert(progress.quick_slots().current() == ItemCatalog::COFFEE);
+
+  progress.inventory().remove(ItemCatalog::COFFEE, 3);
+  progress.collect(ItemCatalog::COFFEE);
+  assert(progress.coffee_capacity() == PlayerProgress::START_COFFEE + 1);
+  assert(progress.inventory().count(ItemCatalog::COFFEE) == 1);
+
+  progress.rest(4);
+  assert(progress.inventory().count(ItemCatalog::COFFEE) == PlayerProgress::START_COFFEE + 1);
+  assert(progress.chapel() == 4);
+  assert(progress.day() == 1);
+
+  progress.collect(ItemCatalog::COFFEE, 50);
+  assert(progress.coffee_capacity() == PlayerProgress::MAX_COFFEE);
+}
+
+static void test_death_and_recovery()
+{
+  PlayerProgress progress;
+  progress.earn(300);
+
+  progress.die(500.f, 1.f, 2.f);
+  assert(progress.lochas() == 0);
+  assert(progress.has_death_mark());
+  const DeathMark & mark = progress.death_mark();
+  assert(mark.lochas == 300);
+  assert(mark.x == 500.f);
+
+  // Dying again before getting back loses the first mark for good.
+  progress.earn(40);
+  progress.die(1.f, 0.f, 0.f);
+  assert(progress.death_mark().lochas == 40);
+
+  assert(progress.recover() == 40);
+  assert(progress.lochas() == 40);
+  assert(!progress.has_death_mark());
+
+  PlayerProgress broke;
+  broke.die(0.f, 0.f, 0.f);
+  assert(!broke.has_death_mark());
+}
+
+static void test_pickups_taken()
+{
+  PlayerProgress progress;
+  assert(!progress.pickup_taken(3));
+  progress.take_pickup(3);
+  assert(progress.pickup_taken(3));
+  assert(!progress.pickup_taken(4));
+  progress.take_pickup(-1);
+  progress.take_pickup(PlayerProgress::MAX_PICKUPS);
+  assert(!progress.pickup_taken(-1));
+  assert(!progress.pickup_taken(PlayerProgress::MAX_PICKUPS));
+}
+
+static void test_save_round_trip()
+{
+  PlayerProgress saved;
+  saved.earn(500);
+  saved.raise(Stat::Regeneration);
+  saved.collect(ItemCatalog::COFFEE);
+  saved.collect(ItemCatalog::CANDLE, 2);
+  saved.collect(ItemCatalog::instance().find("family_photo"));
+  saved.rest(2);
+  saved.take_pickup(7);
+  saved.take_pickup(200);
+  saved.die(3.f, 0.5f, 9.f);
+  saved.earn(11);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(saved.to_text()));
+  assert(loaded.lochas() == 11);
+  assert(loaded.day() == 1);
+  assert(loaded.chapel() == 2);
+  assert(loaded.coffee_capacity() == PlayerProgress::START_COFFEE + 1);
+  assert(loaded.stats().level(Stat::Regeneration) == 1);
+  assert(loaded.inventory().count(ItemCatalog::COFFEE) == PlayerProgress::START_COFFEE + 1);
+  assert(loaded.inventory().count(ItemCatalog::CANDLE) == 2);
+  assert(loaded.inventory().order(ItemCatalog::CANDLE) == saved.inventory().order(ItemCatalog::CANDLE));
+  assert(loaded.quick_slots().holds(ItemCatalog::CANDLE));
+  assert(loaded.pickup_taken(7) && loaded.pickup_taken(200) && !loaded.pickup_taken(8));
+  assert(loaded.has_death_mark());
+  assert(loaded.death_mark().lochas == 420);
+  assert(loaded.death_mark().z == 9.f);
+  assert(loaded.to_text() == saved.to_text());
+}
+
+static void test_damaged_saves()
+{
+  PlayerProgress progress;
+  progress.earn(77);
+  const std::string good = progress.to_text();
+
+  const char * damaged[] = {
+    "",
+    "something else 1\n",
+    "nightmare58 999\nlochas 5\n",
+    "nightmare58 1\nlochas -5\n",
+    "nightmare58 1\nlochas many\n",
+    "nightmare58 1\nstat 99 1\n",
+    "nightmare58 1\nstat 0 99\n",
+    "nightmare58 1\nitem coffee\n",
+    "nightmare58 1\ntaken 9999\n",
+    "nightmare58 1\nunknown 1\n",
+  };
+  for (const char * text : damaged)
+  {
+    assert(!progress.from_text(text));
+    assert(progress.lochas() == 77); // Refused without touching anything.
+  }
+  assert(progress.to_text() == good);
+
+  // An item the catalog no longer has is skipped, and the rest of the game survives.
+  assert(progress.from_text("nightmare58 1\nlochas 9\nitem old_item 2 1\n"));
+  assert(progress.lochas() == 9);
+}
+
+static void test_health_changes()
+{
+  Health health(100);
+  health.damage(30);
+  health.heal(10);
+  assert(health.value() == 80);
+  health.heal(500);
+  assert(health.value() == 100);
+
+  health.damage(40);
+  health.set_maximum(110);
+  assert(health.value() == 70);
+  assert(health.ratio() < 0.64f);
+}
+
+static void test_stamina_regen_scale()
+{
+  Stamina plain(100.f);
+  Stamina trained(100.f);
+  trained.set_regen_scale(2.f);
+  plain.spend(90.f);
+  trained.spend(90.f);
+  plain.update(1.f, true);
+  trained.update(1.f, true);
+  plain.update(0.1f, true);
+  trained.update(0.1f, true);
+  assert(trained.ratio() > plain.ratio());
+}
+
+static void test_player_use_item()
+{
+  PlayerActions actions;
+  const float effect = PlayerActions::timing(PlayerAction::UseItem).ground_hit;
+
+  actions.press(PlayerAction::UseItem);
+  assert(actions.update(0.016f, false));
+  assert(actions.current() == PlayerAction::UseItem);
+  assert(!actions.hit_ground(0.016f));
+
+  bool took_effect = false;
+  for (float time = 0.f; time < effect + 0.1f; time += 0.016f)
+  {
+    actions.update(0.016f, true);
+    took_effect = took_effect || actions.hit_ground(0.016f);
+  }
+  assert(took_effect);
+  assert(actions.current() == PlayerAction::UseItem); // Moving does not cancel it.
+
+  // A blow before the effect leaves nothing to take effect.
+  PlayerActions hit;
+  hit.press(PlayerAction::UseItem);
+  hit.update(0.016f, false);
+  hit.hurt();
+  assert(hit.current() == PlayerAction::Hurt);
+}
+
+static void test_menu_stack()
+{
+  MenuStack menu;
+  assert(!menu.is_open());
+
+  menu.open(MenuScreen::Chapel);
+  menu.move_cursor(1, 3);
+  menu.move_cursor(1, 3);
+  assert(menu.cursor() == 2);
+  menu.move_cursor(1, 3);
+  assert(menu.cursor() == 0);
+  menu.move_cursor(-1, 3);
+  assert(menu.cursor() == 2);
+
+  menu.open(MenuScreen::Inventory);
+  assert(menu.screen() == MenuScreen::Inventory);
+  assert(menu.cursor() == 0);
+  menu.move_cursor(1, 0); // An empty list has nowhere to go.
+  assert(menu.cursor() == 0);
+
+  menu.back();
+  assert(menu.screen() == MenuScreen::Chapel);
+  assert(menu.cursor() == 2);
+  menu.keep_cursor_within(2);
+  assert(menu.cursor() == 1);
+
+  menu.close();
+  assert(!menu.is_open());
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -764,5 +1134,21 @@ int main()
   test_player_hurt();
   test_player_heavy_attack();
   test_lock_on();
+  test_item_catalog();
+  test_inventory_counts();
+  test_inventory_sort_is_stable();
+  test_quick_slots();
+  test_loot_table();
+  test_player_stats();
+  test_raising_a_stat();
+  test_coffee_capacity();
+  test_death_and_recovery();
+  test_pickups_taken();
+  test_save_round_trip();
+  test_damaged_saves();
+  test_health_changes();
+  test_stamina_regen_scale();
+  test_player_use_item();
+  test_menu_stack();
   return 0;
 }
