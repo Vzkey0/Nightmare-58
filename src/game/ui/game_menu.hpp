@@ -9,7 +9,7 @@
 #include <core/menu_stack.hpp>
 #include <core/progression/inventory.hpp>
 
-class BronzePlate;
+class MetalPlate;
 class ItemSlot;
 class PlayerController;
 
@@ -44,10 +44,17 @@ private:
   void show_chapel();
   void show_stats();
   void show_inventory();
+  void show_pause();
+  void show_options();
+  void accept_pause();
+  void leave_to_title();
+  bool handle_options_input(const godot::Ref<godot::InputEvent> & event);
   void show_tabs(bool visible);
   void add_row(const godot::String & text, bool selected, const godot::String & value = godot::String());
-  void paint_tab(godot::Label * label, BronzePlate * plate, bool active);
+  void paint_tab(godot::Label * label, MetalPlate * plate, bool active);
   void move_in_grid(int step);
+  void move_row(int step);
+  void adjust_option(int direction);
   void place_sheet();
   bool handle_inventory_input(const godot::Ref<godot::InputEvent> & event);
   bool handle_mouse(const godot::Ref<godot::InputEvent> & event);
@@ -66,8 +73,8 @@ private:
   godot::Label * title = nullptr;
   godot::Label * tab_left = nullptr;
   godot::Label * tab_right = nullptr;
-  BronzePlate * tab_left_plate = nullptr;
-  BronzePlate * tab_right_plate = nullptr;
+  MetalPlate * tab_left_plate = nullptr;
+  MetalPlate * tab_right_plate = nullptr;
   godot::Label * item_name = nullptr;
   godot::Label * detail = nullptr;
   godot::Label * hints = nullptr;

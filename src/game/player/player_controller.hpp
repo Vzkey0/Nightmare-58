@@ -129,6 +129,7 @@ private:
   godot::AudioStreamPlayer * roll_land_sound = nullptr;
   godot::AudioStreamPlayer * step_sound = nullptr;
   godot::Control * hud_panel = nullptr;
+  godot::Control * death_screen = nullptr;
   StatBar * health_bar = nullptr;
   StatBar * stamina_bar = nullptr;
   godot::Node2D * lock_marker = nullptr;

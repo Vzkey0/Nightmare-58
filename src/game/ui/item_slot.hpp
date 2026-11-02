@@ -1,6 +1,7 @@
 #pragma once
 
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/tween.hpp>
 
 #include <core/progression/item_catalog.hpp>
 
@@ -12,6 +13,7 @@ class ItemSlot : public godot::Control
 
 protected:
   static void _bind_methods();
+  void _notification(int what);
 
 public:
   void _draw() override;
@@ -28,4 +30,5 @@ private:
   int count = 0;
   bool selected = false;
   bool framed = true;
+  godot::Ref<godot::Tween> tween;
 };

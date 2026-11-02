@@ -5,6 +5,7 @@
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
 #include <game/world/save_file.hpp>
 
@@ -98,6 +99,7 @@ constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing so
 
 constexpr float HURT_PUSH = 4.f;
 constexpr float RESPAWN_TIME = 3.f;
+constexpr float DEATH_FADE = 0.6f;
 
 constexpr int COFFEE_HEAL = 45;
 constexpr float TOAST_TIME = 2.5f;
@@ -178,7 +180,9 @@ void PlayerController::_ready()
   roll_sound = get_node<AudioStreamPlayer>("Sounds/Roll");
   roll_land_sound = get_node<AudioStreamPlayer>("Sounds/RollLand");
   step_sound = get_node<AudioStreamPlayer>("Sounds/Step");
+  GameSettings::load();
   hud_panel = get_node<Control>("Hud/Panel");
+  death_screen = get_node<Control>("Hud/DeathScreen");
   health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
   stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
@@ -235,9 +239,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
   Input * input = Input::get_singleton();
   const bool captured = input->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED;
 
-  if (event->is_action_pressed("ui_cancel"))
+  if (event->is_action_pressed("pause"))
   {
-    input->set_mouse_mode(captured ? Input::MOUSE_MODE_VISIBLE : Input::MOUSE_MODE_CAPTURED);
+    menu->open(MenuScreen::Pause);
     return;
   }
 
@@ -249,8 +253,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
     lock_flick += motion->get_relative().x;
     return;
   }
-  camera_yaw -= motion->get_relative().x * mouse_sensitivity;
-  camera_pitch -= motion->get_relative().y * mouse_sensitivity;
+  const float sensitivity = mouse_sensitivity * GameSettings::mouse_scale();
+  camera_yaw -= motion->get_relative().x * sensitivity;
+  camera_pitch -= motion->get_relative().y * sensitivity;
 }
 
 void PlayerController::_process(double delta)
@@ -858,6 +863,14 @@ void PlayerController::update_hud(float delta)
 {
   const float scale = get_viewport()->get_visible_rect().size.y / HUD_BASE_HEIGHT;
   hud_panel->set_scale(Vector2(scale, scale));
+
+  const bool dead = health.dead();
+  death_screen->set_visible(dead);
+  if (dead)
+  {
+    const float appear = MIN((RESPAWN_TIME - respawn_time) / DEATH_FADE, 1.f);
+    death_screen->set_modulate(Color(1.f, 1.f, 1.f, appear * MIN(respawn_time / DEATH_FADE, 1.f)));
+  }
 
   health_trail.update(health.ratio(), delta);
   health_bar->set_values(health.ratio(), health_trail.value());

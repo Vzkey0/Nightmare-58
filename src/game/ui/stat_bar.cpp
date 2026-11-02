@@ -10,9 +10,9 @@ using namespace godot;
 
 namespace
 {
-const Color FRAME_LIT = UiPalette::BRONZE;
+const Color FRAME_LIT = UiPalette::METAL;
 const Color FRAME_SHADE = UiPalette::BORDER;
-const Color BACK(0.078f, 0.051f, 0.039f, 0.92f);
+const Color BACK(0.03f, 0.05f, 0.1f, 0.92f);
 const Color TRAIL(0.85f, 0.79f, 0.66f);
 const Color OUTLINE(0.015f, 0.015f, 0.025f);
 const Vector2 SHADOW_OFFSET(4.f, 5.f);
