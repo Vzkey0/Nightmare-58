@@ -77,9 +77,10 @@ con caras planas: ceño caído hacia la nariz, cuencas talladas de verdad, griet
 dientes sueltos y una costilla rota. Los ojos son ámbar para no confundirse con la vida del HUD.
 
 [build_skeleton.py](../art/characters/build_skeleton.py) genera el modelo en pose A, guarda
-`skeleton.blend` y exporta `skeleton.glb`, con 3.566 triángulos. Usa los nombres de huesos de la
+`skeleton.blend` y exporta `skeleton.glb`, con 3.923 triángulos. Usa los nombres de huesos de la
 protagonista más `jaw`, sin `hem_*`. Cada pieza sigue a un solo hueso: nada se dobla, como en un
-esqueleto real. El machete va pesado al hueso `weapon` y mide 0,72 m de hoja.
+esqueleto real. El machete es el de [machete.py](../art/props/machete.py), va pesado al hueso
+`weapon` y mide 0,72 m de hoja.
 
 [animate_skeleton.py](../art/characters/animate_skeleton.py) genera los clips con el mismo
 resolvedor que la protagonista, y hay que correrlo después de `build_skeleton.py`:
@@ -125,31 +126,31 @@ exporta `protagonist_male.glb` con ellos. Hay que correrlo de último, después 
 blender --background art/characters/protagonist.blend --python art/characters/animate_protagonist.py
 ```
 
-Las poses clave definen pelvis, columna, pies y palo, y la cinemática inversa resuelve
+Las poses clave definen pelvis, columna, pies y machete, y la cinemática inversa resuelve
 piernas y brazos en cada cuadro. Así los pies no patinan y las dos manos siguen en el
-palo. Se escriben en cuadros a 30 fps y se hornean a 60. El `.import` del modelo debe
+machete. Se escriben en cuadros a 30 fps y se hornean a 60. El `.import` del modelo debe
 quedar con `animation/fps=60`, o Godot las reduce a 30.
 
 | Clip | Duración | Interrupción | Uso |
 |---|---|---|---|
-| `idle` | 5 s, en bucle | Siempre | Reposo a una mano, con el palo a un lado |
+| `idle` | 5 s, en bucle | Siempre | Reposo a una mano, con el machete a un lado |
 | `walk` | 0,8 s, en bucle | Siempre | Caminata a 1,9 m/s con el stick a media carrera |
 | `run` | 0,6 s, en bucle | Siempre | Carrera a 4,6 m/s |
 | `sprint` | 0,5 s, en bucle | Siempre | Esprint a 6,8 m/s al mantener Shift |
 | `run_start` | 0,33 s | Soltar la dirección | Primeros dos pasos; termina donde `run` apoya el pie izquierdo |
-| `run_stop` | 0,5 s | Volver a moverse | Frenada con el pie derecho clavado y el palo siguiendo de largo |
+| `run_stop` | 0,5 s | Volver a moverse | Frenada con el pie derecho clavado y el machete siguiendo de largo |
 | `run_turn` | 0,43 s | Una acción | Giro brusco al invertir la dirección corriendo |
 | `jump` | 0,33 s | Golpe aéreo 0,12 s | Despegue sin agacharse, para responder al instante |
 | `fall` | 0,8 s, en bucle | Siempre | Caída |
 | `land` | 0,4 s | Moverse o cualquier acción | Amortigua el aterrizaje |
 | `attack_air` | 0,7 s | Termina el golpe aunque toque el suelo | Golpe por encima de la cabeza, con las rodillas recogidas |
-| `dodge_forward` | 0,77 s, avanza 3,2 m | Acción 0,5 s, moverse 0,57 s | Voltereta hacia delante con el palo cruzado sobre el eje de giro |
+| `dodge_forward` | 0,77 s, avanza 3,2 m | Acción 0,5 s, moverse 0,57 s | Voltereta hacia delante con el machete cruzado sobre el eje de giro |
 | `attack_light_1` | 0,8 s, avanza 0,85 m | Esquiva 0,37 s, acción 0,45 s, moverse 0,55 s | Combo 1: corte diagonal rápido con zancada |
-| `attack_light_2` | 0,87 s, avanza 0,75 m | Esquiva 0,36 s, acción 0,5 s, moverse 0,6 s | Combo 2: barrido a largo completo, la mano izquierda suelta y el palo corre por la derecha |
-| `attack_light_3` | 1,33 s, avanza 1,15 m | Esquiva 0,55 s, acción 0,85 s, moverse 0,95 s | Combo 3: salto con giro completo y el palo girando sobre la cabeza, y clavado al suelo a dos manos |
+| `attack_light_2` | 0,87 s, avanza 0,75 m | Esquiva 0,36 s, acción 0,5 s, moverse 0,6 s | Combo 2: barrido amplio, la mano izquierda suelta y el machete sigue con el brazo derecho |
+| `attack_light_3` | 1,33 s, avanza 1,15 m | Esquiva 0,55 s, acción 0,85 s, moverse 0,95 s | Combo 3: salto con giro completo y el machete girando sobre la cabeza, y clavado al suelo a dos manos |
 | `attack_roll` | 0,8 s, avanza 1,1 m | Esquiva 0,33 s, acción 0,5 s, moverse 0,6 s | Estocada a una mano al salir de la voltereta |
 | `attack_run` | 1 s, avanza 2,35 m | Esquiva 0,4 s, acción 0,62 s, moverse 0,72 s | Atacar esprintando: golpe ascendente a dos manos que aprovecha la velocidad |
-| `attack_heavy` | 1,2 s, avanza 0,9 m | Esquiva 0,6 s, acción 0,85 s, moverse 0,95 s | Golpe pesado: alza el palo a dos manos, lo sostiene para que se lea y lo clava en el suelo |
+| `attack_heavy` | 1,2 s, avanza 0,9 m | Esquiva 0,6 s, acción 0,85 s, moverse 0,95 s | Golpe pesado: alza el machete a dos manos, lo sostiene para que se lea y lo clava en el suelo |
 | `hurt` | 0,5 s | Acción 0,35 s, moverse 0,45 s | Recibir un golpe |
 | `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
 | `drink` | 0,9 s | Ninguna; un golpe la corta | Sorbo de café con la mano libre; cura a los 0,45 s, a mitad del sorbo |
@@ -158,8 +159,8 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 
 **Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
 sobre la raíz, y `lift` lo separa del suelo. Las poses se escriben como si no girara, y
-`feet_free` decide si los pies giran con el cuerpo (1) o siguen en el suelo (0). El palo mide
-1,6 m: en una voltereta solo cabe sobre el eje de giro, sin atravesar el suelo.
+`feet_free` decide si los pies giran con el cuerpo (1) o siguen en el suelo (0). En la voltereta la
+hoja va sobre el eje de giro, sin atravesar el suelo.
 
 **Combo:** pulsar ataque durante un golpe guarda el siguiente, y tras el tercero vuelve al
 primero. Dejar terminar el golpe o moverse después de su corte lo reinicia. Esquivar interrumpe
@@ -171,7 +172,8 @@ paso que tocaba. Cada golpe arranca en la pose donde el anterior permite encaden
 
 **Atracción al objetivo:** al empezar un golpe, el personaje se orienta hacia el objetivo más
 cercano del grupo `targets` a menos de 4,5 m y 75° de la dirección pedida. También escala el
-avance del clip entre 0,25 y 1,6 veces para terminar a 1,3 m. Todo enemigo debe entrar a ese grupo.
+avance del clip entre 0,25 y 1,6 veces para terminar a 1,1 m. Así el golpe ligero alcanza hasta unos
+2,4 m y el pesado algo más. Todo enemigo debe entrar a ese grupo.
 
 **Fijado:** rueda del mouse o R3. Fija el objetivo visible más cercano a 12 m y se suelta a 16 m, si
 cae o si pasa 1 s sin verse. Mover el mouse o el stick hacia un lado cambia de objetivo. La cámara
@@ -189,8 +191,8 @@ donde empezó tras 3 s, hasta que existan los altares.
 **Dummy:** se arma 0,9 s brillando en rojo y gira los brazos estirados. Pega a 1,95 m, lo que
 alcanzan los brazos más el ancho del jugador.
 
-**Efectos:** `WeaponTrail` dibuja la estela del palo durante el barrido y el giro del tercer
-golpe. El nodo `Dust` de `player.tscn` levanta polvo al rodar, aterrizar, frenar y clavar el palo.
+**Efectos:** `WeaponTrail` dibuja la estela del machete durante el barrido y el giro del tercer
+golpe. El nodo `Dust` de `player.tscn` levanta polvo al rodar, aterrizar, frenar y clavar el machete.
 El clavado añade temblor y un empujón de cámara.
 
 **Chaqueta y pelo:** `ClothSprings` en `player.tscn` los mueve con los resortes nativos de Godot,
@@ -200,8 +202,11 @@ arrastre 0,5. Las solapas cuelgan del pecho, y los lados y la espalda de la cade
 peso en las piernas. `WaistCollision`, `ThighLeft` y `ThighRight` apartan la tela del cuerpo, y
 `HeadCollision` evita que el pelo entre al cráneo.
 
-**Sonido:** los sonidos del jugador están en `Sounds` en `player.tscn`, con tono aleatorio. Solo
-se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
+**Sonido:** los sonidos del jugador están en `Sounds` en `player.tscn`, con varias tomas y tono
+aleatorio. Los de los menús están en el autoload `UiSounds`, para que suenen con la pausa y al
+cambiar de escena: metal y papel, como las placas de bronce, nunca pitidos. Solo se usa audio CC0,
+con su origen en [CREDITS.md](../game/audio/CREDITS.md). Cada sonido se arma en
+[build_sfx.py](../art/audio/build_sfx.py), que recibe la carpeta con los packs descomprimidos.
 
 **Reglas tomadas de los souls-like y de animación de juegos:**
 
@@ -225,7 +230,8 @@ se usa audio CC0, con su origen en [CREDITS.md](../game/audio/CREDITS.md).
 en la dirección pedida, en vez de seguir al antebrazo. La taza y la vela son nodos bajo `HandItem`
 en `player.tscn`, y `PlayerController` solo muestra el que se está usando.
 
-**Pendiente:** el palo, la taza y la vela son provisionales: cambiar sus mallas no afecta a los clips.
+**Agarre:** el hueso `weapon` queda en la mano derecha y la izquierda cierra 0,1 m detrás, en el mango.
+Con el filo hacia donde cierran los dedos, el arma corta con el filo en los barridos.
 
 ## Interfaz
 
@@ -242,13 +248,18 @@ Arriba al centro irá la barra del jefe y abajo a la derecha las lochas. No hay 
 - **Selección:** la fila o casilla elegida hace un pequeño pop con un tween. Las filas no se
   reconstruyen al cambiar de selección, para que la animación pueda verse. Vida y resistencia conservan sus colores para
   leerse en combate.
-- **Menús:** un panel oscuro a la derecha deja ver el mundo. El inventario tiene pestañas (`Z` y `C`),
-  cuadrícula de 5 columnas, detalle del objeto y orden con `R`.
+- **Menús:** un panel oscuro a la derecha deja ver el mundo. El inventario tiene tres pestañas que se
+  recorren con `Z` y `C` (consumibles, coleccionables y armas), cuadrícula de 5 columnas, detalle del
+  objeto y orden con `R`.
 - **Mouse:** el cursor aparece mientras hay un menú abierto. Pasar por encima selecciona, el clic
   izquierdo acepta y el derecho vuelve.
-- **Íconos:** `ItemSlot` dibuja cada objeto con formas simples, también en el rombo del HUD.
+- **Íconos:** son renders de los mismos modelos, en `game/ui/icons/<clave>.png`, con contorno azul para
+  separarse del fondo oscuro. `ItemSlot` carga el de cada objeto, también en el rombo del HUD. Las
+  lochas llevan el suyo junto al contador y la capilla en el título de su menú. Se importan con
+  mipmaps, porque se dibujan mucho más pequeños que el render.
 - **Sin imágenes:** `StatBar` dibuja el marco y el relleno con polígonos de caras planas, así no
   pierden nitidez. El relleno repite la punta del marco, por lo que encaja a cualquier valor.
+- **Lochas:** solo la cantidad y la moneda, en una placa pequeña abajo a la derecha.
 - **Vida:** verde sobre 60 %, ámbar sobre 35 %, naranja sobre 15 % y rojo por debajo. El color cambia
   de golpe, y una franja pálida marca lo que quitó el último golpe.
 - **Resistencia:** cian, para no confundirse con la vida a medias ni perderse en el asfalto. Se
@@ -264,9 +275,8 @@ durante el golpe, el golpe cuenta, sea con la punta, el centro o el mango.
 
 - **Forma de golpe:** el nodo `Hitbox` de `player.tscn` cubre la malla del arma de punta a
   punta. Va en el hueso `weapon`, así sigue la animación. Se mide contra la malla real,
-  no a ojo: el palo va de -0,55 a 1,05 m sobre el eje Y del hueso, así que su cápsula mide
-  1,6 m y está centrada en 0,25 m. Su radio de 0,06 m es mayor que el del palo a propósito,
-  para perdonar un poco.
+  no a ojo: el machete va de -0,13 a 0,8 m sobre el eje Y del hueso, así que su cápsula mide
+  0,95 m y está centrada en 0,335 m. Su radio de 0,09 m cubre el ancho de la hoja y perdona un poco.
 - **Ventana de golpe:** `hit_start` y `hit_end` en `player_actions.cpp` cubren todo el
   barrido, desde que el arma deja la pose alzada hasta que se detiene. No cuentan la
   preparación ni la pose final sostenida.
@@ -275,8 +285,47 @@ durante el golpe, el golpe cuenta, sea con la punta, el centro o el mango.
 - **Al cambiar un arma o agregar un ataque:** hay que actualizar la cápsula o la ventana, y
   comprobar con el dummy en varias posiciones que cada contacto del barrido registra daño.
 - **Límite conocido:** la forma se consulta 60 veces por segundo sin barrer entre ticks, y
-  la punta del palo avanza hasta unos 0,4 m por tick. Un objetivo más delgado que eso
+  la punta del machete avanza hasta unos 0,4 m por tick. Un objetivo más delgado que eso
   podría saltarse; en ese caso hay que comprobar posiciones intermedias.
+
+## Objetos
+
+[build_loot.py](../art/props/build_loot.py) genera todos los objetos, guarda `loot.blend`, exporta
+`game/models/props/<clave>.glb` y renderiza los íconos con Cycles desde la misma malla. El `.glb`
+y el ícono usan la clave del objeto en el catálogo, así que uno nuevo no necesita código:
+
+```bash
+blender --background --python art/props/build_loot.py
+```
+
+Si cambia el machete, hay que correr además `build_skeleton.py`, `animate_skeleton.py` y
+`animate_protagonist.py`. Texturas
+pintadas con ruido y figuras simples en [prop_tools.py](../art/props/prop_tools.py), sin fotos.
+
+| Objeto | Diseño | Triángulos |
+|---|---|---|
+| Café | Taza de peltre blanco con borde azul y desconchones de óxido | 316 |
+| Vela de retorno | Vela de iglesia con cera corrida, collar de papel rojo y llama propia | 312 |
+| Vinilo de gaita | Disco saliendo de una carátula de los setenta con maracas y sol | 534 |
+| Cromo de béisbol | Bateador con marco rojo, doblado por una esquina | 48 |
+| Ficha de dominó | Doble seis de marfil con reverso oscuro y remache de latón | 364 |
+| Foto familiar | Sepia, doblada al medio y con una esquina rota; una de las figuras casi se borró | 94 |
+| Machete | Lomo recto, panza hacia la punta, bisel limado, dos muescas, cachas con tres remaches y óxido en bandas | 521 |
+| Capilla | Capilla de carretera: arco azul, techo de zinc, Virgen, velas, placas y hiedra | 1.766 |
+| Mancha de lochas | Charco de brea con borde pálido y monedas sueltas | Cerca de 900 |
+
+**En el suelo:** `LootPickup` carga el modelo por su clave, lo gira y lo agranda hasta 0,42 m, para
+que una ficha de 5 cm se vea desde la cámara. Los que ya miden más quedan a su tamaño real.
+
+**Machete:** la textura de 1024 × 512 guarda las dos caras de la hoja y la madera. El óxido se
+concentra junto al guardamano, en el lomo, en la punta y alrededor de las muescas, y va en bandas
+duras para verse pintado. La cara izquierda lleva un 58 estampado cerca de la cacha. El jugador puede
+empieza con él en la mano y lo ve en la pestaña Armas.
+
+**Capilla:** su parte sólida no pasa de 1,15 m hacia el frente, porque el jugador reaparece a 1,6 m.
+
+**Luces:** las de los objetos usan `light_specular = 0`; si no, el asfalto mojado las refleja como
+manchas blancas.
 
 ## Escenario 1: avenida de Caracas
 

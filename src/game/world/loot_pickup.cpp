@@ -1,10 +1,19 @@
 #include "loot_pickup.hpp"
 #include <game/player/player_controller.hpp>
 
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
 using namespace godot;
+
+namespace
+{
+constexpr float SPIN_SPEED = 1.2f;
+constexpr float SHOWN_SIZE = 0.42f; // Longest side on the ground: a domino at its real size is a speck.
+}
 
 void LootPickup::_bind_methods()
 {
@@ -28,6 +37,28 @@ void LootPickup::_ready()
     return;
   }
   connect("body_entered", callable_mp(this, &LootPickup::on_body_entered));
+  show_model();
+}
+
+void LootPickup::_process(double delta)
+{
+  if (spinner != nullptr)
+    spinner->rotate_y(static_cast<float>(delta) * SPIN_SPEED);
+}
+
+// Props share their icon's key, so a new item needs no change here.
+void LootPickup::show_model()
+{
+  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://models/props/" + item_key + ".glb");
+  Node3D * model = Object::cast_to<Node3D>(scene->instantiate());
+  spinner = get_node<Node3D>("Spinner");
+  spinner->add_child(model);
+
+  const MeshInstance3D * mesh = Object::cast_to<MeshInstance3D>(model->find_children("*", "MeshInstance3D", true, false)[0]);
+  const AABB bounds = mesh->get_aabb();
+  const float scale = MAX(1.f, SHOWN_SIZE / bounds.get_longest_axis_size());
+  model->set_scale(Vector3(scale, scale, scale));
+  model->set_position(-bounds.get_center() * scale);
 }
 
 void LootPickup::on_body_entered(Node3D * body)

@@ -10,3 +10,4 @@ build/
 .godot/
 *.dylib
 *.blend[0-9]*
+__pycache__/

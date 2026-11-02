@@ -3,11 +3,16 @@
 #   blender --background --python art/characters/build_skeleton.py
 import math
 import os
+import sys
 
 import bpy
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "props"))
+
+import machete
+
 BLEND_PATH = os.path.join(HERE, "skeleton.blend")
 GLB_PATH = os.path.join(HERE, "..", "..", "game", "models", "characters", "skeleton.glb")
 
@@ -16,11 +21,6 @@ COLORS = {
   "bone_mid": (0.74, 0.66, 0.49),
   "bone_dark": (0.47, 0.39, 0.28),
   "socket": (0.025, 0.02, 0.025),
-  "steel": (0.42, 0.45, 0.47),
-  "steel_edge": (0.88, 0.9, 0.88),
-  "rust": (0.42, 0.18, 0.08),
-  "wood": (0.25, 0.14, 0.08),
-  "brass": (0.72, 0.52, 0.2),
 }
 EYE_COLOR = (1.0, 0.42, 0.02)
 EYE_ENERGY = 1.3
@@ -38,7 +38,6 @@ ANKLE = (0.115, 0.015, 0.09)
 BALL = (0.115, -0.09, 0.035)
 TOE = (0.115, -0.2, 0.03)
 GRIP = (-0.69, -0.02, 0.705)
-BLADE_LENGTH = 0.72
 
 parts = []
 
@@ -59,7 +58,7 @@ def material(name):
   mat.diffuse_color = linear
   # The eye gets its color only from emission: sunlight on top of it would wash it out to yellow.
   bsdf.inputs["Base Color"].default_value = (0, 0, 0, 1) if name == "eye_glow" else linear
-  bsdf.inputs["Roughness"].default_value = 0.45 if name.startswith("steel") else 0.85
+  bsdf.inputs["Roughness"].default_value = 0.85
   return mat
 
 
@@ -369,58 +368,6 @@ def build_limbs():
     tube(f"finger_{i}_r", path, "bone_light", "hand_r", n=4)
 
 
-def build_machete():
-  """A long, worn work machete: straight back, belly that widens toward the tip, chipped edge."""
-  grip = Vector(GRIP)
-  # (distance from the guard, top of the back, bottom of the edge), all on the plane Y-Z.
-  outline = [
-    (0.0, 0.018, -0.024), (0.14, 0.02, -0.038), (0.3, 0.021, -0.05), (0.32, 0.021, -0.04),
-    (0.34, 0.021, -0.054), (0.5, 0.022, -0.072), (0.52, 0.022, -0.062), (0.54, 0.022, -0.078),
-    (0.64, 0.024, -0.09), (BLADE_LENGTH - 0.03, 0.034, -0.08), (BLADE_LENGTH, 0.06, -0.012),
-  ]
-  start = 0.075
-  thick = 0.009
-  verts = []
-  for distance, top, bottom in outline:
-    y = grip.y - start - distance
-    middle = bottom + (top - bottom) * 0.42
-    verts += [
-      (grip.x, y, grip.z + top),
-      (grip.x + thick, y, grip.z + middle),
-      (grip.x, y, grip.z + bottom),
-      (grip.x - thick, y, grip.z + middle),
-    ]
-  faces = []
-  face_materials = []
-  for i in range(len(outline) - 1):
-    a, b = i * 4, (i + 1) * 4
-    worn = i == 5
-    faces.append((a, a + 1, b + 1, b))
-    face_materials.append("rust" if i == 0 else "steel")
-    faces.append((a + 1, a + 2, b + 2, b + 1))
-    face_materials.append("rust" if worn else "steel_edge")
-    faces.append((a + 2, a + 3, b + 3, b + 2))
-    face_materials.append("rust" if worn else "steel_edge")
-    faces.append((a + 3, a, b, b + 3))
-    face_materials.append("rust" if i == 0 else "steel")
-  last = (len(outline) - 1) * 4
-  faces += [(3, 2, 1, 0), (last, last + 1, last + 2, last + 3)]
-  face_materials += ["steel", "steel"]
-  part("machete_blade", verts, faces, face_materials, "weapon")
-
-  handle = grip + Vector((0, 0.09, 0))
-  tube("machete_handle", [
-    (handle + Vector((0, 0.022, -0.008)), 0.016, 0.011),
-    (handle + Vector((0, 0.004, -0.008)), 0.03, 0.017),
-    (handle + Vector((0, -0.08, -0.002)), 0.024, 0.016),
-    (grip + Vector((0, -0.07, 0)), 0.03, 0.015),
-    (grip + Vector((0, -0.08, 0)), 0.024, 0.013),
-  ], "wood", "weapon", n=6, side=(0, 0, 1))
-  for i, y in enumerate((0.105, 0.075)):
-    rivet = grip + Vector((0, y, -0.006))
-    tube(f"machete_rivet_{i}", [(rivet + Vector((-0.019, 0, 0)), 0.007, 0.007), (rivet + Vector((0.019, 0, 0)), 0.007, 0.007)], "brass", "weapon", n=4)
-
-
 def bones():
   """Bones as name: (head, tail, parent), for the side +X; _l bones get a mirrored _r twin."""
   return {
@@ -505,7 +452,7 @@ def main():
   build_torso()
   build_pelvis()
   build_limbs()
-  build_machete()
+  parts.append((machete.build(Vector(GRIP)), "weapon"))
   finish()
 
 

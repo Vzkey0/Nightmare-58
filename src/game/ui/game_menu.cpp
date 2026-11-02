@@ -2,6 +2,7 @@
 #include "metal_plate.hpp"
 #include "game_settings.hpp"
 #include "item_slot.hpp"
+#include "ui_sounds.hpp"
 #include "ui_palette.hpp"
 #include <game/player/player_controller.hpp>
 
@@ -46,9 +47,12 @@ void GameMenu::_ready()
   sheet = get_node<Control>("Sheet");
   title = get_node<Label>("Sheet/Title");
   tab_left = get_node<Label>("Sheet/TabLeft");
+  tab_middle = get_node<Label>("Sheet/TabMiddle");
   tab_right = get_node<Label>("Sheet/TabRight");
   tab_left_plate = get_node<MetalPlate>("Sheet/TabLeft/Plate");
+  tab_middle_plate = get_node<MetalPlate>("Sheet/TabMiddle/Plate");
   tab_right_plate = get_node<MetalPlate>("Sheet/TabRight/Plate");
+  title_icon = get_node<Control>("Sheet/TitleIcon");
   item_name = get_node<Label>("Sheet/ItemName");
   detail = get_node<Label>("Sheet/Detail");
   hints = get_node<Label>("Sheet/Hints");
@@ -74,10 +78,12 @@ void GameMenu::open(MenuScreen screen)
   Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_VISIBLE);
   place_sheet();
   refresh();
+  UiSounds::play(this, "Open");
 }
 
 void GameMenu::close()
 {
+  UiSounds::play(this, "Close");
   menu.close();
   set_visible(false);
   get_tree()->set_pause(false);
@@ -102,7 +108,10 @@ void GameMenu::go_back()
 {
   menu.back();
   if (menu.is_open())
+  {
+    UiSounds::play(this, "Back");
     refresh();
+  }
   else
     close();
 }
@@ -148,8 +157,10 @@ bool GameMenu::handle_inventory_input(const Ref<InputEvent> & event)
     move_in_grid(-GRID_COLUMNS);
   else if (event->is_action_pressed("ui_down") || event->is_action_pressed("move_back"))
     move_in_grid(GRID_COLUMNS);
-  else if (event->is_action_pressed("menu_prev") || event->is_action_pressed("menu_next"))
-    tab = tab == ItemKind::Consumable ? ItemKind::Collectible : ItemKind::Consumable;
+  else if (event->is_action_pressed("menu_prev"))
+    next_tab(-1);
+  else if (event->is_action_pressed("menu_next"))
+    next_tab(1);
   else if (event->is_action_pressed("use_item"))
     next_sort();
   else
@@ -170,27 +181,45 @@ bool GameMenu::handle_options_input(const Ref<InputEvent> & event)
 
 void GameMenu::adjust_option(int direction)
 {
-  GameSettings::step(menu.cursor(), direction);
+  UiSounds::play(this, GameSettings::step(menu.cursor(), direction) ? "Adjust" : "Deny");
   MetalPlate::set_row_value(rows, menu.cursor(), GameSettings::row_value(menu.cursor()));
 }
 
 // Rows stay alive here, so the one left and the one reached can play their tween.
 void GameMenu::move_row(int step)
 {
+  const int from = menu.cursor();
   if (menu.screen() == MenuScreen::Inventory)
   {
     menu.move_cursor(step, row_count());
     refresh();
-    return;
   }
-  MetalPlate::select_row(rows, menu.cursor(), false);
-  menu.move_cursor(step, row_count());
-  MetalPlate::select_row(rows, menu.cursor(), true);
+  else
+  {
+    MetalPlate::select_row(rows, menu.cursor(), false);
+    menu.move_cursor(step, row_count());
+    MetalPlate::select_row(rows, menu.cursor(), true);
+  }
+  if (menu.cursor() != from)
+    UiSounds::play(this, "Move");
+}
+
+void GameMenu::next_tab(int step)
+{
+  show_tab(static_cast<ItemKind>((static_cast<int>(tab) + step + ITEM_KINDS) % ITEM_KINDS));
+}
+
+void GameMenu::show_tab(ItemKind kind)
+{
+  if (kind != tab)
+    UiSounds::play(this, "Tab");
+  tab = kind;
 }
 
 void GameMenu::next_sort()
 {
   sort_mode = static_cast<InventorySort>((static_cast<int>(sort_mode) + 1) % INVENTORY_SORTS);
+  UiSounds::play(this, "Tab");
 }
 
 bool GameMenu::handle_mouse(const Ref<InputEvent> & event)
@@ -222,9 +251,11 @@ void GameMenu::click(const Vector2 & at, int entry)
   else if (inventory && hints->get_global_rect().has_point(at))
     next_sort();
   else if (inventory && tab_left->get_global_rect().has_point(at))
-    tab = ItemKind::Consumable;
+    show_tab(ItemKind::Consumable);
+  else if (inventory && tab_middle->get_global_rect().has_point(at))
+    show_tab(ItemKind::Collectible);
   else if (inventory && tab_right->get_global_rect().has_point(at))
-    tab = ItemKind::Collectible;
+    show_tab(ItemKind::Weapon);
   else if (menu.screen() == MenuScreen::Options)
   {
     const int direction = entry == NO_ENTRY ? 0 : GameSettings::click_direction(Object::cast_to<Control>(rows->get_child(entry))->get_global_rect(), at.x);
@@ -266,8 +297,10 @@ void GameMenu::move_in_grid(int step)
 {
   const int count = row_count();
   const int target = menu.cursor() + step;
-  if (target >= 0 && target < count)
-    menu.move_cursor(step, count);
+  if (target < 0 || target >= count)
+    return;
+  menu.move_cursor(step, count);
+  UiSounds::play(this, "Move");
 }
 
 Designar::DynArray<ItemStack> GameMenu::tab_stacks() const
@@ -303,18 +336,16 @@ void GameMenu::accept()
   switch (menu.screen())
   {
     case MenuScreen::Chapel:
-      if (menu.cursor() == ROW_LEVEL_UP)
-        menu.open(MenuScreen::Stats);
-      else if (menu.cursor() == ROW_INVENTORY)
-        menu.open(MenuScreen::Inventory);
-      else
+      if (menu.cursor() != ROW_LEVEL_UP && menu.cursor() != ROW_INVENTORY)
       {
         close();
         return;
       }
+      menu.open(menu.cursor() == ROW_LEVEL_UP ? MenuScreen::Stats : MenuScreen::Inventory);
+      UiSounds::play(this, "Accept");
       break;
     case MenuScreen::Stats:
-      player->raise_stat(static_cast<Stat>(menu.cursor()));
+      UiSounds::play(this, player->raise_stat(static_cast<Stat>(menu.cursor())) ? "Accept" : "Deny");
       break;
     case MenuScreen::Pause:
       accept_pause();
@@ -340,6 +371,7 @@ void GameMenu::refresh()
   rows->set_visible(!inventory);
   grid->set_visible(inventory);
   show_tabs(inventory);
+  title_icon->set_visible(menu.screen() == MenuScreen::Chapel || menu.screen() == MenuScreen::Stats);
   item_name->set_text(String());
 
   switch (menu.screen())
@@ -365,11 +397,14 @@ void GameMenu::refresh()
 void GameMenu::show_tabs(bool visible)
 {
   tab_left->set_visible(visible);
+  tab_middle->set_visible(visible);
   tab_right->set_visible(visible);
   tab_left->set_text("Z   Consumibles");
-  tab_right->set_text("C   Coleccionables");
+  tab_middle->set_text("Coleccionables");
+  tab_right->set_text("Armas   C");
   paint_tab(tab_left, tab_left_plate, tab == ItemKind::Consumable);
-  paint_tab(tab_right, tab_right_plate, tab == ItemKind::Collectible);
+  paint_tab(tab_middle, tab_middle_plate, tab == ItemKind::Collectible);
+  paint_tab(tab_right, tab_right_plate, tab == ItemKind::Weapon);
 }
 
 void GameMenu::paint_tab(Label * label, MetalPlate * plate, bool active)
@@ -387,10 +422,14 @@ void GameMenu::accept_pause()
 {
   if (menu.cursor() == ROW_RESUME)
     close();
-  else if (menu.cursor() == ROW_TO_TITLE)
-    leave_to_title();
   else
   {
+    UiSounds::play(this, "Accept");
+    if (menu.cursor() == ROW_TO_TITLE)
+    {
+      leave_to_title();
+      return;
+    }
     menu.open(MenuScreen::Options);
     refresh();
   }

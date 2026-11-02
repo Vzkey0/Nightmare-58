@@ -52,6 +52,8 @@ private:
   void show_tabs(bool visible);
   void add_row(const godot::String & text, bool selected, const godot::String & value = godot::String());
   void paint_tab(godot::Label * label, MetalPlate * plate, bool active);
+  void next_tab(int step);
+  void show_tab(ItemKind kind);
   void move_in_grid(int step);
   void move_row(int step);
   void adjust_option(int direction);
@@ -72,9 +74,12 @@ private:
   godot::Control * sheet = nullptr;
   godot::Label * title = nullptr;
   godot::Label * tab_left = nullptr;
+  godot::Label * tab_middle = nullptr;
   godot::Label * tab_right = nullptr;
   MetalPlate * tab_left_plate = nullptr;
+  MetalPlate * tab_middle_plate = nullptr;
   MetalPlate * tab_right_plate = nullptr;
+  godot::Control * title_icon = nullptr;
   godot::Label * item_name = nullptr;
   godot::Label * detail = nullptr;
   godot::Label * hints = nullptr;
