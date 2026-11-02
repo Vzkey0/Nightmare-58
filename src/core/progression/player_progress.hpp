@@ -43,7 +43,8 @@ public:
   void earn(int amount) { wallet += amount; }
 
   // A coffee found raises the capacity for good; the rest just go into the bag.
-  void collect(ItemId item, int amount = 1);
+  // Returns how many were actually kept: none once the coffee capacity is full.
+  int collect(ItemId item, int amount = 1);
 
   bool can_raise(Stat stat) const;
   bool raise(Stat stat);
