@@ -912,6 +912,7 @@ static void test_coffee_capacity()
 
   progress.collect(ItemCatalog::COFFEE, 50);
   assert(progress.coffee_capacity() == PlayerProgress::MAX_COFFEE);
+  assert(progress.collect(ItemCatalog::COFFEE) == 0);
 }
 
 static void test_death_and_recovery()

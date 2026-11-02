@@ -181,7 +181,7 @@ void PlayerController::_ready()
   health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
   stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
-  lochas_label = get_node<Label>("Hud/Panel/LochasLabel");
+  lochas_label = get_node<Label>("Hud/LochasLabel");
   item_label = get_node<Label>("Hud/Panel/ItemLabel");
   prompt_label = get_node<Label>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
@@ -578,6 +578,7 @@ void PlayerController::respawn()
 void PlayerController::earn(int lochas)
 {
   save.earn(lochas);
+  SaveFile::write(save);
   refresh_hud();
 }
 
@@ -589,11 +590,12 @@ void PlayerController::pick_up(const String & item_key, int amount, int pickup_i
     UtilityFunctions::push_warning("A pickup names an unknown item: ", item_key);
     return;
   }
-  save.collect(item, amount);
+  const int kept = save.collect(item, amount);
   save.take_pickup(pickup_id);
   SaveFile::write(save);
   refresh_hud();
-  show_toast(vformat("%s  x%d", String::utf8(ItemCatalog::instance()[item].name), amount));
+  const String name = String::utf8(ItemCatalog::instance()[item].name);
+  show_toast(kept > 0 ? vformat("%s  x%d", name, kept) : vformat(String::utf8("%s al máximo"), name));
 }
 
 void PlayerController::set_nearby_chapel(Chapel * chapel)

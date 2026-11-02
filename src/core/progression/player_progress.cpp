@@ -21,18 +21,19 @@ PlayerProgress::PlayerProgress() : taken(static_cast<Designar::nat_t>(MAX_PICKUP
   quick.add(ItemCatalog::COFFEE);
 }
 
-void PlayerProgress::collect(ItemId item, int amount)
+int PlayerProgress::collect(ItemId item, int amount)
 {
   if (item == ItemCatalog::COFFEE)
   {
     const int gained = std::min(amount, MAX_COFFEE - coffee_limit);
     coffee_limit += gained;
     items.add(item, gained);
-    return;
+    return gained;
   }
   items.add(item, amount);
   if (ItemCatalog::instance()[item].kind == ItemKind::Consumable)
     quick.add(item);
+  return amount;
 }
 
 bool PlayerProgress::can_raise(Stat stat) const
