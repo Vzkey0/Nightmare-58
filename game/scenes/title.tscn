@@ -1,0 +1,231 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
+[ext_resource type="PackedScene" path="res://models/characters/protagonist_male.glb" id="2_hero"]
+[ext_resource type="FontFile" path="res://fonts/Cinzel.ttf" id="3_cinzel"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_material"]
+sky_top_color = Color(0.02, 0.03, 0.06, 1)
+sky_horizon_color = Color(0.12, 0.17, 0.3, 1)
+ground_bottom_color = Color(0.01, 0.015, 0.03, 1)
+ground_horizon_color = Color(0.12, 0.17, 0.3, 1)
+sun_angle_max = 0.0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_material")
+
+[sub_resource type="Environment" id="night"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.4, 0.5, 0.75, 1)
+ambient_light_energy = 0.15
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.1, 0.15, 0.28, 1)
+fog_density = 0.09
+fog_sky_affect = 0.8
+adjustment_enabled = true
+adjustment_contrast = 1.15
+adjustment_saturation = 0.8
+
+[sub_resource type="ParticleProcessMaterial" id="rain_process"]
+emission_shape = 3
+emission_box_extents = Vector3(3.5, 0.5, 1.6)
+direction = Vector3(0.22, -1, 0.05)
+spread = 2.0
+initial_velocity_min = 7.0
+initial_velocity_max = 10.0
+gravity = Vector3(0, -3, 0)
+
+[sub_resource type="StandardMaterial3D" id="rain_material"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.72, 0.8, 1, 0.16)
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="rain_mesh"]
+material = SubResource("rain_material")
+size = Vector2(0.0028, 0.3)
+
+[sub_resource type="Gradient" id="side_colors"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.01, 0.012, 0.025, 0, 0.01, 0.012, 0.025, 0.72, 0.01, 0.012, 0.025, 0.97)
+
+[sub_resource type="GradientTexture2D" id="side_shade"]
+gradient = SubResource("side_colors")
+width = 256
+height = 4
+fill_to = Vector2(1, 0)
+
+[sub_resource type="FontVariation" id="logo_font"]
+base_font = ExtResource("3_cinzel")
+variation_opentype = {
+2003265652: 800
+}
+
+[sub_resource type="FontVariation" id="name_font"]
+base_font = ExtResource("3_cinzel")
+variation_opentype = {
+2003265652: 700
+}
+spacing_glyph = 6
+
+[sub_resource type="StyleBoxEmpty" id="field_style"]
+
+[node name="Title" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("night")
+
+[node name="MoonRim" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7, 0.3, 0.65, 0, 0.91, -0.42, -0.71, 0.3, 0.64, 0, 20, 0)
+light_color = Color(0.62, 0.72, 1, 1)
+light_energy = 3.0
+
+[node name="FaceLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.9, 31.2)
+light_color = Color(0.7, 0.78, 1, 1)
+light_energy = 0.28
+omni_range = 3.0
+
+[node name="Level" parent="." instance=ExtResource("1_avenue")]
+
+[node name="Hero" parent="." instance=ExtResource("2_hero")]
+transform = Transform3D(0.96, 0, 0.28, 0, 1, 0, -0.28, 0, 0.96, 0, 0, 30)
+
+[node name="Rain" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 29.6)
+amount = 1600
+lifetime = 0.5
+preprocess = 1.0
+visibility_aabb = AABB(-6, -5, -6, 12, 7, 12)
+process_material = SubResource("rain_process")
+draw_pass_1 = SubResource("rain_mesh")
+
+[node name="Camera" type="Camera3D" parent="."]
+fov = 34.0
+
+[node name="Ui" type="CanvasLayer" parent="."]
+
+[node name="Screen" type="TitleScreen" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="SideShade" type="TextureRect" parent="Ui/Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = SubResource("side_shade")
+expand_mode = 1
+
+[node name="Stage" type="Control" parent="Ui/Screen"]
+layout_mode = 0
+offset_right = 1920.0
+offset_bottom = 1080.0
+mouse_filter = 2
+
+[node name="Logo" type="Label" parent="Ui/Screen/Stage"]
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 70.0
+offset_right = 1860.0
+offset_bottom = 250.0
+theme_override_colors/font_color = Color(0.62, 0.76, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_fonts/font = SubResource("logo_font")
+theme_override_font_sizes/font_size = 150
+text = "58"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="GameName" type="Label" parent="Ui/Screen/Stage"]
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 246.0
+offset_right = 1860.0
+offset_bottom = 326.0
+theme_override_colors/font_color = Color(0.93, 0.93, 0.93, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = SubResource("name_font")
+theme_override_font_sizes/font_size = 54
+text = "NIGHTMARE"
+horizontal_alignment = 1
+
+[node name="Heading" type="Label" parent="Ui/Screen/Stage"]
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 366.0
+offset_right = 1860.0
+offset_bottom = 416.0
+theme_override_colors/font_color = Color(0.93, 0.93, 0.93, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_fonts/font = SubResource("name_font")
+theme_override_font_sizes/font_size = 30
+
+[node name="Rows" type="VBoxContainer" parent="Ui/Screen/Stage"]
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 430.0
+offset_right = 1920.0
+offset_bottom = 900.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="NameBox" type="Control" parent="Ui/Screen/Stage"]
+visible = false
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 440.0
+offset_right = 1860.0
+offset_bottom = 516.0
+mouse_filter = 2
+
+[node name="Plate" type="MetalPlate" parent="Ui/Screen/Stage/NameBox"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Field" type="LineEdit" parent="Ui/Screen/Stage/NameBox"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_right = -20.0
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
+theme_override_colors/caret_color = Color(0.86, 0.92, 1, 1)
+theme_override_font_sizes/font_size = 32
+theme_override_styles/normal = SubResource("field_style")
+theme_override_styles/focus = SubResource("field_style")
+max_length = 18
+placeholder_text = "Tu nombre"
+
+[node name="Hints" type="Label" parent="Ui/Screen/Stage"]
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 1000.0
+offset_right = 1860.0
+offset_bottom = 1040.0
+theme_override_colors/font_color = Color(0.74, 0.74, 0.8, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_font_sizes/font_size = 22
+
+[node name="Fade" type="ColorRect" parent="Ui/Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)

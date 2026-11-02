@@ -142,54 +142,151 @@ shape = SubResource("body_shape")
 
 [node name="Model" parent="." instance=ExtResource("1_model")]
 
-[node name="HemSprings" type="SpringBoneSimulator3D" parent="Model/armature_male/Skeleton3D"]
-setting_count = 4
-settings/0/root_bone_name = "hem_front"
-settings/0/end_bone_name = "hem_front"
+[node name="ClothSprings" type="SpringBoneSimulator3D" parent="Model/armature_male/Skeleton3D"]
+setting_count = 12
+settings/0/root_bone_name = "jacket_front_1_l"
+settings/0/end_bone_name = "jacket_front_3_l"
 settings/0/extend_end_bone = true
 settings/0/center_from = 1
 settings/0/center_node = NodePath("../../..")
 settings/0/end_bone/direction = 2
-settings/0/end_bone/length = 0.115
-settings/0/radius/value = 0.012
-settings/0/stiffness/value = 4
-settings/0/drag/value = 0.6
-settings/1/root_bone_name = "hem_back"
-settings/1/end_bone_name = "hem_back"
+settings/0/end_bone/length = 0.16
+settings/0/radius/value = 0.02
+settings/0/stiffness/value = 3
+settings/0/drag/value = 0.55
+settings/1/root_bone_name = "jacket_front_1_r"
+settings/1/end_bone_name = "jacket_front_3_r"
 settings/1/extend_end_bone = true
 settings/1/center_from = 1
 settings/1/center_node = NodePath("../../..")
 settings/1/end_bone/direction = 2
-settings/1/end_bone/length = 0.115
-settings/1/radius/value = 0.012
-settings/1/stiffness/value = 4
-settings/1/drag/value = 0.6
-settings/2/root_bone_name = "hem_l"
-settings/2/end_bone_name = "hem_l"
+settings/1/end_bone/length = 0.16
+settings/1/radius/value = 0.02
+settings/1/stiffness/value = 3
+settings/1/drag/value = 0.55
+settings/2/root_bone_name = "jacket_side_1_l"
+settings/2/end_bone_name = "jacket_side_3_l"
 settings/2/extend_end_bone = true
 settings/2/center_from = 1
 settings/2/center_node = NodePath("../../..")
 settings/2/end_bone/direction = 2
-settings/2/end_bone/length = 0.115
-settings/2/radius/value = 0.012
-settings/2/stiffness/value = 4
-settings/2/drag/value = 0.6
-settings/3/root_bone_name = "hem_r"
-settings/3/end_bone_name = "hem_r"
+settings/2/end_bone/length = 0.16
+settings/2/radius/value = 0.02
+settings/2/stiffness/value = 3
+settings/2/drag/value = 0.55
+settings/3/root_bone_name = "jacket_side_1_r"
+settings/3/end_bone_name = "jacket_side_3_r"
 settings/3/extend_end_bone = true
 settings/3/center_from = 1
 settings/3/center_node = NodePath("../../..")
 settings/3/end_bone/direction = 2
-settings/3/end_bone/length = 0.115
-settings/3/radius/value = 0.012
-settings/3/stiffness/value = 4
-settings/3/drag/value = 0.6
+settings/3/end_bone/length = 0.16
+settings/3/radius/value = 0.02
+settings/3/stiffness/value = 3
+settings/3/drag/value = 0.55
+settings/4/root_bone_name = "jacket_back_1_l"
+settings/4/end_bone_name = "jacket_back_3_l"
+settings/4/extend_end_bone = true
+settings/4/center_from = 1
+settings/4/center_node = NodePath("../../..")
+settings/4/end_bone/direction = 2
+settings/4/end_bone/length = 0.16
+settings/4/radius/value = 0.02
+settings/4/stiffness/value = 3
+settings/4/drag/value = 0.55
+settings/5/root_bone_name = "jacket_back_1_r"
+settings/5/end_bone_name = "jacket_back_3_r"
+settings/5/extend_end_bone = true
+settings/5/center_from = 1
+settings/5/center_node = NodePath("../../..")
+settings/5/end_bone/direction = 2
+settings/5/end_bone/length = 0.16
+settings/5/radius/value = 0.02
+settings/5/stiffness/value = 3
+settings/5/drag/value = 0.55
+settings/6/root_bone_name = "hair_front_1_l"
+settings/6/end_bone_name = "hair_front_2_l"
+settings/6/extend_end_bone = true
+settings/6/center_from = 1
+settings/6/center_node = NodePath("../../..")
+settings/6/end_bone/direction = 2
+settings/6/end_bone/length = 0.05
+settings/6/radius/value = 0.006
+settings/6/stiffness/value = 6
+settings/6/drag/value = 0.5
+settings/7/root_bone_name = "hair_front_1_r"
+settings/7/end_bone_name = "hair_front_2_r"
+settings/7/extend_end_bone = true
+settings/7/center_from = 1
+settings/7/center_node = NodePath("../../..")
+settings/7/end_bone/direction = 2
+settings/7/end_bone/length = 0.05
+settings/7/radius/value = 0.006
+settings/7/stiffness/value = 6
+settings/7/drag/value = 0.5
+settings/8/root_bone_name = "hair_side_1_l"
+settings/8/end_bone_name = "hair_side_2_l"
+settings/8/extend_end_bone = true
+settings/8/center_from = 1
+settings/8/center_node = NodePath("../../..")
+settings/8/end_bone/direction = 2
+settings/8/end_bone/length = 0.05
+settings/8/radius/value = 0.006
+settings/8/stiffness/value = 6
+settings/8/drag/value = 0.5
+settings/9/root_bone_name = "hair_side_1_r"
+settings/9/end_bone_name = "hair_side_2_r"
+settings/9/extend_end_bone = true
+settings/9/center_from = 1
+settings/9/center_node = NodePath("../../..")
+settings/9/end_bone/direction = 2
+settings/9/end_bone/length = 0.05
+settings/9/radius/value = 0.006
+settings/9/stiffness/value = 6
+settings/9/drag/value = 0.5
+settings/10/root_bone_name = "hair_back_1_l"
+settings/10/end_bone_name = "hair_back_2_l"
+settings/10/extend_end_bone = true
+settings/10/center_from = 1
+settings/10/center_node = NodePath("../../..")
+settings/10/end_bone/direction = 2
+settings/10/end_bone/length = 0.05
+settings/10/radius/value = 0.006
+settings/10/stiffness/value = 6
+settings/10/drag/value = 0.5
+settings/11/root_bone_name = "hair_back_1_r"
+settings/11/end_bone_name = "hair_back_2_r"
+settings/11/extend_end_bone = true
+settings/11/center_from = 1
+settings/11/center_node = NodePath("../../..")
+settings/11/end_bone/direction = 2
+settings/11/end_bone/length = 0.05
+settings/11/radius/value = 0.006
+settings/11/stiffness/value = 6
+settings/11/drag/value = 0.5
 
-[node name="WaistCollision" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/HemSprings"]
+[node name="WaistCollision" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
 bone_name = "hips"
 position_offset = Vector3(0, 0.07, 0)
 radius = 0.09
 height = 0.5
+
+[node name="ThighLeft" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "upper_leg_l"
+position_offset = Vector3(0, 0.2, 0)
+radius = 0.125
+height = 0.62
+
+[node name="ThighRight" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "upper_leg_r"
+position_offset = Vector3(0, 0.2, 0)
+radius = 0.125
+height = 0.62
+
+[node name="HeadCollision" type="SpringBoneCollisionSphere3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "head"
+position_offset = Vector3(0, 0.11, 0)
+radius = 0.1
 
 [node name="WeaponBone" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
 bone_name = "weapon"
@@ -284,14 +381,14 @@ start = 30.0
 
 [node name="MedallionOutline" type="Polygon2D" parent="Hud/Panel"]
 position = Vector2(96, -98)
-color = Color(0.03, 0.018, 0.014, 1)
+color = Color(0.01, 0.015, 0.03, 1)
 polygon = PackedVector2Array(0, -68, 68, 0, 0, 68, -68, 0)
 
 [node name="Medallion" type="Polygon2D" parent="Hud/Panel"]
 position = Vector2(96, -98)
 polygon = PackedVector2Array(0, -64, 64, 0, 0, 0, 64, 0, 0, 64, 0, 0, 0, 64, -64, 0, 0, 0, -64, 0, 0, -64, 0, 0, 0, -54, 54, 0, 0, 0, 54, 0, 0, 54, 0, 0, 0, 54, -54, 0, 0, 0, -54, 0, 0, -54, 0, 0)
 polygons = [PackedInt32Array(0, 1, 2), PackedInt32Array(3, 4, 5), PackedInt32Array(6, 7, 8), PackedInt32Array(9, 10, 11), PackedInt32Array(12, 13, 14), PackedInt32Array(15, 16, 17), PackedInt32Array(18, 19, 20), PackedInt32Array(21, 22, 23)]
-vertex_colors = PackedColorArray(0.66, 0.54, 0.41, 1, 0.66, 0.54, 0.41, 1, 0.66, 0.54, 0.41, 1, 0.3, 0.245, 0.185, 1, 0.3, 0.245, 0.185, 1, 0.3, 0.245, 0.185, 1, 0.45, 0.37, 0.28, 1, 0.45, 0.37, 0.28, 1, 0.45, 0.37, 0.28, 1, 0.86, 0.74, 0.58, 1, 0.86, 0.74, 0.58, 1, 0.86, 0.74, 0.58, 1, 0.16, 0.13, 0.1, 1, 0.16, 0.13, 0.1, 1, 0.16, 0.13, 0.1, 1, 0.09, 0.072, 0.055, 1, 0.09, 0.072, 0.055, 1, 0.09, 0.072, 0.055, 1, 0.115, 0.09, 0.07, 1, 0.115, 0.09, 0.07, 1, 0.115, 0.09, 0.07, 1, 0.21, 0.17, 0.13, 1, 0.21, 0.17, 0.13, 1, 0.21, 0.17, 0.13, 1)
+vertex_colors = PackedColorArray(0.45, 0.6, 0.85, 1, 0.45, 0.6, 0.85, 1, 0.45, 0.6, 0.85, 1, 0.18, 0.26, 0.4, 1, 0.18, 0.26, 0.4, 1, 0.18, 0.26, 0.4, 1, 0.3, 0.42, 0.62, 1, 0.3, 0.42, 0.62, 1, 0.3, 0.42, 0.62, 1, 0.7, 0.82, 1, 1, 0.7, 0.82, 1, 1, 0.7, 0.82, 1, 1, 0.07, 0.1, 0.18, 1, 0.07, 0.1, 0.18, 1, 0.07, 0.1, 0.18, 1, 0.035, 0.05, 0.095, 1, 0.035, 0.05, 0.095, 1, 0.035, 0.05, 0.095, 1, 0.05, 0.075, 0.13, 1, 0.05, 0.075, 0.13, 1, 0.05, 0.075, 0.13, 1, 0.1, 0.15, 0.25, 1, 0.1, 0.15, 0.25, 1, 0.1, 0.15, 0.25, 1)
 
 [node name="ItemSlot" type="ItemSlot" parent="Hud/Panel"]
 layout_mode = 0
@@ -316,12 +413,12 @@ offset_left = -252.0
 offset_top = -68.0
 offset_right = -44.0
 offset_bottom = -32.0
-theme_override_colors/font_color = Color(0.95, 0.87, 0.75, 1)
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 22
 text = "0 lochas"
 horizontal_alignment = 2
 
-[node name="Plate" type="BronzePlate" parent="Hud/LochasLabel"]
+[node name="Plate" type="MetalPlate" parent="Hud/LochasLabel"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -363,11 +460,11 @@ offset_left = -260.0
 offset_top = 60.0
 offset_right = 260.0
 offset_bottom = 104.0
-theme_override_colors/font_color = Color(0.95, 0.87, 0.75, 1)
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 26
 horizontal_alignment = 1
 
-[node name="Plate" type="BronzePlate" parent="Hud/Toast"]
+[node name="Plate" type="MetalPlate" parent="Hud/Toast"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -379,6 +476,29 @@ offset_right = 14.0
 offset_bottom = 4.0
 mouse_filter = 2
 style = 1
+
+[node name="DeathScreen" type="ColorRect" parent="Hud"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.03, 0.01, 0.01, 0.82)
+
+[node name="Text" type="Label" parent="Hud/DeathScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_colors/font_color = Color(0.72, 0.14, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_fonts/font = SubResource("title_font")
+theme_override_font_sizes/font_size = 96
+text = "MORISTE"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Menu" type="GameMenu" parent="Hud"]
 anchors_preset = 15
@@ -401,7 +521,7 @@ offset_right = 640.0
 offset_bottom = 1080.0
 mouse_filter = 2
 
-[node name="Metal" type="BronzePlate" parent="Hud/Menu/Sheet"]
+[node name="Metal" type="MetalPlate" parent="Hud/Menu/Sheet"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -419,7 +539,7 @@ offset_left = 36.0
 offset_top = 56.0
 offset_right = 604.0
 offset_bottom = 112.0
-theme_override_colors/font_color = Color(0.95, 0.87, 0.75, 1)
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 38
 
 [node name="TabLeft" type="Label" parent="Hud/Menu/Sheet"]
@@ -432,7 +552,7 @@ theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Plate" type="BronzePlate" parent="Hud/Menu/Sheet/TabLeft"]
+[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabLeft"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -455,7 +575,7 @@ theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Plate" type="BronzePlate" parent="Hud/Menu/Sheet/TabRight"]
+[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabRight"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -475,7 +595,7 @@ offset_top = 166.0
 offset_right = 604.0
 offset_bottom = 168.0
 mouse_filter = 2
-color = Color(0.3, 0.245, 0.185, 1)
+color = Color(0.18, 0.26, 0.4, 1)
 
 [node name="Rows" type="VBoxContainer" parent="Hud/Menu/Sheet"]
 theme_override_constants/separation = 8
@@ -507,7 +627,7 @@ offset_left = 36.0
 offset_top = 548.0
 offset_right = 604.0
 offset_bottom = 592.0
-theme_override_colors/font_color = Color(0.95, 0.87, 0.75, 1)
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 30
 
 [node name="Detail" type="Label" parent="Hud/Menu/Sheet"]
@@ -519,7 +639,7 @@ offset_left = 36.0
 offset_top = 596.0
 offset_right = 604.0
 offset_bottom = 700.0
-theme_override_colors/font_color = Color(0.74, 0.66, 0.56, 1)
+theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
 theme_override_font_sizes/font_size = 24
 autowrap_mode = 2
 
@@ -532,7 +652,7 @@ offset_left = 36.0
 offset_top = 1006.0
 offset_right = 400.0
 offset_bottom = 1044.0
-theme_override_colors/font_color = Color(0.74, 0.66, 0.56, 1)
+theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
 theme_override_font_sizes/font_size = 22
 
 [node name="HintBack" type="Label" parent="Hud/Menu/Sheet"]
@@ -544,18 +664,18 @@ offset_left = 400.0
 offset_top = 1006.0
 offset_right = 604.0
 offset_bottom = 1044.0
-theme_override_colors/font_color = Color(0.74, 0.66, 0.56, 1)
+theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
 theme_override_font_sizes/font_size = 22
 horizontal_alignment = 2
 
 [node name="LockMarker" type="Polygon2D" parent="Hud"]
 visible = false
-color = Color(0.95, 0.87, 0.75, 1)
+color = Color(0.86, 0.92, 1, 1)
 polygon = PackedVector2Array(0, -17, 17, 0, 0, 17, -17, 0, 0, -12, -12, 0, 0, 12, 12, 0)
 polygons = [PackedInt32Array(0, 1, 7, 4), PackedInt32Array(1, 2, 6, 7), PackedInt32Array(2, 3, 5, 6), PackedInt32Array(3, 0, 4, 5)]
 
 [node name="Dot" type="Polygon2D" parent="Hud/LockMarker"]
-color = Color(0.95, 0.87, 0.75, 1)
+color = Color(0.86, 0.92, 1, 1)
 polygon = PackedVector2Array(0, -5, 5, 0, 0, 5, -5, 0)
 
 [node name="Sounds" type="Node" parent="."]

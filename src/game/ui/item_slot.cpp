@@ -1,5 +1,5 @@
 #include "item_slot.hpp"
-#include "bronze_plate.hpp"
+#include "metal_plate.hpp"
 #include "ui_palette.hpp"
 
 #include <godot_cpp/classes/font.hpp>
@@ -24,8 +24,16 @@ void ItemSlot::_bind_methods()
   ADD_PROPERTY(PropertyInfo(Variant::BOOL, "framed"), "set_framed", "get_framed");
 }
 
+void ItemSlot::_notification(int what)
+{
+  if (what == NOTIFICATION_RESIZED)
+    set_pivot_offset(get_size() * 0.5f);
+}
+
 void ItemSlot::show_item(ItemId value, int amount, bool is_selected)
 {
+  if (is_selected && !selected && framed)
+    tween = Metal::pop(*this, 1.f);
   item = value;
   count = amount;
   selected = is_selected;
@@ -38,11 +46,11 @@ void ItemSlot::_draw()
   const Rect2 area(Vector2(), size);
   if (framed)
   {
-    Bronze::well(*this, area);
+    Metal::well(*this, area);
     if (selected)
     {
       for (int layer = GLOW_LAYERS; layer > 0; --layer)
-        draw_rect(area.grow(layer * 2.f), Color(UiPalette::HIGHLIGHT, 0.12f), false, 2.f);
+        draw_rect(area.grow(layer * 2.f), Color(UiPalette::ICE, 0.14f), false, 2.f);
       draw_rect(area, UiPalette::HIGHLIGHT, false, SELECTED_BORDER);
     }
   }
@@ -61,7 +69,7 @@ void ItemSlot::_draw()
 // Each icon lives in a square of side s around the origin.
 void ItemSlot::draw_icon(float s)
 {
-  const Color ink = selected || !framed ? UiPalette::HIGHLIGHT : UiPalette::BRONZE;
+  const Color ink = selected || !framed ? UiPalette::HIGHLIGHT : UiPalette::ICE;
   const Color cut = UiPalette::WELL_BOTTOM;
   const float line = s * 0.07f;
 

@@ -1,6 +1,6 @@
 """Generates the protagonist's animations and exports them with the male model.
 
-Run it after build_protagonist.py, which writes a model without animations:
+Run it after build_protagonist.py and paint_protagonist.py, which write a model without animations:
 
   blender --background art/characters/protagonist.blend --python art/characters/animate_protagonist.py
 

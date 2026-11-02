@@ -21,6 +21,14 @@ PlayerProgress::PlayerProgress() : taken(static_cast<Designar::nat_t>(MAX_PICKUP
   quick.add(ItemCatalog::COFFEE);
 }
 
+// One line per field in the save, so a name may hold spaces but never a line break.
+void PlayerProgress::set_player_name(const std::string & value)
+{
+  name = value.empty() ? DEFAULT_NAME : value.substr(0, value.find_first_of("\r\n"));
+  if (name.empty())
+    name = DEFAULT_NAME;
+}
+
 int PlayerProgress::collect(ItemId item, int amount)
 {
   if (item == ItemCatalog::COFFEE)
@@ -86,6 +94,7 @@ std::string PlayerProgress::to_text() const
 {
   std::ostringstream out;
   out << SAVE_HEADER << ' ' << SAVE_VERSION << '\n';
+  out << "name " << name << '\n';
   out << "lochas " << wallet << '\n';
   out << "day " << days << '\n';
   out << "chapel " << last_chapel << '\n';
@@ -124,7 +133,14 @@ bool PlayerProgress::from_text(const std::string & text)
   while (in >> word)
   {
     bool good = false;
-    if (word == "lochas")
+    if (word == "name")
+    {
+      std::string value;
+      std::getline(in >> std::ws, value);
+      loaded.set_player_name(value);
+      good = true;
+    }
+    else if (word == "lochas")
       good = static_cast<bool>(in >> loaded.wallet) && in_range(loaded.wallet, 0, MAX_AMOUNT);
     else if (word == "day")
       good = static_cast<bool>(in >> loaded.days) && in_range(loaded.days, 0, MAX_AMOUNT);
