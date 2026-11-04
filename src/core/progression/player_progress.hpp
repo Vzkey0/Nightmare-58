@@ -4,6 +4,7 @@
 
 #include <bitset.hpp>
 
+#include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
 #include <core/progression/player_stats.hpp>
 #include <core/progression/quick_slots.hpp>
@@ -22,6 +23,7 @@ class PlayerProgress
 {
 public:
   static constexpr int NO_CHAPEL = -1;
+  static constexpr int NOT_FROZEN = -1;
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
@@ -50,8 +52,19 @@ public:
   // Returns how many were actually kept: none once the coffee capacity is full.
   int collect(ItemId item, int amount = 1);
 
-  bool can_raise(Stat stat) const;
-  bool raise(Stat stat);
+  // Prices are fixed in day-0 lochas; a zone pays them at its own day's rate.
+  int inflation_day(Zone zone) const;
+  int exchange_rate(Zone zone) const { return ::exchange_rate(inflation_day(zone)); }
+  int price(int base, Zone zone) const { return inflate(base, inflation_day(zone)); }
+  bool devalued_today(Zone zone) const { return inflation_day(zone) == days && devalues_on(days); }
+  bool inflation_frozen(Zone zone) const { return frozen[static_cast<int>(zone)] != NOT_FROZEN; }
+
+  // A boss beaten in a zone stops its prices where they are. Beating it again changes nothing.
+  void freeze_inflation(Zone zone);
+
+  int stat_cost(Zone zone) const { return price(levels.next_cost(), zone); }
+  bool can_raise(Stat stat, Zone zone) const;
+  bool raise(Stat stat, Zone zone);
 
   // Replaces the previous mark, whose lochas are lost: dying twice in a row costs them.
   void die(float x, float y, float z);
@@ -83,4 +96,5 @@ private:
   int days = 0;
   int last_chapel = NO_CHAPEL;
   int coffee_limit = START_COFFEE;
+  int frozen[ZONE_COUNT] = {NOT_FROZEN, NOT_FROZEN, NOT_FROZEN}; // The day each zone stopped at.
 };

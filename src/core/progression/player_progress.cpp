@@ -5,7 +5,7 @@
 
 namespace
 {
-constexpr int SAVE_VERSION = 1;
+constexpr int SAVE_VERSION = 2; // 2 added frozen zones. Older saves still load: missing lines keep their defaults.
 constexpr const char * SAVE_HEADER = "nightmare58";
 constexpr int MAX_AMOUNT = 1000000000; // Anything above this comes from a damaged file.
 
@@ -45,16 +45,28 @@ int PlayerProgress::collect(ItemId item, int amount)
   return amount;
 }
 
-bool PlayerProgress::can_raise(Stat stat) const
+int PlayerProgress::inflation_day(Zone zone) const
 {
-  return levels.can_raise(stat) && wallet >= levels.next_cost();
+  const int stopped = frozen[static_cast<int>(zone)];
+  return stopped == NOT_FROZEN ? days : stopped;
 }
 
-bool PlayerProgress::raise(Stat stat)
+void PlayerProgress::freeze_inflation(Zone zone)
 {
-  if (!can_raise(stat))
+  if (!inflation_frozen(zone))
+    frozen[static_cast<int>(zone)] = days;
+}
+
+bool PlayerProgress::can_raise(Stat stat, Zone zone) const
+{
+  return levels.can_raise(stat) && wallet >= stat_cost(zone);
+}
+
+bool PlayerProgress::raise(Stat stat, Zone zone)
+{
+  if (!can_raise(stat, zone))
     return false;
-  wallet -= levels.next_cost();
+  wallet -= stat_cost(zone);
   levels.raise(stat);
   return true;
 }
@@ -101,6 +113,10 @@ std::string PlayerProgress::to_text() const
   out << "chapel " << last_chapel << '\n';
   out << "coffee " << coffee_limit << '\n';
 
+  for (int zone = 0; zone < ZONE_COUNT; ++zone)
+    if (frozen[zone] != NOT_FROZEN)
+      out << "frozen " << zone << ' ' << frozen[zone] << '\n';
+
   for (int stat = 0; stat < STAT_COUNT; ++stat)
     out << "stat " << stat << ' ' << levels.level(static_cast<Stat>(stat)) << '\n';
 
@@ -124,7 +140,7 @@ bool PlayerProgress::from_text(const std::string & text)
   std::istringstream in(text);
   std::string word;
   int version = 0;
-  if (!(in >> word >> version) || word != SAVE_HEADER || version != SAVE_VERSION)
+  if (!(in >> word >> version) || word != SAVE_HEADER || !in_range(version, 1, SAVE_VERSION))
     return false;
 
   PlayerProgress loaded;
@@ -149,6 +165,14 @@ bool PlayerProgress::from_text(const std::string & text)
       good = static_cast<bool>(in >> loaded.last_chapel) && in_range(loaded.last_chapel, NO_CHAPEL, MAX_AMOUNT);
     else if (word == "coffee")
       good = static_cast<bool>(in >> loaded.coffee_limit) && in_range(loaded.coffee_limit, 0, MAX_COFFEE);
+    else if (word == "frozen")
+    {
+      int zone = 0;
+      int day = 0;
+      good = (in >> zone >> day) && in_range(zone, 0, ZONE_COUNT - 1) && in_range(day, 0, MAX_AMOUNT);
+      if (good)
+        loaded.frozen[zone] = day;
+    }
     else if (word == "stat")
     {
       int stat = 0;

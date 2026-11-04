@@ -62,6 +62,10 @@ public:
   void rest();
   void recover_lochas();
   bool raise_stat(Stat stat);
+  Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
+
+  // For a boss: beating it stops inflation in its zone.
+  void freeze_inflation(Zone zone);
 
   // Shared by every enemy around the player, however many there are.
   AttackTurns & attack_turns() { return turns; }

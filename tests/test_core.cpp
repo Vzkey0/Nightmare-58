@@ -12,6 +12,7 @@
 #include <core/lock_on.hpp>
 #include <core/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
 #include <core/progression/item_catalog.hpp>
 #include <core/progression/loot_table.hpp>
@@ -883,17 +884,69 @@ static void test_player_stats()
 static void test_raising_a_stat()
 {
   PlayerProgress progress;
-  assert(!progress.raise(Stat::Power));
+  assert(!progress.raise(Stat::Power, Zone::Avenue));
 
   progress.earn(100);
-  assert(progress.raise(Stat::Power));
+  assert(progress.raise(Stat::Power, Zone::Avenue));
   assert(progress.lochas() == 20);
-  assert(!progress.raise(Stat::Power)); // The next level costs more than what is left.
+  assert(!progress.raise(Stat::Power, Zone::Avenue)); // The next level costs more than what is left.
 
   progress.earn(100);
-  assert(progress.raise(Stat::Power));
+  assert(progress.raise(Stat::Power, Zone::Avenue));
   assert(progress.lochas() == 0);
   assert(progress.stats().level(Stat::Power) == 2);
+}
+
+static void test_exchange_rate()
+{
+  assert(exchange_rate(0) == 100);
+  assert(exchange_rate(1) == 125);
+  assert(exchange_rate(2) == 125); // Between steps the rate holds.
+  assert(exchange_rate(3) == 160);
+  assert(exchange_rate(4) == 160);
+  assert(exchange_rate(24) == 720);
+  assert(exchange_rate(500) == 720); // Past the last step it stays put.
+  assert(inflate(80, 0) == 80);
+  assert(inflate(80, 1) == 100);
+  assert(inflate(10, 1) == 13); // 12.5 rounds up.
+  assert(!devalues_on(0));
+  assert(devalues_on(1) && !devalues_on(2) && devalues_on(3));
+}
+
+static void test_inflation_by_zone()
+{
+  PlayerProgress progress;
+  progress.earn(1000);
+  assert(progress.stat_cost(Zone::Avenue) == 80);
+  progress.rest(0);
+  assert(progress.devalued_today(Zone::Avenue));
+  assert(progress.stat_cost(Zone::Avenue) == 100);
+
+  progress.freeze_inflation(Zone::Avenue);
+  progress.rest(0);
+  progress.rest(0);
+  assert(progress.day() == 3);
+  assert(progress.exchange_rate(Zone::Avenue) == 125);
+  assert(!progress.devalued_today(Zone::Avenue));
+  assert(progress.exchange_rate(Zone::Jungle) == 160);
+  assert(progress.devalued_today(Zone::Jungle));
+  progress.freeze_inflation(Zone::Avenue); // A second win keeps the first day.
+  assert(progress.inflation_day(Zone::Avenue) == 1);
+
+  assert(progress.raise(Stat::Power, Zone::Jungle));
+  assert(progress.lochas() == 1000 - 128);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.inflation_frozen(Zone::Avenue) && !loaded.inflation_frozen(Zone::Plain));
+  assert(loaded.exchange_rate(Zone::Avenue) == 125);
+  assert(!loaded.from_text("nightmare58 2\nfrozen 3 1\n"));
+  assert(!loaded.from_text("nightmare58 2\nfrozen 0 -1\n"));
+
+  // A version 1 save has no frozen zones and still loads.
+  assert(loaded.from_text("nightmare58 1\nlochas 9\nday 4\n"));
+  assert(loaded.lochas() == 9 && !loaded.inflation_frozen(Zone::Avenue));
+  assert(loaded.exchange_rate(Zone::Avenue) == 160);
 }
 
 static void test_coffee_capacity()
@@ -960,7 +1013,7 @@ static void test_save_round_trip()
 {
   PlayerProgress saved;
   saved.earn(500);
-  saved.raise(Stat::Regeneration);
+  saved.raise(Stat::Regeneration, Zone::Avenue);
   saved.collect(ItemCatalog::COFFEE);
   saved.collect(ItemCatalog::CANDLE, 2);
   saved.collect(ItemCatalog::instance().find("family_photo"));
@@ -1163,6 +1216,8 @@ int main()
   test_loot_table();
   test_player_stats();
   test_raising_a_stat();
+  test_exchange_rate();
+  test_inflation_by_zone();
   test_coffee_capacity();
   test_death_and_recovery();
   test_pickups_taken();

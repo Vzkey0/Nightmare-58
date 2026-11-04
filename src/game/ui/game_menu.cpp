@@ -484,8 +484,15 @@ void GameMenu::show_options()
 void GameMenu::show_chapel()
 {
   const PlayerProgress & progress = player->progress();
-  title->set_text(vformat(text("Capilla  ·  día %d"), progress.day()));
-  detail->set_text(text(rested ? "Pasó un día. Los enemigos volvieron a su sitio." : "El lugar sigue a salvo."));
+  const Zone zone = player->chapel_zone();
+  const int rate = progress.exchange_rate(zone);
+  title->set_text(vformat(text("Capilla  ·  día %d  ·  tasa ×%d,%02d"), progress.day(), rate / 100, rate % 100));
+  if (!rested)
+    detail->set_text(text("El lugar sigue a salvo."));
+  else if (progress.devalued_today(zone))
+    detail->set_text(text("Pasó un día. La locha perdió valor."));
+  else
+    detail->set_text(text("Pasó un día. Los enemigos volvieron a su sitio."));
   add_row("Descansar", menu.cursor() == ROW_REST);
   add_row("Subir de nivel", menu.cursor() == ROW_LEVEL_UP);
   add_row("Inventario", menu.cursor() == ROW_INVENTORY);
@@ -499,7 +506,7 @@ void GameMenu::show_stats()
   const PlayerProgress & progress = player->progress();
   const PlayerStats & stats = progress.stats();
   title->set_text("Subir de nivel");
-  detail->set_text(vformat(text("Costo: %d lochas  ·  Tienes: %d"), stats.next_cost(), progress.lochas()));
+  detail->set_text(vformat(text("Costo: %d lochas  ·  Tienes: %d"), progress.stat_cost(player->chapel_zone()), progress.lochas()));
   for (int stat = 0; stat < STAT_COUNT; ++stat)
     add_row(text(STAT_NAMES[stat]), menu.cursor() == stat, vformat("%d / %d", stats.level(static_cast<Stat>(stat)), PlayerStats::MAX_LEVEL));
   hints->set_text("E  subir");

@@ -88,7 +88,13 @@ miente al jugador sobre la misma distancia que usa el árbol.
 ### Economía y progreso
 
 - **Lochas:** se obtienen al matar. Cada descanso en una capilla cuenta como un día y
-  les quita valor; vencer a un jefe frena la inflación en esa zona.
+  les quita valor; vencer a un jefe o a un minijefe frena la inflación en esa zona.
+- **Inflación:** los precios se fijan en lochas del día 0 y se pagan con la tasa del
+  día, que sube por escalones, como devaluaciones anunciadas: ×1,25 el día 1, ×1,60 el
+  3, ×2,10 el 5, y así hasta ×7,20 el día 24, donde se queda. Lo que sueltan los
+  enemigos no sube, así que guardar lochas sale caro. Afecta a subir de nivel y a la
+  tienda. Cada zona congela su tasa en el día en que cae su jefe. La capilla muestra
+  la tasa y avisa cuando la locha pierde valor.
 - **Muerte:** se dejan las lochas donde se cayó, y hay que volver por ellas. Si se muere
   otra vez antes de recuperarlas, se pierden.
 - **Capillas:** son los puntos de control. Permiten descansar y subir de nivel.

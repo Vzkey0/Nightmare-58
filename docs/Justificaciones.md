@@ -39,7 +39,7 @@ implementarse.
 | Inventario | `merge_sort` | J-008 y J-009 |
 | Récords | `quicksort` | Pendiente |
 | Botín | `binary_search` | J-010: gana el recorrido lineal |
-| Nivel, fase, tasa de cambio | `binary_search` | Pendiente |
+| Nivel, fase, tasa de cambio | `binary_search` | J-015 para la tasa de cambio; nivel y fase, pendientes |
 
 ## Fichas
 
@@ -335,3 +335,21 @@ implementarse.
   el cursor. `DynStack` puede reservar memoria sin necesidad
 - **Medición:** No aplica
 - **Conclusión:** los menús se cierran en orden inverso al que se abren, que es exactamente una pila
+
+## J-015: Tasa de cambio con `binary_search`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/inflation.cpp`, `step_for`
+- **Crítico:** No. Corre al mostrar o cobrar un precio: en la capilla y en la tienda
+- **Datos:** 8 escalones en el capítulo 1; crecerá con cada capítulo, a unas decenas
+- **Operaciones:** crear la tabla una vez y buscar el escalón vigente para un día. Domina la búsqueda
+- **Elegida:** escalones `{día, tasa}` ordenados por día en un `DynArray` y `binary_search`, `O(lg n)`.
+  Si el día no coincide con un escalón, DeSiGNAR devuelve el punto de inserción y se toma el anterior
+- **Descartadas:** un arreglo con una tasa por día se indexa en `O(1)`, pero los días no tienen tope y
+  obliga a repetir la misma tasa en cada día de un escalón. El recorrido lineal ganó en J-010 con este
+  tamaño por unos pocos nanosegundos, pero crece con la tabla, y aquí la diferencia no se nota porque
+  la búsqueda corre al abrir un menú. Una fórmula, como `1,1^día`, no deja diseñar los saltos de cada
+  devaluación
+- **Medición:** No aplica. No es código crítico; la medición de J-010 ya da el orden de magnitud
+- **Conclusión:** la tasa cambia por escalones y se busca por día, que es una búsqueda en datos fijos y
+  ordenados, el caso de `binary_search` en la guía de Convenciones

@@ -641,12 +641,23 @@ void PlayerController::recover_lochas()
 
 bool PlayerController::raise_stat(Stat stat)
 {
-  if (!save.raise(stat))
+  if (!save.raise(stat, chapel_zone()))
     return false;
   apply_stats();
   SaveFile::write(save);
   refresh_hud();
   return true;
+}
+
+Zone PlayerController::chapel_zone() const
+{
+  return nearby_chapel != nullptr ? nearby_chapel->zone_kind() : Zone::Avenue;
+}
+
+void PlayerController::freeze_inflation(Zone zone)
+{
+  save.freeze_inflation(zone);
+  SaveFile::write(save);
 }
 
 void PlayerController::apply_stats()

@@ -21,6 +21,7 @@ set(GODOTCPP_API_VERSION "4.7" CACHE STRING "" FORCE)
 add_subdirectory(extern/godot-cpp)
 
 add_library(nightmare58_core STATIC
+  src/core/progression/inflation.cpp
   src/core/progression/inventory.cpp
   src/core/progression/item_catalog.cpp
   src/core/progression/player_progress.cpp
