@@ -6,6 +6,7 @@
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
 #include <game/world/merchant.hpp>
+#include <game/weapons/thrown_machete.hpp>
 #include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
 #include <game/world/save_file.hpp>
@@ -20,6 +21,7 @@
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/scene_tree_timer.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/world3d.hpp>
@@ -198,6 +200,10 @@ void PlayerController::_ready()
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
   machete = Object::cast_to<MeshInstance3D>(model->find_child("machete", true, false));
+  weapon_bone = get_node<Node3D>("Model/armature_male/Skeleton3D/WeaponBone");
+  // The mesh is skinned at the weapon bone's rest: undoing that rest places it in the bone's frame.
+  Skeleton3D * skeleton = get_node<Skeleton3D>("Model/armature_male/Skeleton3D");
+  machete_from_bone = skeleton->get_bone_global_rest(skeleton->find_bone("weapon")).affine_inverse() * machete->get_transform();
   // ponytail: a glowing overlay stands in for the grease until it gets its own art.
   coat_material.instantiate();
   coat_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
@@ -327,6 +333,8 @@ void PlayerController::_physics_process(double delta_time)
   update_weapon_effects(action_delta);
   if (actions.current() == PlayerAction::UseItem && actions.hit_ground(delta))
     use_item();
+  if (actions.current() == PlayerAction::Throw && actions.hit_ground(delta))
+    launch_machete();
 
   const PlayerAction action = actions.current();
   const bool attacking = actions.stepping_attack();
@@ -360,7 +368,8 @@ void PlayerController::_physics_process(double delta_time)
 
   if (action == PlayerAction::Dodge || attacking)
     velocity = Vector3(root_motion_step(action_delta)).rotated(UP, facing_yaw) * step_scale / delta;
-  else if ((action == PlayerAction::AirAttack && grounded) || stunned || action == PlayerAction::UseItem)
+  else if ((action == PlayerAction::AirAttack && grounded) || stunned || action == PlayerAction::UseItem ||
+           action == PlayerAction::Throw || action == PlayerAction::Catch)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
@@ -451,6 +460,11 @@ void PlayerController::start_action(const Vector3 & wish)
       save.inventory().remove(item_in_use);
       refresh_hud();
       return;
+    case PlayerAction::Throw:
+      play(throw_clip, BLEND_TO_ATTACK);
+      if (locked_target() != nullptr)
+        target_yaw = yaw_towards(locked_target());
+      break;
     case PlayerAction::Jump:
       vertical_speed = JUMP_SPEED;
       air_time = COYOTE_TIME;
@@ -532,7 +546,7 @@ void PlayerController::update_weapon_effects(float delta)
   if (action == PlayerAction::Attack3 && time >= WHIRL_START && time - delta < WHIRL_START)
     heavy_swing_sound->play();
 
-  if (!actions.hit_ground(delta) || action == PlayerAction::UseItem)
+  if (!actions.hit_ground(delta) || action == PlayerAction::UseItem || action == PlayerAction::Throw)
     return;
   if (action == PlayerAction::Dodge)
   {
@@ -587,6 +601,7 @@ void PlayerController::take_hit(int damage, const Vector3 & attacker)
     release_lock();
     respawn_time = RESPAWN_TIME;
     coat.clear();
+    drop_thrown_machete();
     play(death_clip, BLEND_TO_DODGE);
     clear_dropped_lochas();
     const Vector3 where = get_global_position();
@@ -683,6 +698,7 @@ bool PlayerController::sell(ItemId item)
 void PlayerController::rest()
 {
   save.rest(nearby_chapel->get_chapel_id());
+  drop_thrown_machete(); // revive() below puts the machete back in the hand.
   spawn_point = nearby_chapel->respawn_point();
   health.restore();
   actions.revive();
@@ -772,6 +788,8 @@ void PlayerController::read_item_input()
     save.quick_slots().next(save.inventory());
     refresh_hud();
   }
+  if (input->is_action_just_pressed(throw_input) && save.has_skill(MacheteSkill::THROW) && !actions.weapon_away())
+    actions.press(PlayerAction::Throw);
   if (input->is_action_just_pressed(inventory_input))
     menu->open(MenuScreen::Inventory);
   if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
@@ -801,6 +819,54 @@ void PlayerController::use_item()
     SaveFile::write(save);
   }
   item_in_use = NO_ITEM;
+}
+
+void PlayerController::launch_machete()
+{
+  // At the locked target's chest, or straight ahead at the height of the hand.
+  const CombatTarget * locked = locked_target();
+  const Vector3 from = weapon_bone->get_global_position();
+  const Vector3 direction = locked != nullptr ? locked->get_global_position() + UP * LOCK_HEIGHT - from
+                                              : MODEL_FORWARD.rotated(UP, facing_yaw);
+  thrown = memnew(ThrownMachete);
+  get_parent()->add_child(thrown);
+  thrown->launch(this, machete, machete_from_bone, hitbox, weapon_bone, direction);
+  machete->set_visible(false);
+  actions.release_weapon();
+  heavy_swing_sound->play();
+}
+
+void PlayerController::throw_hit(CombatTarget * target, const Vector3 & point)
+{
+  const float scale = save.stats().damage_scale() * save.machete_damage_scale();
+  const int damage = Math::round(ThrownWeapon::DAMAGE * scale);
+  target->take_hit(damage, get_global_position(), point);
+  if (coat.active())
+    target->apply_status(coat.kind());
+  // No hitstop: the blow lands away from the player, who is not the one feeling it.
+  camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE * 0.5f, 1.f);
+  hit_sound->play();
+}
+
+void PlayerController::catch_machete()
+{
+  thrown = nullptr;
+  machete->set_visible(true);
+  if (!actions.catch_weapon())
+    return;
+  current_clip = StringName();
+  play(catch_clip, BLEND_TO_DODGE);
+  animator->set_speed_scale(1.f);
+  swing_sound->play();
+}
+
+// On death the machete is simply back in the hand: the flight would outlive the player.
+void PlayerController::drop_thrown_machete()
+{
+  if (thrown != nullptr)
+    thrown->queue_free();
+  thrown = nullptr;
+  machete->set_visible(true);
 }
 
 void PlayerController::update_coat(float delta)

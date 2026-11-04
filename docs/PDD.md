@@ -149,7 +149,11 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
   rápido. Cada golpe con fuego agrega una quemadura de 4 s que hace 2 de daño cada medio
   segundo, hasta tres a la vez. El hielo frena al enemigo a la mitad durante 3 s. La
   hoja brilla del color de la grasa y parpadea en sus últimos segundos.
-- **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar.
+- **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar. Sale con G hacia el
+  enemigo fijado o hacia el frente, gira plano, recorre 9 m o hasta chocar con una pared y
+  vuelve a la mano esté donde esté. Golpea con la malla completa del arma a la ida y a la
+  vuelta, una vez por tramo, con 18 de daño más las mejoras y la grasa. Esquivar sigue
+  permitido; si vuelve en medio de otra acción, solo regresa a la mano sin animación.
 - **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega
   más fuerte unos 12 s, pero también se recibe más daño.
 

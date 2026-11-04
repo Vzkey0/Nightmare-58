@@ -6,7 +6,7 @@
 #include <core/stamina.hpp>
 
 // Attack, Attack2 and Attack3 stay together: PlayerController::attack_clip follows this order.
-enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack, RollAttack, RunAttack, HeavyAttack, Hurt, Dead, UseItem };
+enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack, RollAttack, RunAttack, HeavyAttack, Hurt, Dead, UseItem, Throw, Catch };
 
 // Seconds from the start of the clip. duration must match the clip in
 // art/characters/animate_protagonist.py.
@@ -69,6 +69,13 @@ public:
   void die() { interrupt(PlayerAction::Dead); }
   void revive();
 
+  // While the machete flies, any press that needs it is dropped: there is nothing to swing.
+  void release_weapon() { weapon_out = true; }
+  bool weapon_away() const { return weapon_out; }
+  // Back in the hand. An idle player plays the catch; one busy with something else just has it.
+  // Returns true when the catch started, so the caller plays its clip.
+  bool catch_weapon();
+
   PlayerAction current() const { return action; }
   float elapsed() const { return action_time; }
   float stamina_ratio() const { return stamina.ratio(); }
@@ -115,6 +122,10 @@ private:
   };
 
   PlayerAction next_attack() const;
+  static bool needs_weapon(PlayerAction pressed)
+  {
+    return pressed == PlayerAction::Attack || pressed == PlayerAction::HeavyAttack || pressed == PlayerAction::Throw;
+  }
   float interrupt_time(PlayerAction pressed) const;
   void interrupt(PlayerAction forced);
 
@@ -130,5 +141,6 @@ private:
   float action_time = 0.f;
   float held_time = 0.f;
   bool button_held = false;
+  bool weapon_out = false;
   double clock = 0.0;
 };

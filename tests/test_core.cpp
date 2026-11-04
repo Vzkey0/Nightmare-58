@@ -13,6 +13,7 @@
 #include <core/lock_on.hpp>
 #include <core/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/player/thrown_weapon.hpp>
 #include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
 #include <core/progression/item_catalog.hpp>
@@ -1336,6 +1337,75 @@ static void test_grease_in_the_shop()
   assert(progress.quick_slots().holds(ItemCatalog::FIRE_GREASE));
 }
 
+static void test_thrown_weapon_flight()
+{
+  ThrownWeapon flight;
+  assert(!flight.in_air());
+  flight.release();
+  assert(flight.heading_out());
+
+  // Out in a straight line until its range, never past it.
+  float out = 0.f;
+  while (flight.heading_out())
+    out += flight.step(1.f / 60.f);
+  assert(out > ThrownWeapon::RANGE - 0.001f && out < ThrownWeapon::RANGE + 0.001f);
+  assert(flight.current() == ThrownWeapon::Phase::Back);
+
+  // Back until the hand is within reach of the step.
+  const float step = flight.step(1.f / 60.f);
+  assert(!flight.caught(5.f, step));
+  assert(flight.caught(step + ThrownWeapon::CATCH_RADIUS, step));
+  assert(!flight.in_air());
+
+  // A wall sends it back early, and a hand it never reaches still gets it after a while.
+  flight.release();
+  flight.step(0.1f);
+  flight.turn_back();
+  assert(flight.current() == ThrownWeapon::Phase::Back);
+  for (int tick = 0; tick < 300; ++tick)
+    flight.step(1.f / 60.f);
+  assert(flight.caught(100.f, 0.3f));
+}
+
+static void test_player_throw()
+{
+  PlayerActions actions;
+  actions.press(PlayerAction::Throw);
+  assert(actions.update(0.016f, false));
+  assert(actions.current() == PlayerAction::Throw);
+  assert(PlayerActions::timing(PlayerAction::Throw).hit_end == 0.f); // The flying weapon hits, not the swing.
+
+  // Once it is in the air, nothing that needs it gets through, not even a second throw.
+  actions.release_weapon();
+  actions.press(PlayerAction::Attack);
+  actions.press(PlayerAction::HeavyAttack);
+  for (int tick = 0; tick < 60; ++tick)
+    actions.update(0.016f, false);
+  assert(actions.current() == PlayerAction::None);
+  actions.press(PlayerAction::Throw);
+  assert(!actions.update(0.016f, false));
+  actions.press(PlayerAction::Attack);
+  assert(!actions.update(0.016f, false));
+  actions.press(PlayerAction::Dodge);
+  assert(actions.update(0.016f, false) && actions.current() == PlayerAction::Dodge);
+
+  // Caught mid-dodge it is just back; caught while idle it plays the catch.
+  assert(!actions.catch_weapon());
+  assert(!actions.weapon_away());
+  for (int tick = 0; tick < 60; ++tick)
+    actions.update(0.016f, false);
+  actions.release_weapon();
+  assert(actions.catch_weapon() && actions.current() == PlayerAction::Catch);
+  for (int tick = 0; tick < 30; ++tick)
+    actions.update(0.016f, false);
+  actions.press(PlayerAction::Attack);
+  assert(actions.update(0.016f, false) && actions.current() == PlayerAction::Attack);
+
+  actions.release_weapon();
+  actions.revive(); // Death puts it back in the hand.
+  assert(!actions.weapon_away());
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1393,5 +1463,7 @@ int main()
   test_learning_machete_skills();
   test_status_effects();
   test_grease_in_the_shop();
+  test_thrown_weapon_flight();
+  test_player_throw();
   return 0;
 }

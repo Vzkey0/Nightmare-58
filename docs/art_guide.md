@@ -161,6 +161,8 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
 | `drink` | 0,9 s | Ninguna; un golpe la corta | Sorbo de café con la mano libre; cura a los 0,45 s, a mitad del sorbo |
 | `use_candle` | 0,9 s | Ninguna; un golpe la corta | Alza la vela ante la cara; a los 0,45 s lleva a la última capilla |
+| `throw` | 0,7 s | Ninguna; la hace el machete en el aire | Lleva el machete tras el hombro derecho y lo suelta plano a los 0,3 s, con el brazo izquierdo señalando |
+| `catch` | 0,4 s | Ninguna | La mano sube abierta a recibir el machete que vuelve y regresa a la guardia |
 | `apply_grease` | 0,9 s | Ninguna; un golpe la corta | Cruza la hoja ante el pecho y la mano libre la unta hasta la punta; a los 0,45 s queda engrasada |
 | `walk_back`, `strafe_left`, `strafe_right` | 0,4 s, en bucle | Siempre | Moverse a 2,2 m/s con el objetivo fijado; hacia delante usa `walk` |
 

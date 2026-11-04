@@ -29,6 +29,7 @@ class GameMenu;
 class LostLochas;
 class Merchant;
 class StatBar;
+class ThrownMachete;
 class WeaponTrail;
 
 // Translates input and animation into movement; the rules live in PlayerActions.
@@ -76,6 +77,10 @@ public:
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);
 
+  // Called by the machete in the air.
+  void throw_hit(CombatTarget * target, const godot::Vector3 & point);
+  void catch_machete();
+
   // Shared by every enemy around the player, however many there are.
   AttackTurns & attack_turns() { return turns; }
 
@@ -102,6 +107,8 @@ private:
   void clear_dropped_lochas();
   void read_item_input();
   void use_item();
+  void launch_machete();
+  void drop_thrown_machete();
   void update_progress(float delta);
   void update_hud(float delta);
   void update_coat(float delta);
@@ -152,6 +159,9 @@ private:
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
   godot::MeshInstance3D * machete = nullptr;
+  godot::Node3D * weapon_bone = nullptr;
+  godot::Transform3D machete_from_bone; // The machete's mesh, placed in the weapon bone's frame.
+  ThrownMachete * thrown = nullptr;
   godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
   godot::Label * prompt_label = nullptr;
@@ -220,6 +230,8 @@ private:
   godot::StringName drink_clip = "drink";
   godot::StringName use_candle_clip = "use_candle";
   godot::StringName grease_clip = "apply_grease";
+  godot::StringName throw_clip = "throw";
+  godot::StringName catch_clip = "catch";
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
   godot::StringName walk_back_clip = "walk_back";
@@ -253,4 +265,5 @@ private:
   godot::StringName use_item_input = "use_item";
   godot::StringName next_item_input = "next_item";
   godot::StringName inventory_input = "inventory";
+  godot::StringName throw_input = "throw_weapon";
 };
