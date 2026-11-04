@@ -54,6 +54,7 @@ constexpr float MIN_PUSH = 0.1f;
 constexpr float FULL_PUSH = 0.7f;   // Below this, a stick walks instead of running.
 constexpr float BRAKE_SPEED = 0.6f; // Share of the run speed that needs a stop or a turn clip.
 constexpr float REVERSE_DOT = -0.3f;
+constexpr float ITEM_WALK_SPEED = 1.f; // A slow shuffle while drinking or using any item.
 constexpr float WALK_SLIDE_ANGLE = 0.26f; // Godot's default.
 constexpr float ATTACK_SLIDE_ANGLE = 1.2f; // An attack's step stops at a target instead of rounding it.
 
@@ -386,8 +387,17 @@ void PlayerController::_physics_process(double delta_time)
 
   if (action == PlayerAction::Dodge || attacking)
     velocity = Vector3(root_motion_step(action_delta)).rotated(UP, facing_yaw) * step_scale / delta;
-  else if ((action == PlayerAction::AirAttack && grounded) || stunned || action == PlayerAction::UseItem ||
-           action == PlayerAction::Throw || action == PlayerAction::Catch)
+  else if (action == PlayerAction::UseItem)
+  {
+    // ponytail: the drink clip's legs stand still, so the feet slide; an upper-body layer would fix it.
+    velocity = velocity.move_toward(wish * ITEM_WALK_SPEED, (wants_to_move ? ACCELERATION : DECELERATION) * delta);
+    if (locked != nullptr)
+      target_yaw = yaw_towards(locked); // Backing off with a coffee keeps the eyes on the enemy.
+    else if (wants_to_move)
+      target_yaw = Math::atan2(wish.x, wish.z);
+  }
+  else if ((action == PlayerAction::AirAttack && grounded) || stunned || action == PlayerAction::Throw ||
+           action == PlayerAction::Catch)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
@@ -499,27 +509,35 @@ void PlayerController::start_action(const Vector3 & wish)
 
 void PlayerController::bend_towards_target(const Vector3 & wish)
 {
-  // A locked target wins over the direction pushed: that blow is aimed at it.
+  // A locked target wins over the direction pushed and over anyone closer: that blow is aimed at it.
   const CombatTarget * locked = locked_target();
-  if (locked != nullptr)
-    target_yaw = yaw_towards(locked);
-  const bool pushing = locked == nullptr && wish.length_squared() > 0.01f;
-  const Vector3 heading = pushing ? wish.normalized() : MODEL_FORWARD.rotated(UP, locked != nullptr ? target_yaw : facing_yaw);
   Vector3 closest;
   float distance = MAGNET_RANGE;
-  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
-  for (int i = 0; i < targets.size(); ++i)
+  if (locked != nullptr)
   {
-    const Vector3 offset = (Object::cast_to<Node3D>(targets[i])->get_global_position() - get_global_position()).slide(UP);
-    const float length = offset.length();
-    if (length < distance && offset.dot(heading) > MAGNET_COS * length)
-    {
-      closest = offset;
-      distance = length;
-    }
+    target_yaw = yaw_towards(locked);
+    closest = (locked->get_global_position() - get_global_position()).slide(UP);
+    distance = closest.length();
+    if (distance >= MAGNET_RANGE)
+      return;
   }
-  if (distance == MAGNET_RANGE)
-    return;
+  else
+  {
+    const Vector3 heading = wish.length_squared() > 0.01f ? wish.normalized() : MODEL_FORWARD.rotated(UP, facing_yaw);
+    const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+    for (int i = 0; i < targets.size(); ++i)
+    {
+      const Vector3 offset = (Object::cast_to<Node3D>(targets[i])->get_global_position() - get_global_position()).slide(UP);
+      const float length = offset.length();
+      if (length < distance && offset.dot(heading) > MAGNET_COS * length)
+      {
+        closest = offset;
+        distance = length;
+      }
+    }
+    if (distance == MAGNET_RANGE)
+      return;
+  }
 
   target_yaw = Math::atan2(closest.x, closest.z);
   const float clip_step = motion_animation->position_track_interpolate(motion_track, motion_animation->get_length()).length();
@@ -1272,8 +1290,16 @@ void PlayerController::turn_model(float delta, float speed)
 {
   const PlayerAction action = actions.current();
   const bool acting = action != PlayerAction::None && action != PlayerAction::Jump;
-  const bool committed = acting && actions.elapsed() > ACTION_TURN_TIME;
-  const float rate = acting ? ACTION_TURN_RATE : TURN_RATE;
+  // A heavy blow keeps tracking its locked target through the windup, so a step aside does not dodge it.
+  const CombatTarget * locked = locked_target();
+  const bool tracking = action == PlayerAction::HeavyAttack && locked != nullptr &&
+                        actions.elapsed() < PlayerActions::timing(action).hit_start;
+  if (tracking)
+    target_yaw = yaw_towards(locked);
+  // An item is used on the move, so the body keeps turning at walking pace.
+  const bool using_item = action == PlayerAction::UseItem;
+  const bool committed = acting && !tracking && !using_item && actions.elapsed() > ACTION_TURN_TIME;
+  const float rate = acting && !using_item ? ACTION_TURN_RATE : TURN_RATE;
 
   const float previous = facing_yaw;
   if (!committed)
