@@ -194,24 +194,24 @@ WALK_FRAMES = 30
 WALK_STANCE = 0.62
 
 
-def walk_foot(side_x, home, offset):
-  half = WALK_SPEED * WALK_FRAMES / AUTHOR_FPS * WALK_STANCE * 0.5
+def walk_foot(side_x, home, offset, speed=WALK_SPEED, frames=WALK_FRAMES, stance=WALK_STANCE, lift=0.15):
+  half = speed * frames / AUTHOR_FPS * stance * 0.5
 
   def position(phase):
     phase = (phase + offset) % 1.0
-    if phase < WALK_STANCE:
-      return (side_x, home + half - 2.0 * half * phase / WALK_STANCE, 0.0)
-    swing = (phase - WALK_STANCE) / (1.0 - WALK_STANCE)
+    if phase < stance:
+      return (side_x, home + half - 2.0 * half * phase / stance, 0.0)
+    swing = (phase - stance) / (1.0 - stance)
     blend = swing * swing * (3.0 - 2.0 * swing)
-    return (side_x, home - half + 2.0 * half * blend, 0.15 * math.sin(math.pi * swing) ** 1.5)
+    return (side_x, home - half + 2.0 * half * blend, lift * math.sin(math.pi * swing) ** 1.5)
 
   def pitch(phase):
     phase = (phase + offset) % 1.0
     if phase < 0.1:
       return (-10.0 * (1.0 - phase / 0.1), 0.0)
-    if phase < WALK_STANCE:
-      return (max(phase - 0.42, 0.0) * 170.0, 0.0)
-    swing = (phase - WALK_STANCE) / (1.0 - WALK_STANCE)
+    if phase < stance:
+      return (max(phase - (stance - 0.2), 0.0) * 170.0, 0.0)
+    swing = (phase - stance) / (1.0 - stance)
     return (34.0 - 44.0 * swing, 0.0)
 
   return position, pitch
@@ -233,6 +233,30 @@ def walk_clip():
     "hand_l": lambda p: (0.4, 0.2 + 0.2 * wave(p, 0.0), 0.72 + 0.03 * wave(p, 0.2, 2)),
   })
   return Clip("walk-loop", WALK_FRAMES, channels, loop=True)
+
+
+# SkeletonEnemy::RUN_SPEED must match this speed.
+RUN_SPEED = 3.8
+RUN_FRAMES = 20
+RUN_STANCE = 0.4
+
+
+def run_clip():
+  """The chase: bent low over the hips, long bounding steps and the machete raised to strike."""
+  foot_l, pitch_l = walk_foot(0.15, 0.05, 0.0, RUN_SPEED, RUN_FRAMES, RUN_STANCE, 0.24)
+  foot_r, pitch_r = walk_foot(-0.15, 0.0, 0.5, RUN_SPEED, RUN_FRAMES, RUN_STANCE, 0.24)
+  channels = {name: [(0, value)] for name, value in GUARD.items()}
+  channels.update({
+    "foot_l": foot_l, "foot_l_rot": pitch_l, "foot_r": foot_r, "foot_r_rot": pitch_r,
+    "hips_pos": lambda p: (0.03 * wave(p, 0.05), 0.06, -0.17 + 0.05 * wave(p, 0.15, 2)),
+    "hips_rot": lambda p: (24.0, 12.0 * wave(p, 0.0), 6.0 * wave(p, 0.05)),
+    "chest_rot": lambda p: (30.0 + 4.0 * wave(p, 0.25, 2), -12.0 * wave(p, 0.0), 0.0),
+    "head_rot": lambda p: (-6.0 + 4.0 * wave(p, 0.35, 2), 6.0 * wave(p, 0.5), -5.0 * wave(p, 0.1)),
+    "jaw": lambda p: 16.0 + 6.0 * wave(p, 0.2, 2),
+    "grip": lambda p: (-0.4, 0.3 + 0.2 * wave(p, 0.5), 0.98 + 0.05 * wave(p, 0.2, 2)),
+    "hand_l": lambda p: (0.38, 0.12 + 0.3 * wave(p, 0.0), 0.8 + 0.05 * wave(p, 0.2, 2)),
+  })
+  return Clip("run-loop", RUN_FRAMES, channels, loop=True)
 
 
 # SkeletonEnemy::CIRCLE_SPEED must match this speed.
@@ -394,6 +418,7 @@ def death_clip():
 CLIPS = [
   idle_clip(),
   walk_clip(),
+  run_clip(),
   circle_clip("strafe_left-loop", (1.0, 0.0)),
   circle_clip("strafe_right-loop", (-1.0, 0.0)),
   circle_clip("walk_back-loop", (0.0, -1.0)),

@@ -8,7 +8,7 @@ radius = 2.6
 [sub_resource type="BoxShape3D" id="building"]
 size = Vector3(2.5, 3, 2.1)
 
-[node name="Chapel" type="Chapel"]
+[node name="Chapel" type="Chapel" groups=["navigation"]]
 collision_layer = 0
 collision_mask = 2
 

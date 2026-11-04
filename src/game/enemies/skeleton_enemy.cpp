@@ -44,6 +44,7 @@ constexpr float SIGHT_COS = 0.2f;                    // About 78 degrees to each
 constexpr float LOST_TIME = 3.f;
 constexpr float SEARCH_TIME = 8.f; // Gives up this long after losing the player.
 constexpr float ARRIVE_SQUARED = 0.6f * 0.6f;
+constexpr float MIN_PATH_STEP_SQUARED = 0.1f * 0.1f;
 
 constexpr float NEAR_RANGE = 1.9f;
 constexpr float MEDIUM_RANGE = 4.4f;
@@ -53,6 +54,8 @@ constexpr float STRIKE_REACH = 1.25f;    // Where a blow ends its step, with the
 
 constexpr float WALK_SPEED = 1.4f;   // Must match WALK_SPEED in animate_skeleton.py.
 constexpr float CIRCLE_SPEED = 1.1f; // Same, for CIRCLE_SPEED.
+constexpr float RUN_SPEED = 3.8f;    // Same, for RUN_SPEED: slower than the player, who can still get away.
+constexpr float RUN_FROM = 4.f;      // Farther than this from where it is going, it runs.
 constexpr float ACCELERATION = 9.f;
 constexpr float DECELERATION = 12.f;
 constexpr float CIRCLE_GAP_MIN = 2.5f;
@@ -60,6 +63,13 @@ constexpr float CIRCLE_GAP_MAX = 3.7f;
 constexpr float CIRCLE_SWITCH_MIN = 1.6f;
 constexpr float CIRCLE_SWITCH_MAX = 4.f;
 constexpr float CIRCLE_IN_OUT = 1.5f;
+
+// Unaware, it strolls around its post with pauses in between, so it looks and turns like
+// something alive and can catch the player from any side.
+constexpr float WANDER_RADIUS = 4.f;
+constexpr float WANDER_PAUSE_MIN = 2.f;
+constexpr float WANDER_PAUSE_MAX = 5.f;
+constexpr float WANDER_GIVE_UP = 6.f; // A point it cannot reach is not worth more than this.
 
 constexpr float TURN_RATE = 6.f;
 constexpr float TRACK_RATE = 3.2f;
@@ -137,6 +147,7 @@ void SkeletonEnemy::_ready()
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   hitbox = get_node<ShapeCast3D>("Model/armature_skeleton/Skeleton3D/WeaponBone/Hitbox");
   swing_sound = get_node<AudioStreamPlayer>("Swing");
+  navigator = get_node<NavigationAgent3D>("Navigator");
   spawn_point = last_seen = get_global_position();
 
   // Placed with a rotation in the scene, which moves to the model as with the player.
@@ -165,6 +176,7 @@ void SkeletonEnemy::_ready()
   sight_time = UtilityFunctions::randf_range(0.f, SIGHT_TIME);
   circle_gap = UtilityFunctions::randf_range(CIRCLE_GAP_MIN, CIRCLE_GAP_MAX);
   circle_side = UtilityFunctions::randf() < 0.5f ? -1.f : 1.f;
+  wander_time = UtilityFunctions::randf_range(0.f, WANDER_PAUSE_MAX);
   play(idle_clip, 0.f);
   animator->seek(UtilityFunctions::randf_range(0.f, 4.f));
 }
@@ -198,6 +210,7 @@ void SkeletonEnemy::_physics_process(double delta_time)
   attack_wait = MAX(attack_wait - delta, 0.f);
   charge_wait = MAX(charge_wait - delta, 0.f);
   circle_time -= delta;
+  wander_time -= delta;
 
   if (actions.current() == EnemyAction::Dead)
   {
@@ -251,6 +264,37 @@ void SkeletonEnemy::think()
     return;
   }
   intent = decision.action;
+  if (intent == BehaviorAction::Watch)
+    wander();
+  else
+    wandering = false;
+  if (intent == BehaviorAction::Approach)
+    navigator->set_target_position(player->get_global_position());
+  else if (intent == BehaviorAction::Investigate)
+    navigator->set_target_position(last_seen);
+}
+
+void SkeletonEnemy::wander()
+{
+  if (wandering)
+  {
+    const bool arrived = (wander_target - get_global_position()).slide(UP).length_squared() < ARRIVE_SQUARED;
+    if (arrived || navigator->is_navigation_finished() || wander_time <= 0.f)
+    {
+      wandering = false;
+      wander_time = UtilityFunctions::randf_range(WANDER_PAUSE_MIN, WANDER_PAUSE_MAX);
+    }
+    return;
+  }
+  if (wander_time > 0.f)
+    return;
+
+  const float angle = UtilityFunctions::randf_range(0.f, 2.f * PI);
+  const float radius = UtilityFunctions::randf_range(1.f, WANDER_RADIUS);
+  wander_target = spawn_point + Vector3(Math::cos(angle), 0.f, Math::sin(angle)) * radius;
+  navigator->set_target_position(wander_target);
+  wandering = true;
+  wander_time = WANDER_GIVE_UP;
 }
 
 void SkeletonEnemy::sense()
@@ -423,6 +467,8 @@ void SkeletonEnemy::reset()
   context.aware = false;
   lost_time = 0.f;
   intent = BehaviorAction::Watch;
+  wandering = false;
+  wander_time = UtilityFunctions::randf_range(0.f, WANDER_PAUSE_MAX);
   attack_wait = WAIT_MAX;
   current_clip = StringName();
   charge_wait = 0.f;
@@ -443,7 +489,17 @@ Vector3 SkeletonEnemy::root_motion_step(float delta) const
          motion_animation->position_track_interpolate(motion_track, now);
 }
 
-Vector3 SkeletonEnemy::walk_velocity() const
+Vector3 SkeletonEnemy::path_direction()
+{
+  const Vector3 here = get_global_position();
+  Vector3 step = (navigator->get_next_path_position() - here).slide(UP);
+  // At the end of the path, or on a scene with no mesh, the agent has nowhere to send it.
+  if (step.length_squared() < MIN_PATH_STEP_SQUARED)
+    step = (navigator->get_target_position() - here).slide(UP);
+  return step.normalized();
+}
+
+Vector3 SkeletonEnemy::walk_velocity()
 {
   Vector3 toward = to_player.slide(UP);
   const float length = toward.length();
@@ -453,12 +509,16 @@ Vector3 SkeletonEnemy::walk_velocity() const
 
   switch (intent)
   {
+    case BehaviorAction::Watch:
+      return wandering ? path_direction() * WALK_SPEED : Vector3();
     case BehaviorAction::Approach:
-      return toward * WALK_SPEED;
+      return path_direction() * (length > RUN_FROM ? RUN_SPEED : WALK_SPEED);
     case BehaviorAction::Investigate:
     {
-      const Vector3 offset = (last_seen - get_global_position()).slide(UP);
-      return offset.length_squared() > ARRIVE_SQUARED ? offset.normalized() * WALK_SPEED : Vector3();
+      const float left = (last_seen - get_global_position()).slide(UP).length();
+      if (left * left <= ARRIVE_SQUARED)
+        return Vector3();
+      return path_direction() * (left > RUN_FROM ? RUN_SPEED : WALK_SPEED);
     }
     case BehaviorAction::Circle:
     {
@@ -474,15 +534,14 @@ Vector3 SkeletonEnemy::walk_velocity() const
 
 void SkeletonEnemy::turn(float delta)
 {
-  // ponytail: walks straight at its goal, so a car stops it. NavigationAgent3D replaces this
-  // when the avenue has a navigation mesh.
   if (actions.attacking() && !actions.tracking())
     return;
 
   Vector3 facing = to_player;
-  if (intent == BehaviorAction::Investigate)
+  // Walking around a car it looks where it goes; only a blow keeps its eyes on the player.
+  if (!actions.attacking() && intent != BehaviorAction::Circle)
     facing = get_velocity();
-  if (intent == BehaviorAction::Watch || actions.current() == EnemyAction::Hurt || facing.slide(UP).is_zero_approx())
+  if ((intent == BehaviorAction::Watch && !wandering) || actions.current() == EnemyAction::Hurt || facing.slide(UP).is_zero_approx())
     return;
 
   const float wanted = Math::atan2(facing.x, facing.z);
@@ -509,8 +568,9 @@ void SkeletonEnemy::play_locomotion(const Vector3 & velocity)
 
   if (intent != BehaviorAction::Circle)
   {
-    play(walk_clip, BLEND_MOVE);
-    animator->set_speed_scale(speed / WALK_SPEED);
+    const bool running = speed > (WALK_SPEED + RUN_SPEED) * 0.5f;
+    play(running ? run_clip : walk_clip, BLEND_MOVE);
+    animator->set_speed_scale(speed / (running ? RUN_SPEED : WALK_SPEED));
     return;
   }
 

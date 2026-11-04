@@ -17,6 +17,10 @@ STREET_HALF = 6.0
 SIDEWALK_EDGE = 9.5
 AVENUE_START = -46.0
 AVENUE_END = 46.0
+# The street opens into the tower square; the rest of the zone is a blockout in avenue.tscn.
+BUILDINGS_END = 50.0
+PLAZA_HALF = 30.0
+PLAZA_END = 125.0
 
 # name: (sRGB color, roughness, metallic)
 MATERIALS = {
@@ -112,6 +116,10 @@ GRIME_NAMES = {
 PLAY_CORNERS = [
   Vector((x, y, z))
   for x in (-SIDEWALK_EDGE, SIDEWALK_EDGE) for y in (AVENUE_START, AVENUE_END) for z in (0.2, 5.0)
+] + [
+  # The tower square past the avenue, built as a blockout in avenue.tscn.
+  Vector((x, y, z))
+  for x in (-PLAZA_HALF, PLAZA_HALF) for y in (AVENUE_END, PLAZA_END) for z in (0.2, 5.0)
 ]
 
 
@@ -829,6 +837,7 @@ def build_landmarks():
         box(layer, (sign * (size / 2 + 0.05), tower_y, z), (0.1, size - 1.0, 1.6), "window_dark")
         for c in range(columns + 1):
           box(layer, (sign * (size / 2 + 0.12), tower_y - size / 2 + 0.5 + c * (size - 1) / columns, z), (0.2, 0.34, 1.8), "concrete_warm")
+  add_collider((0, tower_y, 4.5), (23.8, 23.8, 9.0))
   spire_base = levels * 9.0
   tube(layer, [((0, tower_y, spire_base), 5.6), ((0, tower_y, spire_base + 6), 4.0), ((0, tower_y, spire_base + 20), 0.2)], "concrete_warm", n=4)
   tube(layer, [((0, tower_y, spire_base + 19), 0.15), ((0, tower_y, spire_base + 28), 0.03)], "iron", n=4)
@@ -846,8 +855,8 @@ def build_landmarks():
   add_collider((0, -60, 11), (48, 12, 22))
   add_solid((0, -60, 11), (48, 12, 22))
 
-  # Rubble barriers at both ends of the playable street.
-  for y, spread in ((46.5, 2.4), (-47.0, 2.0)):
+  # Rubble barrier behind the start; the far end stays open towards the tower square.
+  for y, spread in ((-47.0, 2.0),):
     for _ in range(46):
       x = rng.uniform(-9.5, 9.5)
       size = rng.uniform(0.7, 2.2)
@@ -1409,7 +1418,8 @@ def build_backdrop():
 def build_colliders():
   # Godot turns meshes named -colonly into static collision and does not draw them.
   for side in (-1, 1):
-    add_collider((side * 16.0, 0, 15.0), (1.0, 170.0, 30.0))
+    # Behind the buildings only: past them the street opens into the square.
+    add_collider((side * 16.0, (BUILDINGS_END - 85.0) / 2, 15.0), (1.0, BUILDINGS_END + 85.0, 30.0))
   for i, (center, size) in enumerate(colliders):
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=center)
     obj = bpy.context.object

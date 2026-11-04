@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
+#include <godot_cpp/classes/navigation_agent3d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -37,6 +38,7 @@ public:
 
 private:
   void think();
+  void wander();
   void sense();
   bool sees_player() const;
   void start_attack(const Decision & decision);
@@ -47,7 +49,8 @@ private:
   void reset();
 
   godot::Vector3 root_motion_step(float delta) const;
-  godot::Vector3 walk_velocity() const;
+  godot::Vector3 walk_velocity();
+  godot::Vector3 path_direction();
   void aim_step();
   void turn(float delta);
   void play_locomotion(const godot::Vector3 & velocity);
@@ -61,11 +64,13 @@ private:
   godot::AnimationPlayer * animator = nullptr;
   godot::ShapeCast3D * hitbox = nullptr;
   godot::AudioStreamPlayer * swing_sound = nullptr;
+  godot::NavigationAgent3D * navigator = nullptr;
   godot::Ref<godot::StandardMaterial3D> eyes; // Local: each skeleton's eyes flare on their own.
 
   godot::Vector3 to_player;
   godot::Vector3 last_seen;
   godot::Vector3 spawn_point;
+  godot::Vector3 wander_target;
   EnemyContext context{1.f, DistanceRange::Far, false, false, false, false};
   BehaviorAction intent = BehaviorAction::Watch;
 
@@ -79,10 +84,12 @@ private:
   float attack_wait = 0.f;
   float charge_wait = 0.f;
   float circle_time = 0.f;
+  float wander_time = 0.f; // The pause before the next stroll, or what is left of the current one.
   float circle_side = 1.f;
   float circle_gap = 3.f; // Each skeleton keeps its own distance, so they spread around the player.
   float step_scale = 1.f;
   bool has_turn = false;
+  bool wandering = false;
   int player_respawns = 0;
 
   godot::Ref<godot::Animation> motion_animation;
@@ -90,6 +97,7 @@ private:
 
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
+  godot::StringName run_clip = "run";
   godot::StringName walk_back_clip = "walk_back";
   godot::StringName strafe_left_clip = "strafe_left";
   godot::StringName strafe_right_clip = "strafe_right";

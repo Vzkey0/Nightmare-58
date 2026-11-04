@@ -38,6 +38,7 @@ private:
   static constexpr int GRID_SLOTS = 15;
 
   void accept();
+  void rest();
   void go_back();
   void close();
   void refresh();
@@ -70,6 +71,7 @@ private:
   InventorySort sort_mode = InventorySort::Recent;
   ItemKind tab = ItemKind::Consumable;
   uint64_t closed_tick = 0;
+  bool rested = false;
   PlayerController * player = nullptr;
   godot::Control * sheet = nullptr;
   godot::Label * title = nullptr;
