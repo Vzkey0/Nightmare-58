@@ -616,7 +616,7 @@ void PlayerController::pick_up(const String & item_key, int amount, int pickup_i
 void PlayerController::set_nearby_chapel(Chapel * chapel)
 {
   nearby_chapel = chapel;
-  prompt_label->set_text(chapel != nullptr ? "[E]  Descansar" : "");
+  prompt_label->set_text(chapel != nullptr ? "[E]  Capilla" : "");
 }
 
 void PlayerController::rest()
@@ -628,7 +628,6 @@ void PlayerController::rest()
   ++respawns;
   SaveFile::write(save);
   refresh_hud();
-  menu->open(MenuScreen::Chapel);
 }
 
 void PlayerController::recover_lochas()
@@ -704,7 +703,7 @@ void PlayerController::read_item_input()
   if (input->is_action_just_pressed(inventory_input))
     menu->open(MenuScreen::Inventory);
   if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
-    rest();
+    menu->open(MenuScreen::Chapel);
 
   const ItemId item = save.quick_slots().current();
   if (input->is_action_just_pressed(use_item_input) && item != NO_ITEM && save.inventory().count(item) > 0)

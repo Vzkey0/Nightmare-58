@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/skeleton_enemy.tscn" id="4_skeleton"]
 [ext_resource type="PackedScene" path="res://scenes/chapel.tscn" id="5_chapel"]
 [ext_resource type="PackedScene" path="res://scenes/loot_pickup.tscn" id="6_pickup"]
+[ext_resource type="NavigationMesh" path="res://navigation/avenue.tres" id="7_navigation"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.09, 0.1, 0.13, 1)
@@ -70,7 +71,10 @@ transform = Transform3D(0, 0.37, -0.93, 0, 0.93, 0.37, 1, 0, 0, 0, 40, 0)
 light_color = Color(0.8, 0.85, 0.95, 1)
 light_energy = 0.28
 
-[node name="Level" parent="." instance=ExtResource("1_avenue")]
+[node name="Level" parent="." groups=["navigation"] instance=ExtResource("1_avenue")]
+
+[node name="Navigation" type="NavigationRegion3D" parent="."]
+navigation_mesh = ExtResource("7_navigation")
 
 [node name="AvenueReflections" type="ReflectionProbe" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)

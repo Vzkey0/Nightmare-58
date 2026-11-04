@@ -113,8 +113,9 @@ para que esquivar tarde funcione.
 `AttackTurns`, que está en el jugador: atacan dos como máximo, con 0,7 s entre ataques, y los demás
 rodean al jugador, cada uno a su propia distancia. Al morir el jugador, todos vuelven a su sitio.
 
-**Límite conocido:** caminan en línea recta, así que un carro los detiene. Hace falta una malla de
-navegación en la avenida.
+**Rutas:** al acercarse o buscar siguen la malla de `game/navigation/avenue.tres`, así que rodean los
+carros. Si cambian las colisiones de la avenida, hay que volver a hornearla con el botón Bake del nodo
+`Navigation`. Lee la geometría del grupo `navigation`. Al rodear a un jugador cercano caminan directo.
 
 ## Animaciones
 
@@ -175,7 +176,7 @@ cercano del grupo `targets` a menos de 4,5 m y 75° de la dirección pedida. Tam
 avance del clip entre 0,25 y 1,6 veces para terminar a 1,1 m. Así el golpe ligero alcanza hasta unos
 2,4 m y el pesado algo más. Todo enemigo debe entrar a ese grupo.
 
-**Fijado:** rueda del mouse o R3. Fija el objetivo visible más cercano a 12 m y se suelta a 16 m, si
+**Fijado:** Q, rueda del mouse o R3; la misma tecla lo suelta. Fija el objetivo visible más cercano a 12 m y se suelta a 16 m, si
 cae o si pasa 1 s sin verse. Mover el mouse o el stick hacia un lado cambia de objetivo. La cámara
 sigue al objetivo y el personaje lo mira mientras camina; al esprintar o rodar corre libre, y la
 voltereta usa el mismo clip girado hacia donde se pide.

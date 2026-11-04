@@ -44,6 +44,7 @@ constexpr float SIGHT_COS = 0.2f;                    // About 78 degrees to each
 constexpr float LOST_TIME = 3.f;
 constexpr float SEARCH_TIME = 8.f; // Gives up this long after losing the player.
 constexpr float ARRIVE_SQUARED = 0.6f * 0.6f;
+constexpr float MIN_PATH_STEP_SQUARED = 0.1f * 0.1f;
 
 constexpr float NEAR_RANGE = 1.9f;
 constexpr float MEDIUM_RANGE = 4.4f;
@@ -137,6 +138,7 @@ void SkeletonEnemy::_ready()
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   hitbox = get_node<ShapeCast3D>("Model/armature_skeleton/Skeleton3D/WeaponBone/Hitbox");
   swing_sound = get_node<AudioStreamPlayer>("Swing");
+  navigator = get_node<NavigationAgent3D>("Navigator");
   spawn_point = last_seen = get_global_position();
 
   // Placed with a rotation in the scene, which moves to the model as with the player.
@@ -251,6 +253,10 @@ void SkeletonEnemy::think()
     return;
   }
   intent = decision.action;
+  if (intent == BehaviorAction::Approach)
+    navigator->set_target_position(player->get_global_position());
+  else if (intent == BehaviorAction::Investigate)
+    navigator->set_target_position(last_seen);
 }
 
 void SkeletonEnemy::sense()
@@ -443,7 +449,17 @@ Vector3 SkeletonEnemy::root_motion_step(float delta) const
          motion_animation->position_track_interpolate(motion_track, now);
 }
 
-Vector3 SkeletonEnemy::walk_velocity() const
+Vector3 SkeletonEnemy::path_direction()
+{
+  const Vector3 here = get_global_position();
+  Vector3 step = (navigator->get_next_path_position() - here).slide(UP);
+  // At the end of the path, or on a scene with no mesh, the agent has nowhere to send it.
+  if (step.length_squared() < MIN_PATH_STEP_SQUARED)
+    step = (navigator->get_target_position() - here).slide(UP);
+  return step.normalized();
+}
+
+Vector3 SkeletonEnemy::walk_velocity()
 {
   Vector3 toward = to_player.slide(UP);
   const float length = toward.length();
@@ -454,11 +470,11 @@ Vector3 SkeletonEnemy::walk_velocity() const
   switch (intent)
   {
     case BehaviorAction::Approach:
-      return toward * WALK_SPEED;
+      return path_direction() * WALK_SPEED;
     case BehaviorAction::Investigate:
     {
       const Vector3 offset = (last_seen - get_global_position()).slide(UP);
-      return offset.length_squared() > ARRIVE_SQUARED ? offset.normalized() * WALK_SPEED : Vector3();
+      return offset.length_squared() > ARRIVE_SQUARED ? path_direction() * WALK_SPEED : Vector3();
     }
     case BehaviorAction::Circle:
     {
@@ -474,13 +490,12 @@ Vector3 SkeletonEnemy::walk_velocity() const
 
 void SkeletonEnemy::turn(float delta)
 {
-  // ponytail: walks straight at its goal, so a car stops it. NavigationAgent3D replaces this
-  // when the avenue has a navigation mesh.
   if (actions.attacking() && !actions.tracking())
     return;
 
   Vector3 facing = to_player;
-  if (intent == BehaviorAction::Investigate)
+  // Walking around a car it looks where it goes; only a blow keeps its eyes on the player.
+  if (!actions.attacking() && (intent == BehaviorAction::Investigate || intent == BehaviorAction::Approach))
     facing = get_velocity();
   if (intent == BehaviorAction::Watch || actions.current() == EnemyAction::Hurt || facing.slide(UP).is_zero_approx())
     return;

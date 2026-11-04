@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
+#include <godot_cpp/classes/navigation_agent3d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -47,7 +48,8 @@ private:
   void reset();
 
   godot::Vector3 root_motion_step(float delta) const;
-  godot::Vector3 walk_velocity() const;
+  godot::Vector3 walk_velocity();
+  godot::Vector3 path_direction();
   void aim_step();
   void turn(float delta);
   void play_locomotion(const godot::Vector3 & velocity);
@@ -61,6 +63,7 @@ private:
   godot::AnimationPlayer * animator = nullptr;
   godot::ShapeCast3D * hitbox = nullptr;
   godot::AudioStreamPlayer * swing_sound = nullptr;
+  godot::NavigationAgent3D * navigator = nullptr;
   godot::Ref<godot::StandardMaterial3D> eyes; // Local: each skeleton's eyes flare on their own.
 
   godot::Vector3 to_player;

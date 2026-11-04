@@ -25,8 +25,8 @@ const char * const TITLE_SCENE = "res://scenes/title.tscn";
 constexpr int PAUSE_ROWS = 3;
 enum PauseRow { ROW_RESUME, ROW_OPTIONS, ROW_TO_TITLE };
 
-constexpr int CHAPEL_ROWS = 3;
-enum ChapelRow { ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
+constexpr int CHAPEL_ROWS = 4;
+enum ChapelRow { ROW_REST, ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
 
 const char * const STAT_NAMES[STAT_COUNT] = {
   "Vida máxima", "Recuperación de stamina", "Regeneración de vida", "Velocidad al correr", "Cadencia de ataque", "Poder de ataque",
@@ -74,7 +74,9 @@ void GameMenu::open(MenuScreen screen)
   menu.close();
   menu.open(screen);
   set_visible(true);
-  get_tree()->set_pause(screen == MenuScreen::Pause);
+  rested = false;
+  // Paused at the chapel too: enemies may be near now that opening it no longer sends them back.
+  get_tree()->set_pause(screen != MenuScreen::Inventory);
   Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_VISIBLE);
   place_sheet();
   refresh();
@@ -336,10 +338,15 @@ void GameMenu::accept()
   switch (menu.screen())
   {
     case MenuScreen::Chapel:
-      if (menu.cursor() != ROW_LEVEL_UP && menu.cursor() != ROW_INVENTORY)
+      if (menu.cursor() == ROW_LEAVE)
       {
         close();
         return;
+      }
+      if (menu.cursor() == ROW_REST)
+      {
+        rest();
+        break;
       }
       menu.open(menu.cursor() == ROW_LEVEL_UP ? MenuScreen::Stats : MenuScreen::Inventory);
       UiSounds::play(this, "Accept");
@@ -356,6 +363,15 @@ void GameMenu::accept()
       break;
   }
   refresh();
+}
+
+// Once per visit: each rest is a day of inflation, so a second press must not cost another.
+void GameMenu::rest()
+{
+  UiSounds::play(this, rested ? "Deny" : "Accept");
+  if (!rested)
+    player->rest();
+  rested = true;
 }
 
 void GameMenu::refresh()
@@ -469,7 +485,8 @@ void GameMenu::show_chapel()
 {
   const PlayerProgress & progress = player->progress();
   title->set_text(vformat(text("Capilla  ·  día %d"), progress.day()));
-  detail->set_text(text("El lugar sigue a salvo. Los enemigos volvieron a su sitio."));
+  detail->set_text(text(rested ? "Pasó un día. Los enemigos volvieron a su sitio." : "El lugar sigue a salvo."));
+  add_row("Descansar", menu.cursor() == ROW_REST);
   add_row("Subir de nivel", menu.cursor() == ROW_LEVEL_UP);
   add_row("Inventario", menu.cursor() == ROW_INVENTORY);
   add_row("Salir", menu.cursor() == ROW_LEAVE);

@@ -250,8 +250,6 @@ Flujo: `main` ← `development` ← `feature/*`.
 | 9. El Silbón | Llano, jefe, silbido, visor de depuración | Se le puede ganar y perder |
 | 10. Cierre | Pulido, exportaciones, documento técnico, exposición | Ejecutables en cada plataforma |
 
-De la fase 3 solo falta la malla de navegación: los esqueletos ya se probaron jugando.
-
 El modelado y la programación se trabajan por separado: los sistemas se hacen con
 bloques provisionales y el arte llega en su propia tarea.
 

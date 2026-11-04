@@ -59,6 +59,7 @@ public:
   void earn(int lochas);
   void pick_up(const godot::String & item_key, int amount, int pickup_id);
   void set_nearby_chapel(Chapel * chapel);
+  void rest();
   void recover_lochas();
   bool raise_stat(Stat stat);
 
@@ -82,7 +83,6 @@ private:
   void feel_hit(int damage);
   void end_hitstop();
   void respawn();
-  void rest();
   void apply_stats();
   void place_at_saved_chapel();
   void drop_lochas();

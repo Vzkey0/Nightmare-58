@@ -35,7 +35,7 @@ implementarse.
 | Base de objetos | Tabla hash | J-007 |
 | Bestiario | Trie | Pendiente |
 | Lock-on | `insertion_sort` | Pendiente |
-| Rutas de enemigos | `NavigationAgent3D` de Godot | Pendiente: hoy caminan en línea recta |
+| Rutas de enemigos | `NavigationAgent3D` de Godot | Malla horneada en `game/navigation/`: no se recalcula al cargar |
 | Inventario | `merge_sort` | J-008 y J-009 |
 | Récords | `quicksort` | Pendiente |
 | Botín | `binary_search` | J-010: gana el recorrido lineal |
