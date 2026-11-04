@@ -93,6 +93,7 @@ blender --background art/characters/skeleton.blend --python art/characters/anima
 |---|---|---|---|
 | `idle` | 4 s, en bucle | | Encorvado, con la mandíbula chasqueando de vez en cuando |
 | `walk` | 1 s, en bucle | | Paso torpe a 1,4 m/s |
+| `run` | 0,67 s, en bucle | | Persecución a 3,8 m/s: encorvado, zancadas largas y el machete en alto |
 | `strafe_left`, `strafe_right`, `walk_back` | 0,8 s, en bucle | | Rodear al jugador a 1,1 m/s, mirándolo |
 | `attack_chop` | 1,47 s, avanza 0,42 m | 0,63 a 0,77 s | Alza el machete tras el cráneo y corta en diagonal |
 | `attack_sweep` | 1,33 s, avanza 0,34 m | 0,53 a 0,67 s | Revés abierto a la altura de la cintura |
@@ -116,6 +117,10 @@ rodean al jugador, cada uno a su propia distancia. Al morir el jugador, todos vu
 **Rutas:** al acercarse o buscar siguen la malla de `game/navigation/avenue.tres`, así que rodean los
 carros. Si cambian las colisiones de la avenida, hay que volver a hornearla con el botón Bake del nodo
 `Navigation`. Lee la geometría del grupo `navigation`. Al rodear a un jugador cercano caminan directo.
+
+**Sin haber visto al jugador:** pasean alrededor de su sitio, a menos de 4 m, con pausas de 2 a 5 s, así
+que miran hacia todos lados y pueden descubrirlo desde cualquier dirección. Al verlo corren hacia él
+y caminan solo en los últimos 4 m. Corren más lento que el jugador, que todavía puede escapar.
 
 ## Animaciones
 
@@ -332,8 +337,24 @@ manchas blancas.
 
 Avenida abandonada bajo tormenta, basada en las referencias 07 y 08: bloques de losas
 con balcones, casas de ladrillo con escaleras, comercios cerrados, hiedra densa,
-autobús y carros abandonados, postes con cables caídos, charcos, escombros en ambos
-extremos, torre escalonada y el Ávila al fondo.
+autobús y carros abandonados, postes con cables caídos, charcos, escombros detrás del
+inicio, torre escalonada y el Ávila al fondo.
+
+**Recorrido:** solo la avenida tiene arte. El resto de la zona es un bloqueo con cajas grises en
+[avenue_blockout.tscn](../game/scenes/avenue_blockout.tscn), con letreros donde va lo que aún falta.
+Se reemplaza por arte en su propia tarea, cuando el recorrido ya se sienta bien jugando.
+
+| Tramo | Dónde (x, z en Godot) | Qué hay |
+|---|---|---|
+| Avenida | 0, de 46 a -46 | Inicio, un esqueleto solo y luego una pareja |
+| Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos, la radio y el edificio saqueado al oeste, con un esqueleto y dos coleccionables |
+| Callejón del terremoto | 30 a 130, de -107 a -125 | Escombros en zigzag, dos esqueletos y pintadas |
+| Plazoleta de la capilla | 130 a 160, de -95 a -140 | Capilla y padre: aquí se descansa por primera vez |
+| Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos y sitio para ratas y perros |
+| Plaza de la catedral | 260 a 310, de -85 a -145 | Arena del perro minijefe y salida a la selva |
+
+Al otro lado de la torre, el Ávila empieza en z = -170, así que el recorrido gira al este antes de
+llegar. La lluvia va con el jugador para cubrir toda la zona.
 
 [build_avenue.py](../art/environments/build_avenue.py) la genera, guarda
 `avenue.blend` y exporta `avenue.glb`. Los objetos terminados en `-colonly` son las
