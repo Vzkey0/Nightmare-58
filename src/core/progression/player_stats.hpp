@@ -25,7 +25,7 @@ public:
   }
 
   // Each level costs more than the last, whichever stat it goes to.
-  int next_cost() const { return 80 + 40 * total_levels(); }
+  int next_cost() const { return 50 + 25 * total_levels(); }
 
   int max_health() const { return BASE_HEALTH + BASE_HEALTH * level(Stat::Health) / 10; }
   float stamina_regen_scale() const { return 1.f + 0.1f * level(Stat::Stamina); }

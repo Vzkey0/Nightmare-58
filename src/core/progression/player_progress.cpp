@@ -95,7 +95,7 @@ bool PlayerProgress::buy(ItemId item, Zone zone)
 {
   if (!can_buy(item, zone))
     return false;
-  wallet -= shop_price(ItemCatalog::instance()[item].value, zone);
+  spend(shop_price(ItemCatalog::instance()[item].value, zone));
   collect(item);
   return true;
 }
@@ -118,7 +118,7 @@ bool PlayerProgress::learn(int skill, Zone zone)
 {
   if (!can_learn(skill, zone))
     return false;
-  wallet -= skill_price(skill, zone);
+  spend(skill_price(skill, zone));
   int base = machete.cost(skill);
   machete.unlock(skill, base);
   return true;
@@ -149,13 +149,25 @@ bool PlayerProgress::raise(Stat stat, Zone zone)
 {
   if (!can_raise(stat, zone))
     return false;
-  wallet -= stat_cost(zone);
+  spend(stat_cost(zone));
   levels.raise(stat);
   return true;
 }
 
+void PlayerProgress::set_endless(bool value)
+{
+  endless_lochas = value;
+  if (value)
+    wallet = ENDLESS_WALLET;
+}
+
 void PlayerProgress::die(float x, float y, float z)
 {
+  if (endless_lochas)
+  {
+    ++death_count;
+    return;
+  }
   mark = DeathMark{wallet, x, y, z};
   ++death_count;
   wallet = 0;
@@ -197,6 +209,8 @@ std::string PlayerProgress::to_text() const
   out << "chapel " << last_chapel << '\n';
   out << "coffee " << coffee_limit << '\n';
   out << "deaths " << death_count << '\n';
+  if (endless_lochas)
+    out << "endless 1\n";
 
   for (int zone = 0; zone < ZONE_COUNT; ++zone)
     if (frozen[zone] != NOT_FROZEN)
@@ -260,6 +274,13 @@ bool PlayerProgress::from_text(const std::string & text)
       good = static_cast<bool>(in >> loaded.last_chapel) && in_range(loaded.last_chapel, NO_CHAPEL, MAX_AMOUNT);
     else if (word == "coffee")
       good = static_cast<bool>(in >> loaded.coffee_limit) && in_range(loaded.coffee_limit, 0, MAX_COFFEE);
+    else if (word == "endless")
+    {
+      int value = 0;
+      good = (in >> value) && in_range(value, 0, 1);
+      if (good)
+        loaded.set_endless(value == 1);
+    }
     else if (word == "deaths")
       good = static_cast<bool>(in >> loaded.death_count) && in_range(loaded.death_count, 0, MAX_AMOUNT);
     else if (word == "frozen")

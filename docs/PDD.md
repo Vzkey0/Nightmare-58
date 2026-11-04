@@ -90,20 +90,28 @@ miente al jugador sobre la misma distancia que usa el árbol.
 - **Lochas:** se obtienen al matar. Cada descanso en una capilla cuenta como un día y
   les quita valor; vencer a un jefe o a un minijefe frena la inflación en esa zona.
 - **Inflación:** los precios se fijan en lochas del día 0 y se pagan con la tasa del
-  día, que sube por escalones, como devaluaciones anunciadas: ×1,25 el día 1, ×1,60 el
-  3, ×2,10 el 5, y así hasta ×7,20 el día 24, donde se queda. Lo que sueltan los
+  día, que sube por escalones, como devaluaciones anunciadas: ×1,10 el día 1, ×1,20 el
+  3, ×1,35 el 5, ×1,55 el 8, ×1,80 el 12, ×2,20 el 17 y ×2,80 el día 24, donde se queda. Lo que sueltan los
   enemigos no sube, así que guardar lochas sale caro. Afecta a subir de nivel y a la
   tienda. Cada zona congela su tasa en el día en que cae su jefe. La capilla muestra
   la tasa y avisa cuando la locha pierde valor.
 - **Botín por enemigo:** cada enemigo suelta una cantidad fija, pero los que llegan
   después en el recorrido sueltan más, para que la inflación no ahogue al jugador. El
   esqueleto da 30; la rata y el perro, unas 50. Se ajusta jugando.
+- **Escala de precios:** la avenida tiene 11 esqueletos, así que una pasada completa da
+  330 lochas, más unas 500 si se venden sus coleccionables. Los precios se miden contra
+  eso: una pasada alcanza para una mejora de segundo nivel del machete o un par de
+  niveles de capilla, y el árbol completo pide unas tres pasadas. Subir de nivel cuesta
+  50 más 25 por cada nivel ya subido. La vela cuesta 30, cada grasa 25 y la gorra 120.
+- **Perfil de pruebas:** la ranura 6 puede guardar una partida con lochas sin fin
+  (`endless 1` en el archivo): los precios se muestran y se cobran, pero la cartera no
+  baja y morir no deja lochas. El HUD muestra ∞. Sirve para probar la tienda.
 - **Muerte:** se dejan las lochas donde se cayó, y hay que volver por ellas. Si se muere
   otra vez antes de recuperarlas, se pierden.
 - **Capillas:** son los puntos de control. Permiten descansar y subir de nivel.
 - **Curación:** café, en cantidad limitada. Se recarga en las capillas.
 - **Bachaquero:** mercader que cambia lochas por objetos que no se devalúan. Sus
-  precios suben cada vez que mueres: un 10 % por muerte, hasta el doble. Cobra con la
+  precios suben cada vez que mueres: un 5 % por muerte, hasta un 50 % más. Cobra con la
   tasa de su zona y compra coleccionables a su valor por la tasa del día, sin recargo.
   Está a la salida de la primera capilla y se abre con E.
 
@@ -137,12 +145,12 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
 
 | Mejora | Costo | Efecto |
 |---|---|---|
-| Filo, Filo II, Filo III | 150, 300, 500 | +15 % de daño del machete por nivel |
-| Grasa | 100 | Abre las grasas |
-| Fuego, Hielo | 200 cada una | El bachaquero vende esa grasa |
-| Técnica | 150 | Abre las técnicas |
-| Lanzar machete | 350 | Tecla G |
-| Modo Arrechera | 450 | Tecla V con la barra llena |
+| Filo, Filo II, Filo III | 60, 120, 200 | +15 % de daño del machete por nivel |
+| Grasa | 40 | Abre las grasas |
+| Fuego, Hielo | 80 cada una | El bachaquero vende esa grasa |
+| Técnica | 60 | Abre las técnicas |
+| Lanzar machete | 120 | Tecla G |
+| Modo Arrechera | 160 | Tecla V con la barra llena |
 
 - **Grasas:** duran 60 s. El fuego quema con el tiempo y el hielo frena al enemigo.
   Se compran al bachaquero tras aprender su rama y se usan como el café, desde el objeto

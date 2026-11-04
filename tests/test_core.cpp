@@ -873,10 +873,10 @@ static void test_player_stats()
 {
   PlayerStats stats;
   assert(stats.max_health() == 100);
-  assert(stats.next_cost() == 80);
+  assert(stats.next_cost() == 50);
   stats.raise(Stat::Health);
   assert(stats.max_health() == 110);
-  assert(stats.next_cost() == 120);
+  assert(stats.next_cost() == 75);
   stats.raise(Stat::Speed);
   assert(stats.speed_scale() > 1.03f && stats.speed_scale() < 1.05f);
   assert(stats.total_levels() == 2);
@@ -891,12 +891,12 @@ static void test_raising_a_stat()
   PlayerProgress progress;
   assert(!progress.raise(Stat::Power, Zone::Avenue));
 
-  progress.earn(100);
+  progress.earn(60);
   assert(progress.raise(Stat::Power, Zone::Avenue));
-  assert(progress.lochas() == 20);
+  assert(progress.lochas() == 10);
   assert(!progress.raise(Stat::Power, Zone::Avenue)); // The next level costs more than what is left.
 
-  progress.earn(100);
+  progress.earn(65);
   assert(progress.raise(Stat::Power, Zone::Avenue));
   assert(progress.lochas() == 0);
   assert(progress.stats().level(Stat::Power) == 2);
@@ -905,15 +905,15 @@ static void test_raising_a_stat()
 static void test_exchange_rate()
 {
   assert(exchange_rate(0) == 100);
-  assert(exchange_rate(1) == 125);
-  assert(exchange_rate(2) == 125); // Between steps the rate holds.
-  assert(exchange_rate(3) == 160);
-  assert(exchange_rate(4) == 160);
-  assert(exchange_rate(24) == 720);
-  assert(exchange_rate(500) == 720); // Past the last step it stays put.
+  assert(exchange_rate(1) == 110);
+  assert(exchange_rate(2) == 110); // Between steps the rate holds.
+  assert(exchange_rate(3) == 120);
+  assert(exchange_rate(4) == 120);
+  assert(exchange_rate(24) == 280);
+  assert(exchange_rate(500) == 280); // Past the last step it stays put.
   assert(inflate(80, 0) == 80);
-  assert(inflate(80, 1) == 100);
-  assert(inflate(10, 1) == 13); // 12.5 rounds up.
+  assert(inflate(80, 1) == 88);
+  assert(inflate(15, 1) == 17); // 16.5 rounds up.
   assert(!devalues_on(0));
   assert(devalues_on(1) && !devalues_on(2) && devalues_on(3));
 }
@@ -922,36 +922,36 @@ static void test_inflation_by_zone()
 {
   PlayerProgress progress;
   progress.earn(1000);
-  assert(progress.stat_cost(Zone::Avenue) == 80);
+  assert(progress.stat_cost(Zone::Avenue) == 50);
   progress.rest(0);
   assert(progress.devalued_today(Zone::Avenue));
-  assert(progress.stat_cost(Zone::Avenue) == 100);
+  assert(progress.stat_cost(Zone::Avenue) == 55);
 
   progress.freeze_inflation(Zone::Avenue);
   progress.rest(0);
   progress.rest(0);
   assert(progress.day() == 3);
-  assert(progress.exchange_rate(Zone::Avenue) == 125);
+  assert(progress.exchange_rate(Zone::Avenue) == 110);
   assert(!progress.devalued_today(Zone::Avenue));
-  assert(progress.exchange_rate(Zone::Jungle) == 160);
+  assert(progress.exchange_rate(Zone::Jungle) == 120);
   assert(progress.devalued_today(Zone::Jungle));
   progress.freeze_inflation(Zone::Avenue); // A second win keeps the first day.
   assert(progress.inflation_day(Zone::Avenue) == 1);
 
   assert(progress.raise(Stat::Power, Zone::Jungle));
-  assert(progress.lochas() == 1000 - 128);
+  assert(progress.lochas() == 1000 - 60);
 
   PlayerProgress loaded;
   assert(loaded.from_text(progress.to_text()));
   assert(loaded.inflation_frozen(Zone::Avenue) && !loaded.inflation_frozen(Zone::Plain));
-  assert(loaded.exchange_rate(Zone::Avenue) == 125);
+  assert(loaded.exchange_rate(Zone::Avenue) == 110);
   assert(!loaded.from_text("nightmare58 2\nfrozen 3 1\n"));
   assert(!loaded.from_text("nightmare58 2\nfrozen 0 -1\n"));
 
   // A version 1 save has no frozen zones and still loads.
   assert(loaded.from_text("nightmare58 1\nlochas 9\nday 4\n"));
   assert(loaded.lochas() == 9 && !loaded.inflation_frozen(Zone::Avenue));
-  assert(loaded.exchange_rate(Zone::Avenue) == 160);
+  assert(loaded.exchange_rate(Zone::Avenue) == 120);
 }
 
 static void test_coffee_capacity()
@@ -1041,7 +1041,7 @@ static void test_save_round_trip()
   assert(loaded.quick_slots().holds(ItemCatalog::CANDLE));
   assert(loaded.pickup_taken(7) && loaded.pickup_taken(200) && !loaded.pickup_taken(8));
   assert(loaded.has_death_mark());
-  assert(loaded.death_mark().lochas == 420);
+  assert(loaded.death_mark().lochas == 450);
   assert(loaded.death_mark().z == 9.f);
   assert(loaded.to_text() == saved.to_text());
 }
@@ -1205,19 +1205,19 @@ static void test_shop()
   progress.rest(0);
   progress.rest(0);
   progress.rest(0);
-  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 160 / 100);
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 120 / 100);
   assert(progress.sell(vinyl, Zone::Avenue));
-  assert(progress.lochas() == catalog[vinyl].value * 160 / 100);
+  assert(progress.lochas() == catalog[vinyl].value * 120 / 100);
   assert(progress.inventory().count(vinyl) == 1);
 
   // Each death raises his prices, up to a cap, on top of inflation.
   progress.die(0.f, 0.f, 0.f);
   assert(progress.deaths() == 1 && progress.markup() == PlayerProgress::DEATH_MARKUP);
-  assert(progress.shop_price(100, Zone::Avenue) == 176);
+  assert(progress.shop_price(100, Zone::Avenue) == 126);
   for (int i = 0; i < 20; ++i)
     progress.die(0.f, 0.f, 0.f);
   assert(progress.markup() == PlayerProgress::MAX_MARKUP);
-  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 160 / 100); // Selling is not marked up.
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 120 / 100); // Selling is not marked up.
 
   PlayerProgress loaded;
   assert(loaded.from_text(progress.to_text()));
@@ -1259,14 +1259,14 @@ static void test_learning_machete_skills()
   progress.earn(2000);
   assert(!progress.learn(MacheteSkill::EDGE_2, Zone::Avenue)); // Filo comes first.
   assert(progress.learn(MacheteSkill::EDGE_1, Zone::Avenue));
-  assert(progress.lochas() == 2000 - 150);
+  assert(progress.lochas() == 2000 - 60);
   assert(!progress.learn(MacheteSkill::EDGE_1, Zone::Avenue)); // Already known.
 
   // Paid at the bachaquero's prices: inflation and the death markup.
   progress.rest(0);
   progress.die(0.f, 0.f, 0.f);
   progress.recover();
-  assert(progress.skill_price(MacheteSkill::EDGE_2, Zone::Avenue) == 413); // 375 at the rate, then +10 %, rounded up.
+  assert(progress.skill_price(MacheteSkill::EDGE_2, Zone::Avenue) == 139); // 132 at the rate, then +5 %, rounded up.
   assert(progress.learn(MacheteSkill::EDGE_2, Zone::Avenue));
   assert(progress.machete_damage_scale() > 1.29f && progress.machete_damage_scale() < 1.31f);
   assert(progress.learn(MacheteSkill::TECHNIQUE, Zone::Avenue) && progress.learn(MacheteSkill::THROW, Zone::Avenue));
@@ -1466,6 +1466,26 @@ static void test_wearing_the_cap()
   assert(loaded.from_text("nightmare58 3\nlochas 4\nwear old_hat\n") && loaded.worn() == NO_ITEM);
 }
 
+static void test_endless_lochas()
+{
+  PlayerProgress progress;
+  progress.set_endless(true);
+  const int wallet = progress.lochas();
+  assert(wallet == PlayerProgress::ENDLESS_WALLET);
+  assert(progress.learn(MacheteSkill::TECHNIQUE, Zone::Avenue) && progress.learn(MacheteSkill::THROW, Zone::Avenue));
+  assert(progress.raise(Stat::Power, Zone::Avenue) && progress.buy(ItemCatalog::CAP, Zone::Avenue));
+  assert(progress.lochas() == wallet);
+
+  progress.die(1.f, 2.f, 3.f);
+  assert(!progress.has_death_mark() && progress.lochas() == wallet && progress.deaths() == 1);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()) && loaded.endless());
+  assert(!loaded.from_text("nightmare58 3\nendless 2\n"));
+  PlayerProgress normal;
+  assert(loaded.from_text(normal.to_text()) && !loaded.endless());
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1527,5 +1547,6 @@ int main()
   test_player_throw();
   test_rage();
   test_wearing_the_cap();
+  test_endless_lochas();
   return 0;
 }

@@ -26,12 +26,13 @@ class PlayerProgress
 public:
   static constexpr int NO_CHAPEL = -1;
   static constexpr int NOT_FROZEN = -1;
-  static constexpr int DEATH_MARKUP = 10; // Percent the bachaquero adds per death.
-  static constexpr int MAX_MARKUP = 100;
+  static constexpr int DEATH_MARKUP = 5; // Percent the bachaquero adds per death.
+  static constexpr int MAX_MARKUP = 50;
   static constexpr float CAP_STRENGTH = 1.1f; // The cap's "más fuerza": a tenth more damage.
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
+  static constexpr int ENDLESS_WALLET = 999999;
   static constexpr const char * DEFAULT_NAME = "Sin nombre";
 
   PlayerProgress();
@@ -54,6 +55,11 @@ public:
   QuickSlots & quick_slots() { return quick; }
 
   void earn(int amount) { wallet += amount; }
+
+  // A test profile: prices are still shown and checked, but paying never lowers the wallet, and
+  // dying drops nothing.
+  bool endless() const { return endless_lochas; }
+  void set_endless(bool value);
 
   // A coffee found raises the capacity for good; the rest just go into the bag.
   // Returns how many were actually kept: none once the coffee capacity is full.
@@ -130,5 +136,8 @@ private:
   int coffee_limit = START_COFFEE;
   int death_count = 0;
   ItemId outfit = NO_ITEM;
+  bool endless_lochas = false;
+
+  void spend(int amount) { wallet -= endless_lochas ? 0 : amount; }
   int frozen[ZONE_COUNT] = {NOT_FROZEN, NOT_FROZEN, NOT_FROZEN}; // The day each zone stopped at.
 };

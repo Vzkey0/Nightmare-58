@@ -1143,7 +1143,7 @@ void PlayerController::update_hud(float delta)
 // Only on change: building these strings on each frame would reserve memory for nothing.
 void PlayerController::refresh_hud()
 {
-  lochas_label->set_text(String::num_int64(save.lochas()));
+  lochas_label->set_text(save.endless() ? String::utf8("∞") : String::num_int64(save.lochas()));
   cap->set_visible(save.worn() == ItemCatalog::CAP);
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);

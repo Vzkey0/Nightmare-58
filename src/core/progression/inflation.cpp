@@ -16,9 +16,10 @@ struct ByDay
   bool operator()(const RateStep & a, const RateStep & b) const { return a.day < b.day; }
 };
 
-// Sorted by day. Values are a starting point and get tuned by playing.
+// Sorted by day. Gentle on purpose: a rest is also how the player heals and levels, so it must
+// sting without making the next purchase unreachable. Tuned by playing.
 constexpr RateStep STEPS[] = {
-  {0, 100}, {1, 125}, {3, 160}, {5, 210}, {8, 280}, {12, 380}, {17, 520}, {24, 720},
+  {0, 100}, {1, 110}, {3, 120}, {5, 135}, {8, 155}, {12, 180}, {17, 220}, {24, 280},
 };
 
 Designar::DynArray<RateStep> build_table()
