@@ -821,6 +821,23 @@ def use_candle_clip():
   ))
 
 
+def apply_grease_clip():
+  """The blade held across the chest and the free hand wiping grease from guard to tip. USE_ITEM
+  in player_actions.cpp coats the blade at 0.45 s, as the hand reaches the tip."""
+  across = {
+    "grip": (-0.18, 0.32, 1.05), "aim": (1.0, 0.25, 0.1), "pole_r": (-0.6, -0.4, -1.0),
+    "hips_rot": (6, 6, 0), "chest_rot": (6, -2, 0), "head_rot": (16, 10, 0),
+    "hand_l_curl": 40.0, "pole_l": (0.6, -0.5, -0.9),
+  }
+  return Clip("apply_grease", 27, timeline(
+    (0, dict(GUARD, hand_l_curl=25.0)),
+    (6, dict(across, hand_l=(0.04, 0.42, 1.1))),
+    (14, {"hand_l": (0.5, 0.52, 1.17), "head_rot": (16, 16, 0)}),
+    (19, {"hand_l": (0.56, 0.56, 1.22), "hand_l_curl": 30.0}),
+    (27, dict(recovery(0.0), hand_l_curl=25.0)),
+  ))
+
+
 # PlayerController::LOCK_SPEED must match this speed.
 LOCK_SPEED = 2.2
 LOCK_FRAMES = 12
@@ -950,6 +967,7 @@ CLIPS = [
   death_clip(),
   drink_clip(),
   use_candle_clip(),
+  apply_grease_clip(),
   lock_clip("walk_back-loop", (0.0, -1.0), 0.15),
   lock_clip("strafe_left-loop", (1.0, 0.0), 0.2),
   lock_clip("strafe_right-loop", (-1.0, 0.0), 0.2),

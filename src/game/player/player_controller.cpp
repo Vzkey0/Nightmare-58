@@ -21,6 +21,7 @@
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/scene_tree_timer.hpp>
 #include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -128,6 +129,12 @@ const Color HEALTH_LOW(1.f, 0.46f, 0.08f);
 const Color HEALTH_CRITICAL(0.9f, 0.1f, 0.15f);
 const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
 const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
+const Color FIRE_COAT(1.f, 0.38f, 0.05f);
+const Color ICE_COAT(0.45f, 0.85f, 1.f);
+constexpr float COAT_ALPHA = 0.55f;
+constexpr float COAT_GLOW = 2.2f;
+constexpr float COAT_PULSE = 9.f;     // Radians per second.
+constexpr float COAT_WARNING = 0.1f;  // Of the minute left: the coat starts to flicker.
 
 constexpr float STEP_VOLUME_WALK = -13.f;
 constexpr float STEP_VOLUME_RUN = -7.f;
@@ -190,6 +197,14 @@ void PlayerController::_ready()
   lochas_label = get_node<Label>("Hud/LochasLabel");
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
+  machete = Object::cast_to<MeshInstance3D>(model->find_child("machete", true, false));
+  // ponytail: a glowing overlay stands in for the grease until it gets its own art.
+  coat_material.instantiate();
+  coat_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+  coat_material->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+  coat_material->set_feature(BaseMaterial3D::FEATURE_EMISSION, true);
+  coat_material->set_grow_enabled(true);
+  coat_material->set_grow(0.004f);
   item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
   prompt_label = get_node<Label>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
@@ -297,6 +312,7 @@ void PlayerController::_physics_process(double delta_time)
   update_lock(delta);
   turns.update(delta);
   update_progress(delta);
+  update_coat(delta);
 
   // A higher attack rate runs the swing's own clock faster, so its timing keeps the same shape.
   const bool swinging = actions.stepping_attack() || actions.current() == PlayerAction::AirAttack;
@@ -426,7 +442,10 @@ void PlayerController::start_action(const Vector3 & wish)
       break;
     case PlayerAction::UseItem:
       item_in_use = save.quick_slots().current();
-      play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
+      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+        play(grease_clip, BLEND_TO_DODGE);
+      else
+        play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
       cup->set_visible(item_in_use == ItemCatalog::COFFEE);
       candle->set_visible(item_in_use == ItemCatalog::CANDLE);
       save.inventory().remove(item_in_use);
@@ -486,6 +505,8 @@ void PlayerController::hit_targets()
     if (target != nullptr)
     {
       target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
+      if (coat.active())
+        target->apply_status(coat.kind());
       feel_hit(damage);
       hit_sound->play();
     }
@@ -565,6 +586,7 @@ void PlayerController::take_hit(int damage, const Vector3 & attacker)
     actions.die();
     release_lock();
     respawn_time = RESPAWN_TIME;
+    coat.clear();
     play(death_clip, BLEND_TO_DODGE);
     clear_dropped_lochas();
     const Vector3 where = get_global_position();
@@ -773,7 +795,34 @@ void PlayerController::use_item()
     release_lock();
     SaveFile::write(save);
   }
+  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+  {
+    coat.apply(item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn : Status::Chill);
+    SaveFile::write(save);
+  }
   item_in_use = NO_ITEM;
+}
+
+void PlayerController::update_coat(float delta)
+{
+  coat.update(delta);
+  if (machete == nullptr)
+    return;
+  if (!coat.active())
+  {
+    machete->set_material_overlay(Ref<Material>());
+    return;
+  }
+  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : ICE_COAT;
+  // A slow pulse while it lasts, and a flicker in its last seconds.
+  const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+  const float pulse = 0.75f + 0.25f * Math::sin(clock * COAT_PULSE);
+  const bool fading = coat.ratio() < COAT_WARNING;
+  const float shown = fading && Math::sin(clock * COAT_PULSE * 3.f) < 0.f ? 0.25f : 1.f;
+  coat_material->set_albedo(Color(color.r, color.g, color.b, COAT_ALPHA * pulse * shown));
+  coat_material->set_emission(color);
+  coat_material->set_emission_energy_multiplier(COAT_GLOW * pulse);
+  machete->set_material_overlay(coat_material);
 }
 
 void PlayerController::update_progress(float delta)

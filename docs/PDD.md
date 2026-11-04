@@ -145,6 +145,10 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
 | Modo Arrechera | 450 | Tecla V con la barra llena |
 
 - **Grasas:** duran 60 s. El fuego quema con el tiempo y el hielo frena al enemigo.
+  Se compran al bachaquero tras aprender su rama y se usan como el café, desde el objeto
+  rápido. Cada golpe con fuego agrega una quemadura de 4 s que hace 2 de daño cada medio
+  segundo, hasta tres a la vez. El hielo frena al enemigo a la mitad durante 3 s. La
+  hoja brilla del color de la grasa y parpadea en sus últimos segundos.
 - **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar.
 - **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega
   más fuerte unos 12 s, pero también se recibe más daño.

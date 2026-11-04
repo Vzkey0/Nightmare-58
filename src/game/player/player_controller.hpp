@@ -9,6 +9,8 @@
 #include <godot_cpp/classes/cpu_particles3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -18,6 +20,7 @@
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/status_effects.hpp>
 #include <core/progression/player_progress.hpp>
 
 class Chapel;
@@ -101,6 +104,7 @@ private:
   void use_item();
   void update_progress(float delta);
   void update_hud(float delta);
+  void update_coat(float delta);
   void refresh_hud();
   void show_toast(const godot::String & text);
 
@@ -123,6 +127,7 @@ private:
   HealthTrail health_trail;
   LockOnList lock_candidates;
   AttackTurns turns;
+  WeaponCoat coat;
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
@@ -146,6 +151,8 @@ private:
   godot::Label * lochas_label = nullptr;
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
+  godot::MeshInstance3D * machete = nullptr;
+  godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
   godot::Label * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
@@ -212,6 +219,7 @@ private:
   godot::StringName death_clip = "death";
   godot::StringName drink_clip = "drink";
   godot::StringName use_candle_clip = "use_candle";
+  godot::StringName grease_clip = "apply_grease";
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
   godot::StringName walk_back_clip = "walk_back";

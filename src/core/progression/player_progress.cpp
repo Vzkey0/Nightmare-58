@@ -73,6 +73,10 @@ Designar::DynArray<ItemId> PlayerProgress::shop_stock() const
 {
   Designar::DynArray<ItemId> stock;
   stock.append(ItemCatalog::CANDLE);
+  if (has_skill(MacheteSkill::FIRE))
+    stock.append(ItemCatalog::FIRE_GREASE);
+  if (has_skill(MacheteSkill::ICE))
+    stock.append(ItemCatalog::ICE_GREASE);
   return stock;
 }
 

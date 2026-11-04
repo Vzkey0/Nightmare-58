@@ -11,6 +11,8 @@ constexpr Item ITEMS[] = {
   {"domino_tile", "Ficha de dominó", "Doble seis. La mesa quedó incompleta.", ItemKind::Collectible, 60},
   {"family_photo", "Foto familiar", "Nadie en ella sigue en el país.", ItemKind::Collectible, 200},
   {"machete", "Machete", "El óxido se comió el lomo. El filo sigue ahí.", ItemKind::Weapon, 0},
+  {"fire_grease", "Grasa de fuego", "Un minuto de hoja ardiendo. Lo que cortas sigue quemándose.", ItemKind::Consumable, 60},
+  {"ice_grease", "Grasa de hielo", "Un minuto de hoja helada. Lo que cortas se mueve más lento.", ItemKind::Consumable, 60},
 };
 }
 

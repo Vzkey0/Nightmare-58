@@ -26,7 +26,7 @@ implementarse.
 | Sistema | Propuesta del PDD | Ficha |
 |---|---|---|
 | Zonas | Árbol n-ario | Pendiente |
-| Combos y estados alterados | Listas | Pendiente |
+| Combos y estados alterados | Listas | J-016 para los estados alterados; combos, pendiente |
 | Objeto rápido | Lista recorrida en círculo | J-013 |
 | Rastro de enemigos | Lista de posiciones | Pendiente |
 | Búfer de inputs | Cola | J-004 |
@@ -354,3 +354,30 @@ implementarse.
 - **Medición:** No aplica. No es código crítico; la medición de J-010 ya da el orden de magnitud
 - **Conclusión:** la tasa cambia por escalones y se busca por día, que es una búsqueda en datos fijos y
   ordenados, el caso de `binary_search` en la guía de Convenciones
+
+## J-016: Estados alterados con `SLList`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/status_effects.hpp`, `StatusEffects::effects`
+- **Crítico:** Sí. `update` corre en cada tick físico por enemigo
+- **Datos:** hasta 4 efectos por enemigo: tres quemaduras y un frío; se midió también con 40
+- **Operaciones:** descontar el tiempo de cada efecto en cada tick, agregar uno por golpe con grasa y
+  quitar los que se acaban. Domina el recorrido
+- **Elegida:** `SLList`. Recorrer es `O(n)`, y agregar al final o quitar durante el recorrido es `O(1)`
+  con el iterador, sin mover nada. Cada quemadura lleva su propio reloj y pueden acumularse
+- **Descartadas:** un `FixedArray` que quita moviendo el último efecto al hueco empató con el tamaño
+  real y fue más rápido con 40, pero obliga a fijar un máximo y a manejar el hueco a mano. Un arreglo
+  indexado por tipo de estado es lo más simple con dos estados, pero no deja que las quemaduras se
+  acumulen cada una con su tiempo
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 ticks, en tres ejecuciones, en
+  nanosegundos por tick para un enemigo, quitando y volviendo a aplicar los efectos que se acaban:
+
+  | Efectos | `SLList` | `FixedArray` |
+  |---|---|---|
+  | 4 | 4 a 8 | 4 a 8 |
+  | 40 | 80 a 110,5 | 52 a 68 |
+
+- **Conclusión:** con el tamaño real son iguales y el costo no se nota: 8 enemigos usan menos de
+  0,0004 % de un frame de 16,6 ms. La lista solo reserva memoria al recibir un golpe, nunca en el
+  recorrido. Si los estados crecieran a decenas por enemigo, conviene cambiar al arreglo

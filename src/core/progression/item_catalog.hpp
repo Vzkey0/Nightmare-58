@@ -34,6 +34,8 @@ public:
   static constexpr ItemId TILE = 4;
   static constexpr ItemId PHOTO = 5;
   static constexpr ItemId MACHETE = 6;
+  static constexpr ItemId FIRE_GREASE = 7;
+  static constexpr ItemId ICE_GREASE = 8;
 
   static const ItemCatalog & instance();
 

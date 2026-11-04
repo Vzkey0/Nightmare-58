@@ -22,6 +22,7 @@
 #include <core/progression/quick_slots.hpp>
 #include <core/progression/skill_tree.hpp>
 #include <core/stamina.hpp>
+#include <core/status_effects.hpp>
 
 static void test_skill_tree()
 {
@@ -1277,6 +1278,64 @@ static void test_learning_machete_skills()
   assert(!loaded.from_text("nightmare58 3\nskill nothing\n"));
 }
 
+static void test_status_effects()
+{
+  StatusEffects effects;
+  assert(effects.update(1.f) == 0 && effects.slow_scale() == 1.f);
+
+  effects.apply(Status::Burn);
+  assert(effects.update(0.4f) == 0);
+  assert(effects.update(0.1f) == StatusEffects::BURN_DAMAGE); // First tick at 0.5 s.
+
+  // Burns stack up to the limit; past it the oldest one starts over.
+  for (int i = 0; i < 5; ++i)
+    effects.apply(Status::Burn);
+  assert(effects.count(Status::Burn) == StatusEffects::MAX_BURNS);
+
+  effects.apply(Status::Chill);
+  effects.apply(Status::Chill);
+  assert(effects.count(Status::Chill) == 1);
+  assert(effects.slow_scale() == StatusEffects::CHILL_SLOW);
+
+  int total = 0;
+  for (int tick = 0; tick < 600; ++tick)
+    total += effects.update(1.f / 60.f);
+  assert(!effects.has(Status::Burn) && !effects.has(Status::Chill));
+  assert(total > 0 && total <= StatusEffects::MAX_BURNS * 8 * StatusEffects::BURN_DAMAGE);
+
+  effects.apply(Status::Burn);
+  effects.clear();
+  assert(!effects.has(Status::Burn));
+
+  WeaponCoat coat;
+  assert(!coat.active());
+  coat.apply(Status::Chill);
+  assert(coat.active() && coat.kind() == Status::Chill && coat.ratio() == 1.f);
+  coat.update(WeaponCoat::DURATION - 1.f);
+  assert(coat.active());
+  coat.update(2.f);
+  assert(!coat.active() && coat.ratio() == 0.f);
+}
+
+static void test_grease_in_the_shop()
+{
+  PlayerProgress progress;
+  progress.earn(5000);
+  auto offers = [&progress](ItemId item) {
+    const Designar::DynArray<ItemId> stock = progress.shop_stock();
+    for (Designar::nat_t i = 0; i < stock.size(); ++i)
+      if (stock[i] == item)
+        return true;
+    return false;
+  };
+  assert(!offers(ItemCatalog::FIRE_GREASE) && !progress.buy(ItemCatalog::FIRE_GREASE, Zone::Avenue));
+  assert(progress.learn(MacheteSkill::GREASE, Zone::Avenue) && progress.learn(MacheteSkill::FIRE, Zone::Avenue));
+  assert(offers(ItemCatalog::FIRE_GREASE) && !offers(ItemCatalog::ICE_GREASE));
+  assert(progress.buy(ItemCatalog::FIRE_GREASE, Zone::Avenue));
+  assert(progress.inventory().count(ItemCatalog::FIRE_GREASE) == 1);
+  assert(progress.quick_slots().holds(ItemCatalog::FIRE_GREASE));
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1332,5 +1391,7 @@ int main()
   test_shop();
   test_machete_tree();
   test_learning_machete_skills();
+  test_status_effects();
+  test_grease_in_the_shop();
   return 0;
 }

@@ -161,6 +161,7 @@ quedar con `animation/fps=60`, o Godot las reduce a 30.
 | `death` | 0,9 s | Ninguna | Cae de espaldas y se queda en el último cuadro |
 | `drink` | 0,9 s | Ninguna; un golpe la corta | Sorbo de café con la mano libre; cura a los 0,45 s, a mitad del sorbo |
 | `use_candle` | 0,9 s | Ninguna; un golpe la corta | Alza la vela ante la cara; a los 0,45 s lleva a la última capilla |
+| `apply_grease` | 0,9 s | Ninguna; un golpe la corta | Cruza la hoja ante el pecho y la mano libre la unta hasta la punta; a los 0,45 s queda engrasada |
 | `walk_back`, `strafe_left`, `strafe_right` | 0,4 s, en bucle | Siempre | Moverse a 2,2 m/s con el objetivo fijado; hacia delante usa `walk` |
 
 **Giro de cuerpo:** los canales `tumble` y `spin` giran todo el cuerpo alrededor de un punto
@@ -327,6 +328,11 @@ que una ficha de 5 cm se vea desde la cámara. Los que ya miden más quedan a su
 concentra junto al guardamano, en el lomo, en la punta y alrededor de las muescas, y va en bandas
 duras para verse pintado. La cara izquierda lleva un 58 estampado cerca de la cacha. El jugador puede
 empieza con él en la mano y lo ve en la pestaña Armas.
+
+**Provisionales:** las grasas de fuego y de hielo no tienen modelo todavía. Sus íconos son una lata
+plana de su color, y en la hoja se ven como un brillo del mismo color que late y parpadea al acabarse.
+Cuando se modelen, van en `build_loot.py` con sus claves `fire_grease` e `ice_grease`, y el ícono
+provisional se reemplaza solo.
 
 **Capilla:** su parte sólida no pasa de 1,15 m hacia el frente, porque el jugador reaparece a 1,6 m.
 

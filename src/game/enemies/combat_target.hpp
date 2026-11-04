@@ -5,6 +5,7 @@
 
 #include <core/health.hpp>
 #include <core/health_trail.hpp>
+#include <core/status_effects.hpp>
 
 class StatBar;
 
@@ -18,20 +19,22 @@ protected:
   static void _bind_methods() {}
 
   void ready_target();
-  void receive_damage(int damage, const godot::Vector3 & away, const godot::Vector3 & point);
+  void receive_damage(int damage, const godot::Vector3 & away, const godot::Vector3 & point, bool burn = false);
   void update_health_bar(float delta);
 
   static constexpr int MAX_HEALTH = 100;
 
   Health health{MAX_HEALTH};
+  StatusEffects statuses;
 
 public:
   virtual void take_hit(int damage, const godot::Vector3 & attacker, const godot::Vector3 & point) {}
   bool is_down() const { return health.dead(); }
   void set_targeted(bool value) { targeted = value; }
+  void apply_status(Status kind) { statuses.apply(kind); }
 
 private:
-  void show_damage(int damage);
+  void show_damage(int damage, const godot::Color & color);
 
   HealthTrail trail;
   godot::CPUParticles3D * sparks = nullptr;
