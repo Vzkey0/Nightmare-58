@@ -26,7 +26,35 @@ SkillTree::SkillTree(int root_id)
 
 SkillTree::~SkillTree()
 {
-  Node::destroy_tree(root);
+  if (root != nullptr)
+    Node::destroy_tree(root);
+}
+
+SkillTree & SkillTree::operator=(SkillTree && other) noexcept
+{
+  if (this != &other)
+  {
+    if (root != nullptr)
+      Node::destroy_tree(root);
+    root = other.root;
+    other.root = nullptr;
+  }
+  return *this;
+}
+
+int SkillTree::cost(int id) const
+{
+  const Node * node = find(root, id);
+  return node == nullptr ? -1 : node->get_key().cost;
+}
+
+bool SkillTree::restore(int id)
+{
+  Node * node = find(root, id);
+  if (node == nullptr || node == root || !node->get_parent()->get_key().unlocked)
+    return false;
+  node->get_key().unlocked = true;
+  return true;
 }
 
 bool SkillTree::add(int parent_id, int id, int cost)

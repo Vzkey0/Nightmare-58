@@ -2,7 +2,7 @@
 
 #include <stack.hpp>
 
-enum class MenuScreen { Chapel, Stats, Inventory, Pause, Options, Title, Slots, Confirm, Name, Shop, ShopBuy, ShopSell };
+enum class MenuScreen { Chapel, Stats, Inventory, Pause, Options, Title, Slots, Confirm, Name, Shop, ShopBuy, ShopSell, Machete };
 
 // Going back returns to the row the player left, on any depth of menu.
 class MenuStack

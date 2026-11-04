@@ -24,6 +24,7 @@ add_library(nightmare58_core STATIC
   src/core/progression/inflation.cpp
   src/core/progression/inventory.cpp
   src/core/progression/item_catalog.cpp
+  src/core/progression/machete_skills.cpp
   src/core/progression/player_progress.cpp
   src/core/progression/skill_tree.cpp
   src/core/ai/behavior_tree.cpp

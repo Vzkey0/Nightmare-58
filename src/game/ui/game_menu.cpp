@@ -28,8 +28,17 @@ enum PauseRow { ROW_RESUME, ROW_OPTIONS, ROW_TO_TITLE };
 constexpr int CHAPEL_ROWS = 4;
 enum ChapelRow { ROW_REST, ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
 
-constexpr int SHOP_ROWS = 3;
-enum ShopRow { ROW_BUY, ROW_SELL, ROW_SHOP_LEAVE };
+constexpr int SHOP_ROWS = 4;
+enum ShopRow { ROW_BUY, ROW_SELL, ROW_MACHETE, ROW_SHOP_LEAVE };
+
+// The machete tree without its root, which is always there.
+constexpr int SKILL_ROWS = MacheteSkill::COUNT - 1;
+
+// Where Rows and Detail sit in player.tscn, and how far apart MetalPlate stacks its rows.
+constexpr float ROWS_TOP = 188.f;
+constexpr float DETAIL_TOP = 596.f;
+constexpr float ROW_PITCH = 66.f;
+constexpr float DETAIL_GAP = 12.f;
 
 const char * const STAT_NAMES[STAT_COUNT] = {
   "Vida máxima", "Recuperación de stamina", "Regeneración de vida", "Velocidad al correr", "Cadencia de ataque", "Poder de ataque",
@@ -337,6 +346,8 @@ int GameMenu::row_count() const
       return static_cast<int>(player->progress().shop_stock().size());
     case MenuScreen::ShopSell:
       return static_cast<int>(sellable().size());
+    case MenuScreen::Machete:
+      return SKILL_ROWS;
     default:
       return static_cast<int>(tab_stacks().size());
   }
@@ -379,6 +390,9 @@ void GameMenu::accept()
       if (row_count() > 0)
         UiSounds::play(this, player->sell(sellable()[menu.cursor()].item) ? "Accept" : "Deny");
       break;
+    case MenuScreen::Machete:
+      UiSounds::play(this, player->learn(menu.cursor() + 1) ? "Accept" : "Deny");
+      break;
     default:
       break;
   }
@@ -392,7 +406,8 @@ void GameMenu::accept_shop()
     close();
     return;
   }
-  menu.open(menu.cursor() == ROW_BUY ? MenuScreen::ShopBuy : MenuScreen::ShopSell);
+  const MenuScreen screens[] = {MenuScreen::ShopBuy, MenuScreen::ShopSell, MenuScreen::Machete};
+  menu.open(screens[menu.cursor()]);
   UiSounds::play(this, "Accept");
   refresh();
 }
@@ -456,10 +471,21 @@ void GameMenu::refresh()
     case MenuScreen::ShopSell:
       show_shop_sell();
       break;
+    case MenuScreen::Machete:
+      show_machete();
+      break;
     default:
       show_inventory();
       break;
   }
+  place_detail();
+}
+
+// A long list pushes the description down instead of running under it.
+void GameMenu::place_detail()
+{
+  const float below_rows = ROWS_TOP + rows->get_child_count() * ROW_PITCH + DETAIL_GAP;
+  detail->set_position(Vector2(detail->get_position().x, rows->is_visible() ? MAX(DETAIL_TOP, below_rows) : DETAIL_TOP));
 }
 
 void GameMenu::show_tabs(bool visible)
@@ -606,6 +632,7 @@ void GameMenu::show_shop()
     detail->set_text(text("\"Lo que tengo no pierde valor, pana.\""));
   add_row("Comprar", menu.cursor() == ROW_BUY);
   add_row("Vender", menu.cursor() == ROW_SELL);
+  add_row("Machete", menu.cursor() == ROW_MACHETE);
   add_row("Salir", menu.cursor() == ROW_SHOP_LEAVE);
   hints->set_text("E  aceptar");
   hint_back->set_text("Esc  salir");
@@ -650,5 +677,26 @@ void GameMenu::show_shop_sell()
   else
     detail->set_text(text("No tienes nada que le interese."));
   hints->set_text("E  vender");
+  hint_back->set_text("Esc  volver");
+}
+
+void GameMenu::show_machete()
+{
+  const PlayerProgress & progress = player->progress();
+  const Zone zone = player->merchant_zone();
+  title->set_text(text("Machete"));
+  // Indented by depth, in the tree's own order, so each branch reads under its parent.
+  progress.machete_tree().visit([&](const Skill & skill, int depth) {
+    if (depth == 0)
+      return;
+    const MacheteSkillInfo & info = machete_skill(skill.id);
+    const bool open = progress.has_skill(info.parent);
+    const String price = skill.unlocked ? text("Aprendido") : (open ? vformat("%d", progress.skill_price(skill.id, zone)) : text("—"));
+    add_row(String("    ").repeat(depth - 1) + text(info.name), menu.cursor() == skill.id - 1, price);
+  });
+  const MacheteSkillInfo & chosen = machete_skill(menu.cursor() + 1);
+  const String needs = progress.has_skill(chosen.parent) ? String() : vformat(text("Necesitas %s.  "), text(machete_skill(chosen.parent).name));
+  detail->set_text(text(chosen.description) + "\n" + needs + vformat(text("Tienes: %d lochas"), progress.lochas()));
+  hints->set_text("E  aprender");
   hint_back->set_text("Esc  volver");
 }

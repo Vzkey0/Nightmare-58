@@ -46,11 +46,12 @@ implementarse.
 ## J-001: Árbol de habilidades con `MTreeNode`
 
 - **Estado:** Aceptada
-- **Código:** `src/core/progression/skill_tree.hpp`, `SkillTree::root`
+- **Código:** `src/core/progression/skill_tree.hpp`, `SkillTree::root`; el árbol del machete se arma en
+  `machete_skills.cpp` y lo guarda `PlayerProgress::machete`
 - **Crítico:** No. Corre al usar el menú de habilidades, no en cada frame
-- **Datos:** alrededor de 20 habilidades; máximo por definir
-- **Operaciones:** crear el árbol una vez, buscar por ID y consultar al padre. Domina
-  la búsqueda
+- **Datos:** 10 habilidades en el árbol del machete; alrededor de 20 al terminar el juego
+- **Operaciones:** crear el árbol una vez, buscar por ID, consultar al padre y recorrerlo en preorden
+  para la tienda y el guardado. Domina la búsqueda
 - **Elegida:** `MTreeNode`. Búsqueda `O(n)`, acceso al padre `O(1)`
 - **Descartadas:** `Tree` (`tree.hpp`) es un árbol binario de búsqueda: ordena por
   clave y no representa una jerarquía con varios hijos. `DynArray` con índice al

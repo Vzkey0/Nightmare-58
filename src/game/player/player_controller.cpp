@@ -479,7 +479,7 @@ void PlayerController::hit_targets()
 {
   // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
   hitbox->force_shapecast_update();
-  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * save.stats().damage_scale());
+  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * save.stats().damage_scale() * save.machete_damage_scale());
   for (int i = 0; i < hitbox->get_collision_count(); ++i)
   {
     CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
@@ -634,6 +634,15 @@ Zone PlayerController::merchant_zone() const
 bool PlayerController::buy(ItemId item)
 {
   if (!save.buy(item, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::learn(int skill)
+{
+  if (!save.learn(skill, merchant_zone()))
     return false;
   SaveFile::write(save);
   refresh_hud();

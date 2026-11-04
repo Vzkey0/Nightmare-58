@@ -1,11 +1,12 @@
 #include <core/progression/player_progress.hpp>
 
 #include <algorithm>
+#include <utility>
 #include <sstream>
 
 namespace
 {
-// 2 added frozen zones and 3 the bachaquero. Older saves still load: missing lines keep their defaults.
+// 2 added frozen zones and 3 the bachaquero and the machete tree. Older saves still load: missing lines keep their defaults.
 constexpr int SAVE_VERSION = 3;
 constexpr const char * SAVE_HEADER = "nightmare58";
 constexpr int MAX_AMOUNT = 1000000000; // Anything above this comes from a damaged file.
@@ -101,6 +102,30 @@ bool PlayerProgress::sell(ItemId item, Zone zone)
   return true;
 }
 
+bool PlayerProgress::can_learn(int skill, Zone zone) const
+{
+  // The tree checks the parent; the price is the bachaquero's, not the tree's own cost.
+  return machete.can_unlock(skill, machete.cost(skill)) && wallet >= skill_price(skill, zone);
+}
+
+bool PlayerProgress::learn(int skill, Zone zone)
+{
+  if (!can_learn(skill, zone))
+    return false;
+  wallet -= skill_price(skill, zone);
+  int base = machete.cost(skill);
+  machete.unlock(skill, base);
+  return true;
+}
+
+float PlayerProgress::machete_damage_scale() const
+{
+  int edge = 0;
+  for (int skill : {MacheteSkill::EDGE_1, MacheteSkill::EDGE_2, MacheteSkill::EDGE_3})
+    edge += has_skill(skill) ? 1 : 0;
+  return 1.f + EDGE_DAMAGE * edge;
+}
+
 bool PlayerProgress::can_raise(Stat stat, Zone zone) const
 {
   return levels.can_raise(stat) && wallet >= stat_cost(zone);
@@ -171,6 +196,12 @@ std::string PlayerProgress::to_text() const
   for (ItemId item = 0; item < catalog.size(); ++item)
     if (items.count(item) > 0)
       out << "item " << catalog[item].key << ' ' << items.count(item) << ' ' << items.order(item) << '\n';
+
+  // Parents first, so loading can restore them in the same order.
+  machete.visit([&out](const Skill & skill, int depth) {
+    if (depth > 0 && skill.unlocked)
+      out << "skill " << machete_skill(skill.id).key << '\n';
+  });
 
   for (int id = 0; id < MAX_PICKUPS; ++id)
     if (pickup_taken(id))
@@ -244,6 +275,11 @@ bool PlayerProgress::from_text(const std::string & text)
           loaded.quick.add(item);
       }
     }
+    else if (word == "skill")
+    {
+      std::string key;
+      good = (in >> key) && loaded.machete.restore(find_machete_skill(key));
+    }
     else if (word == "taken")
     {
       int id = 0;
@@ -260,6 +296,6 @@ bool PlayerProgress::from_text(const std::string & text)
       return false;
   }
 
-  *this = loaded;
+  *this = std::move(loaded);
   return true;
 }

@@ -1,5 +1,6 @@
 #undef NDEBUG
 #include <cassert>
+#include <utility>
 
 #include <sort.hpp>
 
@@ -15,6 +16,7 @@
 #include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
 #include <core/progression/item_catalog.hpp>
+#include <core/progression/machete_skills.hpp>
 #include <core/progression/loot_table.hpp>
 #include <core/progression/player_progress.hpp>
 #include <core/progression/quick_slots.hpp>
@@ -1220,6 +1222,61 @@ static void test_shop()
   assert(!loaded.from_text("nightmare58 3\ndeaths -1\n"));
 }
 
+static void test_machete_tree()
+{
+  SkillTree tree = make_machete_tree();
+  assert(tree.is_unlocked(MacheteSkill::MACHETE));
+  assert(tree.cost(MacheteSkill::EDGE_2) == machete_skill(MacheteSkill::EDGE_2).cost);
+  assert(tree.cost(99) == -1);
+
+  // Visited parents first, in the order of the table.
+  int expected = 0;
+  tree.visit([&expected](const Skill & skill, int depth) {
+    assert(skill.id == expected++);
+    assert(depth == 0 || machete_skill(skill.id).parent != MacheteSkill::NONE);
+  });
+  assert(expected == MacheteSkill::COUNT);
+
+  assert(!tree.restore(MacheteSkill::EDGE_2)); // Its parent is still locked.
+  assert(tree.restore(MacheteSkill::EDGE_1) && tree.restore(MacheteSkill::EDGE_2));
+  assert(!tree.restore(MacheteSkill::MACHETE) && !tree.restore(99));
+
+  SkillTree moved = std::move(tree);
+  assert(moved.is_unlocked(MacheteSkill::EDGE_2));
+  assert(find_machete_skill("throw") == MacheteSkill::THROW);
+  assert(find_machete_skill("nothing") == MacheteSkill::NONE);
+}
+
+static void test_learning_machete_skills()
+{
+  PlayerProgress progress;
+  assert(progress.machete_damage_scale() == 1.f);
+  assert(!progress.learn(MacheteSkill::EDGE_1, Zone::Avenue));
+
+  progress.earn(2000);
+  assert(!progress.learn(MacheteSkill::EDGE_2, Zone::Avenue)); // Filo comes first.
+  assert(progress.learn(MacheteSkill::EDGE_1, Zone::Avenue));
+  assert(progress.lochas() == 2000 - 150);
+  assert(!progress.learn(MacheteSkill::EDGE_1, Zone::Avenue)); // Already known.
+
+  // Paid at the bachaquero's prices: inflation and the death markup.
+  progress.rest(0);
+  progress.die(0.f, 0.f, 0.f);
+  progress.recover();
+  assert(progress.skill_price(MacheteSkill::EDGE_2, Zone::Avenue) == 413); // 375 at the rate, then +10 %, rounded up.
+  assert(progress.learn(MacheteSkill::EDGE_2, Zone::Avenue));
+  assert(progress.machete_damage_scale() > 1.29f && progress.machete_damage_scale() < 1.31f);
+  assert(progress.learn(MacheteSkill::TECHNIQUE, Zone::Avenue) && progress.learn(MacheteSkill::THROW, Zone::Avenue));
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.has_skill(MacheteSkill::EDGE_2) && loaded.has_skill(MacheteSkill::THROW));
+  assert(!loaded.has_skill(MacheteSkill::RAGE));
+  assert(loaded.to_text() == progress.to_text());
+  assert(!loaded.from_text("nightmare58 3\nskill edge_2\n")); // A child without its parent is damage.
+  assert(!loaded.from_text("nightmare58 3\nskill nothing\n"));
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1273,5 +1330,7 @@ int main()
   test_menu_stack();
   test_player_name();
   test_shop();
+  test_machete_tree();
+  test_learning_machete_skills();
   return 0;
 }

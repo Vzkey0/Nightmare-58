@@ -51,6 +51,8 @@ private:
   void show_shop_buy();
   void show_shop_sell();
   void accept_shop();
+  void show_machete();
+  void place_detail();
   godot::String shop_title() const;
   Designar::DynArray<ItemStack> sellable() const;
   void accept_pause();

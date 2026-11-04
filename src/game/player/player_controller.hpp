@@ -68,6 +68,7 @@ public:
   Zone merchant_zone() const;
   bool buy(ItemId item);
   bool sell(ItemId item);
+  bool learn(int skill);
 
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);

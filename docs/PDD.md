@@ -132,6 +132,18 @@ Machete
 └─ Técnica → Lanzar machete / Modo Arrechera
 ```
 
+Cada rama se compra en la tienda del bachaquero, con sus precios: cobra la inflación y el
+recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
+
+| Mejora | Costo | Efecto |
+|---|---|---|
+| Filo, Filo II, Filo III | 150, 300, 500 | +15 % de daño del machete por nivel |
+| Grasa | 100 | Abre las grasas |
+| Fuego, Hielo | 200 cada una | El bachaquero vende esa grasa |
+| Técnica | 150 | Abre las técnicas |
+| Lanzar machete | 350 | Tecla G |
+| Modo Arrechera | 450 | Tecla V con la barra llena |
+
 - **Grasas:** duran 60 s. El fuego quema con el tiempo y el hielo frena al enemigo.
 - **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar.
 - **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega

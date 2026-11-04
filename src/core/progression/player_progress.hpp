@@ -7,6 +7,7 @@
 
 #include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
+#include <core/progression/machete_skills.hpp>
 #include <core/progression/player_stats.hpp>
 #include <core/progression/quick_slots.hpp>
 
@@ -48,6 +49,7 @@ public:
   Inventory & inventory() { return items; }
   const Inventory & inventory() const { return items; }
   const PlayerStats & stats() const { return levels; }
+  const SkillTree & machete_tree() const { return machete; }
   QuickSlots & quick_slots() { return quick; }
 
   void earn(int amount) { wallet += amount; }
@@ -78,6 +80,13 @@ public:
   int sell_price(ItemId item, Zone zone) const { return price(ItemCatalog::instance()[item].value, zone); }
   bool sell(ItemId item, Zone zone);
 
+  // The machete tree is paid to the bachaquero, at his prices.
+  bool has_skill(int skill) const { return machete.is_unlocked(skill); }
+  int skill_price(int skill, Zone zone) const { return shop_price(machete.cost(skill), zone); }
+  bool can_learn(int skill, Zone zone) const;
+  bool learn(int skill, Zone zone);
+  float machete_damage_scale() const;
+
   int stat_cost(Zone zone) const { return price(levels.next_cost(), zone); }
   bool can_raise(Stat stat, Zone zone) const;
   bool raise(Stat stat, Zone zone);
@@ -101,6 +110,7 @@ public:
 private:
   Inventory items;
   PlayerStats levels;
+  SkillTree machete = make_machete_tree();
   QuickSlots quick;
   DeathMark mark;
   std::string name = DEFAULT_NAME;
