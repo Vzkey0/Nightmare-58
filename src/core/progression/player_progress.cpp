@@ -6,7 +6,7 @@
 
 namespace
 {
-// 2 added frozen zones and 3 the bachaquero and the machete tree. Older saves still load: missing lines keep their defaults.
+// 2 added frozen zones, and 3 the bachaquero, the machete tree and outfits. Older saves still load: missing lines keep their defaults.
 constexpr int SAVE_VERSION = 3;
 constexpr const char * SAVE_HEADER = "nightmare58";
 constexpr int MAX_AMOUNT = 1000000000; // Anything above this comes from a damaged file.
@@ -77,6 +77,8 @@ Designar::DynArray<ItemId> PlayerProgress::shop_stock() const
     stock.append(ItemCatalog::FIRE_GREASE);
   if (has_skill(MacheteSkill::ICE))
     stock.append(ItemCatalog::ICE_GREASE);
+  if (items.count(ItemCatalog::CAP) == 0) // There is only one cap.
+    stock.append(ItemCatalog::CAP);
   return stock;
 }
 
@@ -119,6 +121,14 @@ bool PlayerProgress::learn(int skill, Zone zone)
   wallet -= skill_price(skill, zone);
   int base = machete.cost(skill);
   machete.unlock(skill, base);
+  return true;
+}
+
+bool PlayerProgress::wear(ItemId item)
+{
+  if (item == NO_ITEM || ItemCatalog::instance()[item].kind != ItemKind::Outfit || items.count(item) == 0)
+    return false;
+  outfit = outfit == item ? NO_ITEM : item;
   return true;
 }
 
@@ -201,6 +211,10 @@ std::string PlayerProgress::to_text() const
     if (items.count(item) > 0)
       out << "item " << catalog[item].key << ' ' << items.count(item) << ' ' << items.order(item) << '\n';
 
+  // After the items, so loading finds the outfit already in the bag.
+  if (outfit != NO_ITEM)
+    out << "wear " << catalog[outfit].key << '\n';
+
   // Parents first, so loading can restore them in the same order.
   machete.visit([&out](const Skill & skill, int depth) {
     if (depth > 0 && skill.unlocked)
@@ -278,6 +292,14 @@ bool PlayerProgress::from_text(const std::string & text)
         if (catalog[item].kind == ItemKind::Consumable)
           loaded.quick.add(item);
       }
+    }
+    else if (word == "wear")
+    {
+      std::string key;
+      good = static_cast<bool>(in >> key);
+      // Like an item, an outfit that left the catalog is dropped and the game still loads.
+      if (good && !loaded.wear(catalog.find(key)) && catalog.find(key) != NO_ITEM)
+        good = false;
     }
     else if (word == "skill")
     {

@@ -206,6 +206,7 @@ void PlayerController::_ready()
   lochas_label = get_node<Label>("Hud/LochasLabel");
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
+  cap = get_node<Node3D>("Model/armature_male/Skeleton3D/HeadItem/Cap");
   machete = Object::cast_to<MeshInstance3D>(model->find_child("machete", true, false));
   weapon_bone = get_node<Node3D>("Model/armature_male/Skeleton3D/WeaponBone");
   body_mesh = Object::cast_to<MeshInstance3D>(model->find_child("protagonist_male", true, false));
@@ -218,6 +219,8 @@ void PlayerController::_ready()
   // The mesh is skinned at the weapon bone's rest: undoing that rest places it in the bone's frame.
   Skeleton3D * skeleton = get_node<Skeleton3D>("Model/armature_male/Skeleton3D");
   machete_from_bone = skeleton->get_bone_global_rest(skeleton->find_bone("weapon")).affine_inverse() * machete->get_transform();
+  // The cap is laid out in the body's axes (up and forward); this undoes the head bone's own turn.
+  cap->set_basis(skeleton->get_bone_global_rest(skeleton->find_bone("head")).basis.inverse());
   // ponytail: a glowing overlay stands in for the grease until it gets its own art.
   coat_material.instantiate();
   coat_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
@@ -706,6 +709,15 @@ bool PlayerController::learn(int skill)
   return true;
 }
 
+bool PlayerController::wear(ItemId item)
+{
+  if (!save.wear(item))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
 bool PlayerController::sell(ItemId item)
 {
   if (!save.sell(item, merchant_zone()))
@@ -899,7 +911,7 @@ void PlayerController::drop_thrown_machete()
 // Every bonus a blow carries, from the chapel, the bachaquero and the Arrechera.
 float PlayerController::blow_scale() const
 {
-  return save.stats().damage_scale() * save.machete_damage_scale() * rage.damage_dealt_scale();
+  return save.stats().damage_scale() * save.machete_damage_scale() * save.outfit_damage_scale() * rage.damage_dealt_scale();
 }
 
 void PlayerController::dealt(int damage)
@@ -1132,6 +1144,7 @@ void PlayerController::update_hud(float delta)
 void PlayerController::refresh_hud()
 {
   lochas_label->set_text(String::num_int64(save.lochas()));
+  cap->set_visible(save.worn() == ItemCatalog::CAP);
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
 }

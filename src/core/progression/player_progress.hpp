@@ -28,6 +28,7 @@ public:
   static constexpr int NOT_FROZEN = -1;
   static constexpr int DEATH_MARKUP = 10; // Percent the bachaquero adds per death.
   static constexpr int MAX_MARKUP = 100;
+  static constexpr float CAP_STRENGTH = 1.1f; // The cap's "más fuerza": a tenth more damage.
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
@@ -87,6 +88,11 @@ public:
   bool learn(int skill, Zone zone);
   float machete_damage_scale() const;
 
+  // One outfit at a time. Wearing the one already on takes it off.
+  ItemId worn() const { return outfit; }
+  bool wear(ItemId item);
+  float outfit_damage_scale() const { return outfit == ItemCatalog::CAP ? CAP_STRENGTH : 1.f; }
+
   int stat_cost(Zone zone) const { return price(levels.next_cost(), zone); }
   bool can_raise(Stat stat, Zone zone) const;
   bool raise(Stat stat, Zone zone);
@@ -123,5 +129,6 @@ private:
   int last_chapel = NO_CHAPEL;
   int coffee_limit = START_COFFEE;
   int death_count = 0;
+  ItemId outfit = NO_ITEM;
   int frozen[ZONE_COUNT] = {NOT_FROZEN, NOT_FROZEN, NOT_FROZEN}; // The day each zone stopped at.
 };

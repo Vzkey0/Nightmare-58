@@ -74,6 +74,7 @@ public:
   bool buy(ItemId item);
   bool sell(ItemId item);
   bool learn(int skill);
+  bool wear(ItemId item);
 
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);
@@ -166,6 +167,7 @@ private:
   godot::Label * lochas_label = nullptr;
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
+  godot::Node3D * cap = nullptr;
   godot::MeshInstance3D * machete = nullptr;
   godot::Node3D * weapon_bone = nullptr;
   godot::Transform3D machete_from_bone; // The machete's mesh, placed in the weapon bone's frame.

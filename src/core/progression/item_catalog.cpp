@@ -13,6 +13,7 @@ constexpr Item ITEMS[] = {
   {"machete", "Machete", "El óxido se comió el lomo. El filo sigue ahí.", ItemKind::Weapon, 0},
   {"fire_grease", "Grasa de fuego", "Un minuto de hoja ardiendo. Lo que cortas sigue quemándose.", ItemKind::Consumable, 60},
   {"ice_grease", "Grasa de hielo", "Un minuto de hoja helada. Lo que cortas se mueve más lento.", ItemKind::Consumable, 60},
+  {"cap", "Gorra", "Tricolor y gastada, como la chaqueta. Más fuerza mientras la llevas puesta.", ItemKind::Outfit, 250},
 };
 }
 

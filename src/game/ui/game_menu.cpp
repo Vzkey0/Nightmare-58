@@ -46,6 +46,14 @@ const char * const STAT_NAMES[STAT_COUNT] = {
 
 const char * const SORT_NAMES[INVENTORY_SORTS] = {"recientes", "tipo", "valor"};
 
+// Outfits share the right tab with the machete: both are what the player carries on.
+constexpr int INVENTORY_TABS = 3;
+
+ItemKind tab_of(ItemKind kind)
+{
+  return kind == ItemKind::Outfit ? ItemKind::Weapon : kind;
+}
+
 String text(const char * value)
 {
   return String::utf8(value);
@@ -220,7 +228,7 @@ void GameMenu::move_row(int step)
 
 void GameMenu::next_tab(int step)
 {
-  show_tab(static_cast<ItemKind>((static_cast<int>(tab) + step + ITEM_KINDS) % ITEM_KINDS));
+  show_tab(static_cast<ItemKind>((static_cast<int>(tab) + step + INVENTORY_TABS) % INVENTORY_TABS));
 }
 
 void GameMenu::show_tab(ItemKind kind)
@@ -323,7 +331,7 @@ Designar::DynArray<ItemStack> GameMenu::tab_stacks() const
   const Designar::DynArray<ItemStack> stacks = player->progress().inventory().sorted(sort_mode);
   Designar::DynArray<ItemStack> shown;
   for (int i = 0; i < static_cast<int>(stacks.size()); ++i)
-    if (catalog[stacks[i].item].kind == tab)
+    if (tab_of(catalog[stacks[i].item].kind) == tab)
       shown.append(stacks[i]);
   return shown;
 }
@@ -392,6 +400,10 @@ void GameMenu::accept()
       break;
     case MenuScreen::Machete:
       UiSounds::play(this, player->learn(menu.cursor() + 1) ? "Accept" : "Deny");
+      break;
+    case MenuScreen::Inventory:
+      if (row_count() > 0 && ItemCatalog::instance()[tab_stacks()[menu.cursor()].item].kind == ItemKind::Outfit)
+        UiSounds::play(this, player->wear(tab_stacks()[menu.cursor()].item) ? "Accept" : "Deny");
       break;
     default:
       break;
@@ -495,7 +507,7 @@ void GameMenu::show_tabs(bool visible)
   tab_right->set_visible(visible);
   tab_left->set_text("Z   Consumibles");
   tab_middle->set_text("Coleccionables");
-  tab_right->set_text("Armas   C");
+  tab_right->set_text("Equipo   C");
   paint_tab(tab_left, tab_left_plate, tab == ItemKind::Consumable);
   paint_tab(tab_middle, tab_middle_plate, tab == ItemKind::Collectible);
   paint_tab(tab_right, tab_right_plate, tab == ItemKind::Weapon);
@@ -606,9 +618,17 @@ void GameMenu::show_inventory()
   }
   if (count > 0)
   {
-    const Item & item = catalog[stacks[menu.cursor()].item];
-    item_name->set_text(text(item.name));
+    const ItemId chosen = stacks[menu.cursor()].item;
+    const Item & item = catalog[chosen];
+    const bool worn = player->progress().worn() == chosen;
+    item_name->set_text(worn ? text(item.name) + text("  ·  puesta") : text(item.name));
     detail->set_text(text(item.description));
+    if (item.kind == ItemKind::Outfit)
+    {
+      hints->set_text(text(worn ? "E  quitar" : "E  poner"));
+      hint_back->set_text("Esc  volver");
+      return;
+    }
   }
   else
     detail->set_text(text("No llevas nada aquí."));

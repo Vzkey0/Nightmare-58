@@ -1435,6 +1435,37 @@ static void test_rage()
   assert(rage.ratio() == 0.f);
 }
 
+static void test_wearing_the_cap()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  assert(catalog[ItemCatalog::CAP].kind == ItemKind::Outfit);
+
+  PlayerProgress progress;
+  assert(!progress.wear(ItemCatalog::CAP)); // Not owned yet.
+  assert(!progress.wear(ItemCatalog::MACHETE)); // Not an outfit.
+  assert(progress.outfit_damage_scale() == 1.f);
+
+  progress.earn(1000);
+  assert(progress.buy(ItemCatalog::CAP, Zone::Avenue));
+  assert(!progress.buy(ItemCatalog::CAP, Zone::Avenue)); // Only one.
+  assert(!progress.quick_slots().holds(ItemCatalog::CAP));
+
+  assert(progress.wear(ItemCatalog::CAP) && progress.worn() == ItemCatalog::CAP);
+  assert(progress.outfit_damage_scale() == PlayerProgress::CAP_STRENGTH);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.worn() == ItemCatalog::CAP);
+  assert(loaded.to_text() == progress.to_text());
+
+  assert(progress.wear(ItemCatalog::CAP) && progress.worn() == NO_ITEM); // Taken off.
+  assert(loaded.from_text(progress.to_text()) && loaded.worn() == NO_ITEM);
+
+  assert(!loaded.from_text("nightmare58 3\nwear coffee\n"));
+  assert(!loaded.from_text("nightmare58 3\nwear cap\n")); // Worn but not in the bag.
+  assert(loaded.from_text("nightmare58 3\nlochas 4\nwear old_hat\n") && loaded.worn() == NO_ITEM);
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1495,5 +1526,6 @@ int main()
   test_thrown_weapon_flight();
   test_player_throw();
   test_rage();
+  test_wearing_the_cap();
   return 0;
 }

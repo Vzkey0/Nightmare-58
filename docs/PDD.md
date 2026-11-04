@@ -170,7 +170,9 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
 | Coleccionables | Vinilo de gaita, cromo de béisbol, ficha de dominó, foto familiar |
 
 - **Atuendos:** se ven puestos en el personaje. Se empieza por la gorra, porque los
-  uniformes hay que modelarlos sobre el cuerpo.
+  uniformes hay que modelarlos sobre el cuerpo. La gorra se compra una sola vez al
+  bachaquero, se pone y se quita con E en la pestaña Equipo del inventario, y da un 10 %
+  más de daño. Se lleva un atuendo a la vez y queda guardado en la partida.
 - **Coleccionables:** no se devalúan y el bachaquero los paga mejor con la inflación.
   Guardarlos es una decisión económica real.
 - **Vela de retorno:** devuelve a la última capilla. Con 25 minutos de juego no hace

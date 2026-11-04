@@ -336,6 +336,11 @@ plana de su color, y en la hoja se ven como un brillo del mismo color que late y
 Cuando se modelen, van en `build_loot.py` con sus claves `fire_grease` e `ice_grease`, y el ícono
 provisional se reemplaza solo.
 
+**Gorra provisional:** un casquete rojo de media esfera y una visera plana, en `player.tscn` bajo
+`HeadItem`, un `BoneAttachment3D` del hueso `head`. `PlayerController` deshace el giro de reposo del
+hueso para que la gorra se arme en los ejes del cuerpo: arriba es +Y y el frente +Z. Su ícono es una
+silueta plana. El modelo final va en su propia tarea, con la misma clave `cap`.
+
 **Capilla:** su parte sólida no pasa de 1,15 m hacia el frente, porque el jugador reaparece a 1,6 m.
 
 **Luces:** las de los objetos usan `light_specular = 0`; si no, el asfalto mojado las refleja como
