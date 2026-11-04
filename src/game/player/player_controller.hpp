@@ -20,6 +20,7 @@
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/player/rage.hpp>
 #include <core/status_effects.hpp>
 #include <core/progression/player_progress.hpp>
 
@@ -112,6 +113,9 @@ private:
   void update_progress(float delta);
   void update_hud(float delta);
   void update_coat(float delta);
+  void update_rage(float delta);
+  float blow_scale() const;
+  void dealt(int damage);
   void refresh_hud();
   void show_toast(const godot::String & text);
 
@@ -135,6 +139,7 @@ private:
   LockOnList lock_candidates;
   AttackTurns turns;
   WeaponCoat coat;
+  Rage rage;
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
@@ -154,6 +159,9 @@ private:
   godot::Control * death_screen = nullptr;
   StatBar * health_bar = nullptr;
   StatBar * stamina_bar = nullptr;
+  StatBar * rage_bar = nullptr;
+  godot::MeshInstance3D * body_mesh = nullptr;
+  godot::Ref<godot::StandardMaterial3D> rage_material;
   godot::Node2D * lock_marker = nullptr;
   godot::Label * lochas_label = nullptr;
   godot::Node3D * cup = nullptr;
@@ -266,4 +274,5 @@ private:
   godot::StringName next_item_input = "next_item";
   godot::StringName inventory_input = "inventory";
   godot::StringName throw_input = "throw_weapon";
+  godot::StringName rage_input = "rage";
 };

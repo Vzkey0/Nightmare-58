@@ -155,7 +155,11 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
   vuelta, una vez por tramo, con 18 de daño más las mejoras y la grasa. Esquivar sigue
   permitido; si vuelve en medio de otra acción, solo regresa a la mano sin animación.
 - **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega
-  más fuerte unos 12 s, pero también se recibe más daño.
+  más fuerte unos 12 s, pero también se recibe más daño. La barra roja aparece bajo la
+  stamina al aprender la rama. Se llena con el daño hecho (0,8 por punto) y más rápido
+  con el recibido (1,2 por punto); llena, late, y con V se suelta: ×1,4 al daño que se
+  hace y ×1,3 al que se recibe mientras se vacía. El cuerpo brilla en rojo, la cámara
+  sacude y aparece "¡Arrechera!". Morir la vacía.
 
 ### Objetos
 

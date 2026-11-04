@@ -388,6 +388,18 @@ fill_color = Color(0.08, 0.78, 0.96, 1)
 tip = 10.0
 start = 30.0
 
+[node name="RageBar" type="StatBar" parent="Hud/Panel"]
+visible = false
+layout_mode = 0
+offset_left = 112.0
+offset_top = -66.0
+offset_right = 352.0
+offset_bottom = -52.0
+mouse_filter = 2
+fill_color = Color(0.8, 0.16, 0.08, 1)
+tip = 8.0
+start = 28.0
+
 [node name="MedallionOutline" type="Polygon2D" parent="Hud/Panel"]
 position = Vector2(96, -98)
 color = Color(0.01, 0.015, 0.03, 1)

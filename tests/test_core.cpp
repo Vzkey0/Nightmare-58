@@ -13,6 +13,7 @@
 #include <core/lock_on.hpp>
 #include <core/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/player/rage.hpp>
 #include <core/player/thrown_weapon.hpp>
 #include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
@@ -1406,6 +1407,34 @@ static void test_player_throw()
   assert(!actions.weapon_away());
 }
 
+static void test_rage()
+{
+  Rage rage;
+  assert(!rage.activate()); // Empty.
+  assert(rage.damage_dealt_scale() == 1.f && rage.damage_taken_scale() == 1.f);
+
+  rage.deal(20);
+  assert(rage.ratio() > 0.15f && rage.ratio() < 0.17f);
+  rage.take(20);
+  assert(rage.ratio() > 0.39f && rage.ratio() < 0.41f); // Being hit fills it faster.
+  for (int i = 0; i < 10; ++i)
+    rage.deal(20);
+  assert(rage.full() && rage.ratio() == 1.f);
+
+  assert(rage.activate());
+  assert(!rage.activate()); // Already burning.
+  assert(rage.damage_dealt_scale() == Rage::DEALT_SCALE && rage.damage_taken_scale() == Rage::TAKEN_SCALE);
+  rage.deal(50); // Nothing refills it while it burns.
+  rage.update(Rage::DURATION * 0.5f);
+  assert(rage.active() && rage.ratio() > 0.49f && rage.ratio() < 0.51f);
+  rage.update(Rage::DURATION);
+  assert(!rage.active() && rage.ratio() == 0.f && rage.damage_dealt_scale() == 1.f);
+
+  rage.deal(200);
+  rage.reset();
+  assert(rage.ratio() == 0.f);
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1465,5 +1494,6 @@ int main()
   test_grease_in_the_shop();
   test_thrown_weapon_flight();
   test_player_throw();
+  test_rage();
   return 0;
 }

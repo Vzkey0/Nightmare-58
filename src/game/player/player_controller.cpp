@@ -137,6 +137,12 @@ constexpr float COAT_ALPHA = 0.55f;
 constexpr float COAT_GLOW = 2.2f;
 constexpr float COAT_PULSE = 9.f;     // Radians per second.
 constexpr float COAT_WARNING = 0.1f;  // Of the minute left: the coat starts to flicker.
+const Color RAGE_FILLING(0.62f, 0.14f, 0.08f);
+const Color RAGE_FULL(1.f, 0.3f, 0.08f);
+const Color RAGE_BURNING(1.f, 0.08f, 0.05f);
+constexpr float RAGE_PULSE = 7.f;
+constexpr float RAGE_ALPHA = 0.28f;
+constexpr float RAGE_SHAKE = 0.8f;
 
 constexpr float STEP_VOLUME_WALK = -13.f;
 constexpr float STEP_VOLUME_RUN = -7.f;
@@ -195,12 +201,20 @@ void PlayerController::_ready()
   death_screen = get_node<Control>("Hud/DeathScreen");
   health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
   stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
+  rage_bar = get_node<StatBar>("Hud/Panel/RageBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
   lochas_label = get_node<Label>("Hud/LochasLabel");
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
   machete = Object::cast_to<MeshInstance3D>(model->find_child("machete", true, false));
   weapon_bone = get_node<Node3D>("Model/armature_male/Skeleton3D/WeaponBone");
+  body_mesh = Object::cast_to<MeshInstance3D>(model->find_child("protagonist_male", true, false));
+  // ponytail: a red glow over the whole body stands in for the Arrechera until it gets its own art.
+  rage_material.instantiate();
+  rage_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+  rage_material->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+  rage_material->set_feature(BaseMaterial3D::FEATURE_EMISSION, true);
+  rage_material->set_emission(RAGE_BURNING);
   // The mesh is skinned at the weapon bone's rest: undoing that rest places it in the bone's frame.
   Skeleton3D * skeleton = get_node<Skeleton3D>("Model/armature_male/Skeleton3D");
   machete_from_bone = skeleton->get_bone_global_rest(skeleton->find_bone("weapon")).affine_inverse() * machete->get_transform();
@@ -319,6 +333,7 @@ void PlayerController::_physics_process(double delta_time)
   turns.update(delta);
   update_progress(delta);
   update_coat(delta);
+  update_rage(delta);
 
   // A higher attack rate runs the swing's own clock faster, so its timing keeps the same shape.
   const bool swinging = actions.stepping_attack() || actions.current() == PlayerAction::AirAttack;
@@ -512,7 +527,7 @@ void PlayerController::hit_targets()
 {
   // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
   hitbox->force_shapecast_update();
-  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * save.stats().damage_scale() * save.machete_damage_scale());
+  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * blow_scale());
   for (int i = 0; i < hitbox->get_collision_count(); ++i)
   {
     CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
@@ -521,6 +536,7 @@ void PlayerController::hit_targets()
       target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
       if (coat.active())
         target->apply_status(coat.kind());
+      dealt(damage);
       feel_hit(damage);
       hit_sound->play();
     }
@@ -580,10 +596,13 @@ void PlayerController::end_hitstop()
   Engine::get_singleton()->set_time_scale(1.0);
 }
 
-void PlayerController::take_hit(int damage, const Vector3 & attacker)
+void PlayerController::take_hit(int raw_damage, const Vector3 & attacker)
 {
   if (actions.invulnerable())
     return;
+  const int damage = Math::round(raw_damage * rage.damage_taken_scale());
+  if (save.has_skill(MacheteSkill::RAGE))
+    rage.take(damage);
 
   const Vector3 away = (get_global_position() - attacker).slide(UP).normalized();
   target_yaw = Math::atan2(-away.x, -away.z);
@@ -601,6 +620,7 @@ void PlayerController::take_hit(int damage, const Vector3 & attacker)
     release_lock();
     respawn_time = RESPAWN_TIME;
     coat.clear();
+    rage.reset();
     drop_thrown_machete();
     play(death_clip, BLEND_TO_DODGE);
     clear_dropped_lochas();
@@ -790,6 +810,13 @@ void PlayerController::read_item_input()
   }
   if (input->is_action_just_pressed(throw_input) && save.has_skill(MacheteSkill::THROW) && !actions.weapon_away())
     actions.press(PlayerAction::Throw);
+  if (input->is_action_just_pressed(rage_input) && save.has_skill(MacheteSkill::RAGE) && alive && rage.activate())
+  {
+    show_toast(String::utf8("¡Arrechera!"));
+    camera_shake = MIN(camera_shake + RAGE_SHAKE, 1.f);
+    camera_kick = 1.f;
+    slam_sound->play();
+  }
   if (input->is_action_just_pressed(inventory_input))
     menu->open(MenuScreen::Inventory);
   if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
@@ -838,11 +865,11 @@ void PlayerController::launch_machete()
 
 void PlayerController::throw_hit(CombatTarget * target, const Vector3 & point)
 {
-  const float scale = save.stats().damage_scale() * save.machete_damage_scale();
-  const int damage = Math::round(ThrownWeapon::DAMAGE * scale);
+  const int damage = Math::round(ThrownWeapon::DAMAGE * blow_scale());
   target->take_hit(damage, get_global_position(), point);
   if (coat.active())
     target->apply_status(coat.kind());
+  dealt(damage);
   // No hitstop: the blow lands away from the player, who is not the one feeling it.
   camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE * 0.5f, 1.f);
   hit_sound->play();
@@ -867,6 +894,35 @@ void PlayerController::drop_thrown_machete()
     thrown->queue_free();
   thrown = nullptr;
   machete->set_visible(true);
+}
+
+// Every bonus a blow carries, from the chapel, the bachaquero and the Arrechera.
+float PlayerController::blow_scale() const
+{
+  return save.stats().damage_scale() * save.machete_damage_scale() * rage.damage_dealt_scale();
+}
+
+void PlayerController::dealt(int damage)
+{
+  if (save.has_skill(MacheteSkill::RAGE))
+    rage.deal(damage);
+}
+
+void PlayerController::update_rage(float delta)
+{
+  rage.update(delta);
+  if (body_mesh == nullptr)
+    return;
+  if (!rage.active())
+  {
+    body_mesh->set_material_overlay(Ref<Material>());
+    return;
+  }
+  const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+  const float pulse = 0.6f + 0.4f * Math::sin(clock * RAGE_PULSE);
+  rage_material->set_albedo(Color(RAGE_BURNING.r, RAGE_BURNING.g, RAGE_BURNING.b, RAGE_ALPHA * pulse));
+  rage_material->set_emission_energy_multiplier(1.5f * pulse);
+  body_mesh->set_material_overlay(rage_material);
 }
 
 void PlayerController::update_coat(float delta)
@@ -1044,6 +1100,18 @@ void PlayerController::update_hud(float delta)
   health_bar->set_fill_color(health_color(health.ratio()));
   stamina_bar->set_values(actions.stamina_ratio(), 0.f);
   stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
+  // Shown once learned. Full, it throbs to say it is ready; burning, it glows as it drains.
+  rage_bar->set_visible(save.has_skill(MacheteSkill::RAGE));
+  if (rage_bar->is_visible())
+  {
+    const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+    const float throb = 0.5f + 0.5f * Math::sin(clock * RAGE_PULSE);
+    rage_bar->set_values(rage.ratio(), 0.f);
+    if (rage.active())
+      rage_bar->set_fill_color(RAGE_BURNING.lerp(Color(1, 1, 1), 0.25f * throb));
+    else
+      rage_bar->set_fill_color(rage.full() ? RAGE_FULL.lerp(Color(1, 0.9f, 0.5f), throb) : RAGE_FILLING);
+  }
 
   prompt_label->set_visible(!menu->is_open());
   lochas_label->set_visible(!menu->is_open());
