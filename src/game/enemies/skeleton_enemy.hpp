@@ -38,6 +38,7 @@ public:
 
 private:
   void think();
+  void wander();
   void sense();
   bool sees_player() const;
   void start_attack(const Decision & decision);
@@ -69,6 +70,7 @@ private:
   godot::Vector3 to_player;
   godot::Vector3 last_seen;
   godot::Vector3 spawn_point;
+  godot::Vector3 wander_target;
   EnemyContext context{1.f, DistanceRange::Far, false, false, false, false};
   BehaviorAction intent = BehaviorAction::Watch;
 
@@ -82,10 +84,12 @@ private:
   float attack_wait = 0.f;
   float charge_wait = 0.f;
   float circle_time = 0.f;
+  float wander_time = 0.f; // The pause before the next stroll, or what is left of the current one.
   float circle_side = 1.f;
   float circle_gap = 3.f; // Each skeleton keeps its own distance, so they spread around the player.
   float step_scale = 1.f;
   bool has_turn = false;
+  bool wandering = false;
   int player_respawns = 0;
 
   godot::Ref<godot::Animation> motion_animation;
@@ -93,6 +97,7 @@ private:
 
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
+  godot::StringName run_clip = "run";
   godot::StringName walk_back_clip = "walk_back";
   godot::StringName strafe_left_clip = "strafe_left";
   godot::StringName strafe_right_clip = "strafe_right";
