@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include <array.hpp>
 #include <bitset.hpp>
 
 #include <core/progression/inflation.hpp>
@@ -24,6 +25,8 @@ class PlayerProgress
 public:
   static constexpr int NO_CHAPEL = -1;
   static constexpr int NOT_FROZEN = -1;
+  static constexpr int DEATH_MARKUP = 10; // Percent the bachaquero adds per death.
+  static constexpr int MAX_MARKUP = 100;
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
@@ -36,6 +39,7 @@ public:
 
   int lochas() const { return wallet; }
   int day() const { return days; }
+  int deaths() const { return death_count; }
   int chapel() const { return last_chapel; }
   int coffee_capacity() const { return coffee_limit; }
   const DeathMark & death_mark() const { return mark; }
@@ -61,6 +65,18 @@ public:
 
   // A boss beaten in a zone stops its prices where they are. Beating it again changes nothing.
   void freeze_inflation(Zone zone);
+
+  // What the bachaquero charges: the zone's rate, and more each time the player has died.
+  int shop_price(int base, Zone zone) const;
+  int markup() const;
+  // What he sells right now; it grows with the machete tree.
+  Designar::DynArray<ItemId> shop_stock() const;
+  bool can_buy(ItemId item, Zone zone) const;
+  bool buy(ItemId item, Zone zone);
+  // Collectibles never lose their worth, so he pays them at the day's rate: holding them beats
+  // holding lochas.
+  int sell_price(ItemId item, Zone zone) const { return price(ItemCatalog::instance()[item].value, zone); }
+  bool sell(ItemId item, Zone zone);
 
   int stat_cost(Zone zone) const { return price(levels.next_cost(), zone); }
   bool can_raise(Stat stat, Zone zone) const;
@@ -96,5 +112,6 @@ private:
   int days = 0;
   int last_chapel = NO_CHAPEL;
   int coffee_limit = START_COFFEE;
+  int death_count = 0;
   int frozen[ZONE_COUNT] = {NOT_FROZEN, NOT_FROZEN, NOT_FROZEN}; // The day each zone stopped at.
 };

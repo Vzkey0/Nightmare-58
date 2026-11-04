@@ -1176,6 +1176,50 @@ static void test_menu_stack()
   assert(!menu.is_open());
 }
 
+static void test_shop()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const ItemId vinyl = ItemCatalog::VINYL;
+  const int candle = catalog[ItemCatalog::CANDLE].value;
+
+  PlayerProgress progress;
+  assert(progress.shop_price(candle, Zone::Avenue) == candle);
+  assert(!progress.buy(ItemCatalog::CANDLE, Zone::Avenue)); // No lochas yet.
+  assert(!progress.buy(ItemCatalog::COFFEE, Zone::Avenue)); // Not for sale.
+
+  progress.earn(candle);
+  assert(progress.buy(ItemCatalog::CANDLE, Zone::Avenue));
+  assert(progress.lochas() == 0);
+  assert(progress.inventory().count(ItemCatalog::CANDLE) == 1);
+  assert(progress.quick_slots().holds(ItemCatalog::CANDLE));
+
+  // Only collectibles sell, at the day's rate.
+  assert(!progress.sell(ItemCatalog::CANDLE, Zone::Avenue));
+  assert(!progress.sell(vinyl, Zone::Avenue));
+  progress.collect(vinyl, 2);
+  progress.rest(0);
+  progress.rest(0);
+  progress.rest(0);
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 160 / 100);
+  assert(progress.sell(vinyl, Zone::Avenue));
+  assert(progress.lochas() == catalog[vinyl].value * 160 / 100);
+  assert(progress.inventory().count(vinyl) == 1);
+
+  // Each death raises his prices, up to a cap, on top of inflation.
+  progress.die(0.f, 0.f, 0.f);
+  assert(progress.deaths() == 1 && progress.markup() == PlayerProgress::DEATH_MARKUP);
+  assert(progress.shop_price(100, Zone::Avenue) == 176);
+  for (int i = 0; i < 20; ++i)
+    progress.die(0.f, 0.f, 0.f);
+  assert(progress.markup() == PlayerProgress::MAX_MARKUP);
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 160 / 100); // Selling is not marked up.
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.deaths() == 21);
+  assert(!loaded.from_text("nightmare58 3\ndeaths -1\n"));
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1228,5 +1272,6 @@ int main()
   test_player_use_item();
   test_menu_stack();
   test_player_name();
+  test_shop();
   return 0;
 }

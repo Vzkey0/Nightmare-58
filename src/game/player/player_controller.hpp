@@ -24,6 +24,7 @@ class Chapel;
 class CombatTarget;
 class GameMenu;
 class LostLochas;
+class Merchant;
 class StatBar;
 class WeaponTrail;
 
@@ -63,6 +64,10 @@ public:
   void recover_lochas();
   bool raise_stat(Stat stat);
   Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
+  void set_nearby_merchant(Merchant * merchant);
+  Zone merchant_zone() const;
+  bool buy(ItemId item);
+  bool sell(ItemId item);
 
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);
@@ -145,6 +150,7 @@ private:
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
   Chapel * nearby_chapel = nullptr;
+  Merchant * nearby_merchant = nullptr;
   LostLochas * dropped_lochas = nullptr;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.

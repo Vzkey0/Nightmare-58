@@ -68,6 +68,7 @@ add_library(nightmare58_ext SHARED
   src/game/enemies/training_dummy.cpp
   src/game/weapons/weapon_trail.cpp
   src/game/world/chapel.cpp
+  src/game/world/merchant.cpp
   src/game/world/loot_pickup.cpp
   src/game/world/lost_lochas.cpp
   src/game/world/save_file.cpp)

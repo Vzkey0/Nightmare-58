@@ -28,6 +28,9 @@ enum PauseRow { ROW_RESUME, ROW_OPTIONS, ROW_TO_TITLE };
 constexpr int CHAPEL_ROWS = 4;
 enum ChapelRow { ROW_REST, ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
 
+constexpr int SHOP_ROWS = 3;
+enum ShopRow { ROW_BUY, ROW_SELL, ROW_SHOP_LEAVE };
+
 const char * const STAT_NAMES[STAT_COUNT] = {
   "Vida máxima", "Recuperación de stamina", "Regeneración de vida", "Velocidad al correr", "Cadencia de ataque", "Poder de ataque",
 };
@@ -328,6 +331,12 @@ int GameMenu::row_count() const
       return PAUSE_ROWS;
     case MenuScreen::Options:
       return GameSettings::ROWS;
+    case MenuScreen::Shop:
+      return SHOP_ROWS;
+    case MenuScreen::ShopBuy:
+      return static_cast<int>(player->progress().shop_stock().size());
+    case MenuScreen::ShopSell:
+      return static_cast<int>(sellable().size());
     default:
       return static_cast<int>(tab_stacks().size());
   }
@@ -359,10 +368,44 @@ void GameMenu::accept()
       return;
     case MenuScreen::Options:
       return;
+    case MenuScreen::Shop:
+      accept_shop();
+      return;
+    case MenuScreen::ShopBuy:
+      if (row_count() > 0)
+        UiSounds::play(this, player->buy(player->progress().shop_stock()[menu.cursor()]) ? "Accept" : "Deny");
+      break;
+    case MenuScreen::ShopSell:
+      if (row_count() > 0)
+        UiSounds::play(this, player->sell(sellable()[menu.cursor()].item) ? "Accept" : "Deny");
+      break;
     default:
       break;
   }
   refresh();
+}
+
+void GameMenu::accept_shop()
+{
+  if (menu.cursor() == ROW_SHOP_LEAVE)
+  {
+    close();
+    return;
+  }
+  menu.open(menu.cursor() == ROW_BUY ? MenuScreen::ShopBuy : MenuScreen::ShopSell);
+  UiSounds::play(this, "Accept");
+  refresh();
+}
+
+Designar::DynArray<ItemStack> GameMenu::sellable() const
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemStack> stacks = player->progress().inventory().sorted(InventorySort::Value);
+  Designar::DynArray<ItemStack> shown;
+  for (int i = 0; i < static_cast<int>(stacks.size()); ++i)
+    if (catalog[stacks[i].item].kind == ItemKind::Collectible)
+      shown.append(stacks[i]);
+  return shown;
 }
 
 // Once per visit: each rest is a day of inflation, so a second press must not cost another.
@@ -403,6 +446,15 @@ void GameMenu::refresh()
       break;
     case MenuScreen::Options:
       show_options();
+      break;
+    case MenuScreen::Shop:
+      show_shop();
+      break;
+    case MenuScreen::ShopBuy:
+      show_shop_buy();
+      break;
+    case MenuScreen::ShopSell:
+      show_shop_sell();
       break;
     default:
       show_inventory();
@@ -535,5 +587,68 @@ void GameMenu::show_inventory()
   else
     detail->set_text(text("No llevas nada aquí."));
   hints->set_text(vformat("R  ordenar: %s", text(SORT_NAMES[static_cast<int>(sort_mode)])));
+  hint_back->set_text("Esc  volver");
+}
+
+String GameMenu::shop_title() const
+{
+  const int rate = player->progress().exchange_rate(player->merchant_zone());
+  return vformat(text("Bachaquero  ·  tasa ×%d,%02d"), rate / 100, rate % 100);
+}
+
+void GameMenu::show_shop()
+{
+  const PlayerProgress & progress = player->progress();
+  title->set_text(shop_title());
+  if (progress.markup() > 0)
+    detail->set_text(vformat(text("\"Cada vez que te mueres, yo subo.\"  Recargo: +%d %%"), progress.markup()));
+  else
+    detail->set_text(text("\"Lo que tengo no pierde valor, pana.\""));
+  add_row("Comprar", menu.cursor() == ROW_BUY);
+  add_row("Vender", menu.cursor() == ROW_SELL);
+  add_row("Salir", menu.cursor() == ROW_SHOP_LEAVE);
+  hints->set_text("E  aceptar");
+  hint_back->set_text("Esc  salir");
+}
+
+void GameMenu::show_shop_buy()
+{
+  const PlayerProgress & progress = player->progress();
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemId> stock = progress.shop_stock();
+  const int count = static_cast<int>(stock.size());
+  const Zone zone = player->merchant_zone();
+  menu.keep_cursor_within(count);
+  title->set_text(shop_title());
+  for (int i = 0; i < count; ++i)
+  {
+    const Item & item = catalog[stock[i]];
+    add_row(text(item.name), menu.cursor() == i, vformat("%d", progress.shop_price(item.value, zone)));
+  }
+  const String described = count > 0 ? text(catalog[stock[menu.cursor()]].description) + "\n" : String();
+  detail->set_text(described + vformat(text("Tienes: %d lochas"), progress.lochas()));
+  hints->set_text("E  comprar");
+  hint_back->set_text("Esc  volver");
+}
+
+void GameMenu::show_shop_sell()
+{
+  const PlayerProgress & progress = player->progress();
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemStack> stacks = sellable();
+  const int count = static_cast<int>(stacks.size());
+  const Zone zone = player->merchant_zone();
+  menu.keep_cursor_within(count);
+  title->set_text(shop_title());
+  for (int i = 0; i < count; ++i)
+  {
+    const Item & item = catalog[stacks[i].item];
+    add_row(vformat("%s  x%d", text(item.name), stacks[i].count), menu.cursor() == i, vformat("%d", progress.sell_price(stacks[i].item, zone)));
+  }
+  if (count > 0)
+    detail->set_text(vformat(text("Paga más mientras más cae la locha.\nTienes: %d lochas"), progress.lochas()));
+  else
+    detail->set_text(text("No tienes nada que le interese."));
+  hints->set_text("E  vender");
   hint_back->set_text("Esc  volver");
 }

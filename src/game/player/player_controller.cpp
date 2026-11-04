@@ -5,6 +5,7 @@
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/world/merchant.hpp>
 #include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
 #include <game/world/save_file.hpp>
@@ -619,6 +620,35 @@ void PlayerController::set_nearby_chapel(Chapel * chapel)
   prompt_label->set_text(chapel != nullptr ? "[E]  Capilla" : "");
 }
 
+void PlayerController::set_nearby_merchant(Merchant * merchant)
+{
+  nearby_merchant = merchant;
+  prompt_label->set_text(merchant != nullptr ? "[E]  Bachaquero" : "");
+}
+
+Zone PlayerController::merchant_zone() const
+{
+  return nearby_merchant != nullptr ? nearby_merchant->zone_kind() : Zone::Avenue;
+}
+
+bool PlayerController::buy(ItemId item)
+{
+  if (!save.buy(item, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::sell(ItemId item)
+{
+  if (!save.sell(item, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
 void PlayerController::rest()
 {
   save.rest(nearby_chapel->get_chapel_id());
@@ -715,6 +745,8 @@ void PlayerController::read_item_input()
     menu->open(MenuScreen::Inventory);
   if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
     menu->open(MenuScreen::Chapel);
+  else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
+    menu->open(MenuScreen::Shop);
 
   const ItemId item = save.quick_slots().current();
   if (input->is_action_just_pressed(use_item_input) && item != NO_ITEM && save.inventory().count(item) > 0)

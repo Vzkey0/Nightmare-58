@@ -5,7 +5,8 @@
 
 namespace
 {
-constexpr int SAVE_VERSION = 2; // 2 added frozen zones. Older saves still load: missing lines keep their defaults.
+// 2 added frozen zones and 3 the bachaquero. Older saves still load: missing lines keep their defaults.
+constexpr int SAVE_VERSION = 3;
 constexpr const char * SAVE_HEADER = "nightmare58";
 constexpr int MAX_AMOUNT = 1000000000; // Anything above this comes from a damaged file.
 
@@ -57,6 +58,49 @@ void PlayerProgress::freeze_inflation(Zone zone)
     frozen[static_cast<int>(zone)] = days;
 }
 
+int PlayerProgress::markup() const
+{
+  return std::min(death_count * DEATH_MARKUP, MAX_MARKUP);
+}
+
+int PlayerProgress::shop_price(int base, Zone zone) const
+{
+  return (price(base, zone) * (100 + markup()) + 99) / 100;
+}
+
+Designar::DynArray<ItemId> PlayerProgress::shop_stock() const
+{
+  Designar::DynArray<ItemId> stock;
+  stock.append(ItemCatalog::CANDLE);
+  return stock;
+}
+
+bool PlayerProgress::can_buy(ItemId item, Zone zone) const
+{
+  const Designar::DynArray<ItemId> stock = shop_stock();
+  bool offered = false;
+  for (Designar::nat_t i = 0; i < stock.size(); ++i)
+    offered = offered || stock[i] == item;
+  return offered && wallet >= shop_price(ItemCatalog::instance()[item].value, zone);
+}
+
+bool PlayerProgress::buy(ItemId item, Zone zone)
+{
+  if (!can_buy(item, zone))
+    return false;
+  wallet -= shop_price(ItemCatalog::instance()[item].value, zone);
+  collect(item);
+  return true;
+}
+
+bool PlayerProgress::sell(ItemId item, Zone zone)
+{
+  if (ItemCatalog::instance()[item].kind != ItemKind::Collectible || !items.remove(item))
+    return false;
+  wallet += sell_price(item, zone);
+  return true;
+}
+
 bool PlayerProgress::can_raise(Stat stat, Zone zone) const
 {
   return levels.can_raise(stat) && wallet >= stat_cost(zone);
@@ -74,6 +118,7 @@ bool PlayerProgress::raise(Stat stat, Zone zone)
 void PlayerProgress::die(float x, float y, float z)
 {
   mark = DeathMark{wallet, x, y, z};
+  ++death_count;
   wallet = 0;
 }
 
@@ -112,6 +157,7 @@ std::string PlayerProgress::to_text() const
   out << "day " << days << '\n';
   out << "chapel " << last_chapel << '\n';
   out << "coffee " << coffee_limit << '\n';
+  out << "deaths " << death_count << '\n';
 
   for (int zone = 0; zone < ZONE_COUNT; ++zone)
     if (frozen[zone] != NOT_FROZEN)
@@ -165,6 +211,8 @@ bool PlayerProgress::from_text(const std::string & text)
       good = static_cast<bool>(in >> loaded.last_chapel) && in_range(loaded.last_chapel, NO_CHAPEL, MAX_AMOUNT);
     else if (word == "coffee")
       good = static_cast<bool>(in >> loaded.coffee_limit) && in_range(loaded.coffee_limit, 0, MAX_COFFEE);
+    else if (word == "deaths")
+      good = static_cast<bool>(in >> loaded.death_count) && in_range(loaded.death_count, 0, MAX_AMOUNT);
     else if (word == "frozen")
     {
       int zone = 0;

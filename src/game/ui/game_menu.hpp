@@ -47,6 +47,12 @@ private:
   void show_inventory();
   void show_pause();
   void show_options();
+  void show_shop();
+  void show_shop_buy();
+  void show_shop_sell();
+  void accept_shop();
+  godot::String shop_title() const;
+  Designar::DynArray<ItemStack> sellable() const;
   void accept_pause();
   void leave_to_title();
   bool handle_options_input(const godot::Ref<godot::InputEvent> & event);

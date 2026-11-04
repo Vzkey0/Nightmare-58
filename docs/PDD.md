@@ -95,12 +95,17 @@ miente al jugador sobre la misma distancia que usa el árbol.
   enemigos no sube, así que guardar lochas sale caro. Afecta a subir de nivel y a la
   tienda. Cada zona congela su tasa en el día en que cae su jefe. La capilla muestra
   la tasa y avisa cuando la locha pierde valor.
+- **Botín por enemigo:** cada enemigo suelta una cantidad fija, pero los que llegan
+  después en el recorrido sueltan más, para que la inflación no ahogue al jugador. El
+  esqueleto da 30; la rata y el perro, unas 50. Se ajusta jugando.
 - **Muerte:** se dejan las lochas donde se cayó, y hay que volver por ellas. Si se muere
   otra vez antes de recuperarlas, se pierden.
 - **Capillas:** son los puntos de control. Permiten descansar y subir de nivel.
 - **Curación:** café, en cantidad limitada. Se recarga en las capillas.
 - **Bachaquero:** mercader que cambia lochas por objetos que no se devalúan. Sus
-  precios suben cada vez que mueres.
+  precios suben cada vez que mueres: un 10 % por muerte, hasta el doble. Cobra con la
+  tasa de su zona y compra coleccionables a su valor por la tasa del día, sin recargo.
+  Está a la salida de la primera capilla y se abre con E.
 
 ### Estadísticas
 
