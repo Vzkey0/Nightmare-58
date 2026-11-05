@@ -73,6 +73,8 @@ constexpr float HURT_PUSH = 2.2f;
 
 constexpr float EYE_REST = 1.3f;
 constexpr float EYE_FLARE = 7.f;
+const Color CORE_GLOW(1.f, 0.32f, 0.08f);
+constexpr float CORE_ENERGY = 4.f;
 
 constexpr float BLEND_MOVE = 0.2f;
 constexpr float BLEND_ACTION = 0.1f;
@@ -80,20 +82,43 @@ constexpr float MIN_STRIDE = 0.15f;
 
 constexpr MeleeProfile NO_PROFILE{};
 
-BehaviorTree::AttackQueue attacks_of(std::initializer_list<EnemyAction> actions)
+template <typename Actions>
+BehaviorTree::AttackQueue attacks_of(const Actions & actions)
 {
   BehaviorTree::AttackQueue attacks;
   for (const EnemyAction action : actions)
-    attacks.put(Attack{static_cast<int>(action)});
+    if (action != EnemyAction::None)
+      attacks.put(Attack{static_cast<int>(action)});
   return attacks;
 }
 
 const StringName & attack_clip(EnemyAction action)
 {
   // In EnemyAction order. The dog's leap has the same clip name as the skeleton's lunge.
-  static const StringName CLIPS[] = {"attack_chop", "attack_sweep", "attack_lunge", "attack_bite",  "attack_pounce",
-                                     "attack_rake", "attack_snap",  "attack_lunge", "attack_thrash"};
+  static const StringName CLIPS[] = {"attack_chop",   "attack_sweep",  "attack_lunge", "attack_bite",   "attack_pounce",
+                                     "attack_rake",   "attack_snap",   "attack_lunge", "attack_thrash", "attack_maul",
+                                     "attack_crunch", "attack_whirl",  "attack_crash", "attack_frenzy", "attack_quake"};
   return CLIPS[static_cast<int>(action)];
+}
+
+// Under the Skeleton3D, in the order of the hitbox bits below.
+const char * const HITBOX_PATHS[] = {"WeaponBone/Hitbox", "PawBoneL/Hitbox", "PawBoneR/Hitbox", "TailBone/Hitbox", "Slam"};
+constexpr int WEAPON = 1;
+constexpr int PAWS = 2 | 4;
+constexpr int TAIL = 8;
+constexpr int SLAM = 16;
+
+int strikes_with(EnemyAction action)
+{
+  switch (action)
+  {
+    case EnemyAction::Maul: return PAWS;
+    case EnemyAction::Frenzy: return PAWS | WEAPON;
+    case EnemyAction::Whirl: return TAIL;
+    case EnemyAction::Crash:
+    case EnemyAction::Quake: return SLAM;
+    default: return WEAPON;
+  }
 }
 
 float damp(float rate, float delta)
@@ -109,10 +134,12 @@ MeleeEnemy::MeleeEnemy()
 
 MeleeEnemy::MeleeEnemy(const MeleeProfile & profile)
   : profile(profile),
-    tree(BehaviorTree::skeleton(attacks_of({profile.melee[0], profile.melee[1]}), attacks_of({profile.charge})))
+    tree(BehaviorTree::skeleton(attacks_of(profile.fury), attacks_of(profile.melee),
+                                attacks_of(std::initializer_list<EnemyAction>{profile.charge})))
 {
   health = Health(profile.max_health);
   aim_height = profile.aim_height;
+  pinned_bar = profile.boss;
 }
 
 void MeleeEnemy::_ready()
@@ -123,7 +150,9 @@ void MeleeEnemy::_ready()
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   const String model_name(profile.model);
   const String skeleton = "Model/armature_" + model_name + String("/Skeleton3D/");
-  hitbox = get_node<ShapeCast3D>(skeleton + String("WeaponBone/Hitbox"));
+  for (int i = 0; i < HITBOX_COUNT; ++i)
+    hitboxes[i] = Object::cast_to<ShapeCast3D>(get_node_or_null(NodePath(skeleton + String(HITBOX_PATHS[i]))));
+  dust = Object::cast_to<CPUParticles3D>(get_node_or_null(NodePath(skeleton + String("Slam/Dust"))));
   swing_sound = get_node<AudioStreamPlayer>("Swing");
   navigator = get_node<NavigationAgent3D>("Navigator");
   spawn_point = last_seen = get_global_position();
@@ -146,6 +175,11 @@ void MeleeEnemy::_ready()
       eyes = material->duplicate();
       body->set_surface_override_material(surface, eyes);
     }
+    else if (material.is_valid() && material->get_name() == "core" && profile.fury_clip != nullptr)
+    {
+      core = material->duplicate();
+      body->set_surface_override_material(surface, core);
+    }
   }
 
   // Started apart, so a group placed together does not look and ray on the same tick.
@@ -156,6 +190,8 @@ void MeleeEnemy::_ready()
   wander_time = UtilityFunctions::randf_range(0.f, WANDER_PAUSE_MAX);
   play(idle_clip, 0.f);
   animator->seek(UtilityFunctions::randf_range(0.f, 4.f));
+  if (beaten())
+    queue_free();
 }
 
 void MeleeEnemy::_exit_tree()
@@ -181,8 +217,8 @@ void MeleeEnemy::_physics_process(double delta_time)
   const int burned = statuses.update(real_delta);
   if (burned > 0)
     burn(burned);
-  // Chilled, its own clock runs slow: actions, timers, steps and clips alike.
-  const float slow = statuses.slow_scale();
+  // Chilled, its own clock runs slow: actions, timers, steps and clips alike. Fury runs it fast.
+  const float slow = statuses.slow_scale() * (enraged ? profile.fury_haste : 1.f);
   const float delta = real_delta * slow;
   animator->set_speed_scale(animator->get_speed_scale() / applied_slow);
 
@@ -219,9 +255,13 @@ void MeleeEnemy::_physics_process(double delta_time)
     if (actions.hitting())
       hit_player();
     velocity = root_motion_step(delta).rotated(UP, facing_yaw) * step_scale / real_delta;
-    const EnemyTiming & timing = EnemyActions::timing(actions.current());
-    if (actions.elapsed() >= timing.hit_start && actions.elapsed() - delta < timing.hit_start)
+    const int window = actions.window();
+    if (window >= 0 && EnemyActions::window_at(EnemyActions::timing(actions.current()), actions.elapsed() - delta) != window)
+    {
       swing_sound->play();
+      if (dust != nullptr && strikes_with(actions.current()) == SLAM)
+        dust->restart();
+    }
   }
   else if (actions.busy() || alert_time > 0.f)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
@@ -249,6 +289,11 @@ void MeleeEnemy::think()
   sense();
   if (alert_time > 0.f)
     return;
+  if (!enraged && profile.fury_clip != nullptr && context.aware && health.ratio() < BehaviorTree::FURY_HEALTH_RATIO)
+  {
+    enrage();
+    return;
+  }
   const Decision decision = tree.decide(context);
   if (decision.attack_id != BehaviorTree::NO_ATTACK)
   {
@@ -328,6 +373,7 @@ void MeleeEnemy::sense()
     last_seen = spawn_point;
   }
 
+  fighting = context.aware;
   context.charge_ready = charge_wait == 0.f && distance >= profile.charge_min_range;
   context.can_attack = attack_wait == 0.f && (has_turn || player->attack_turns().available());
 }
@@ -342,6 +388,27 @@ void MeleeEnemy::notice()
   alert_time = animator->get_animation(profile.alert_clip)->get_length();
   play(profile.alert_clip, BLEND_ACTION);
   animator->set_speed_scale(1.f);
+}
+
+// Once, the first time it can act below the fury line: a roar, the ribs lit up and the fury pace.
+void MeleeEnemy::enrage()
+{
+  enraged = true;
+  alert_time = animator->get_animation(profile.fury_clip)->get_length();
+  play(profile.fury_clip, BLEND_ACTION);
+  animator->set_speed_scale(1.f);
+  if (core.is_valid())
+  {
+    core->set_feature(BaseMaterial3D::FEATURE_EMISSION, true);
+    core->set_emission(CORE_GLOW);
+    core->set_emission_energy_multiplier(CORE_ENERGY);
+  }
+}
+
+// A beaten boss stays beaten: the inflation it froze is what remembers it.
+bool MeleeEnemy::beaten() const
+{
+  return profile.boss && player != nullptr && player->progress().inflation_frozen(profile.zone);
 }
 
 bool MeleeEnemy::sees_player() const
@@ -360,7 +427,7 @@ void MeleeEnemy::start_attack(const Decision & decision)
   if (action == profile.charge)
     charge_wait = CHARGE_WAIT;
 
-  hitbox->clear_exceptions();
+  struck_window = -1;
   motion_animation = animator->get_animation(attack_clip(action));
   motion_track = motion_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
   aim_step();
@@ -386,13 +453,25 @@ void MeleeEnemy::aim_step()
 
 void MeleeEnemy::hit_player()
 {
-  // Asked on each tick, as with the player's weapon: see PlayerController::hit_targets.
-  hitbox->force_shapecast_update();
-  for (int i = 0; i < hitbox->get_collision_count(); ++i)
+  // One hit per blow, whichever hitbox lands it. Asked on each tick, as with the player's weapon:
+  // see PlayerController::hit_targets.
+  const int window = actions.window();
+  if (window == struck_window)
+    return;
+  const int strikes = strikes_with(actions.current());
+  for (int i = 0; i < HITBOX_COUNT; ++i)
   {
-    if (Object::cast_to<PlayerController>(hitbox->get_collider(i)) != nullptr)
-      player->take_hit(EnemyActions::timing(actions.current()).damage, get_global_position());
-    hitbox->add_exception_rid(hitbox->get_collider_rid(i));
+    ShapeCast3D * hitbox = hitboxes[i];
+    if ((strikes & (1 << i)) == 0 || hitbox == nullptr)
+      continue;
+    hitbox->force_shapecast_update();
+    for (int k = 0; k < hitbox->get_collision_count(); ++k)
+      if (Object::cast_to<PlayerController>(hitbox->get_collider(k)) != nullptr)
+      {
+        player->take_hit(EnemyActions::timing(actions.current()).damage, get_global_position());
+        struck_window = window;
+        return;
+      }
   }
 }
 
@@ -415,7 +494,7 @@ void MeleeEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3 & 
     return;
   }
 
-  if (actions.hurt())
+  if (!profile.boss && actions.hurt())
   {
     end_attack();
     alert_time = 0.f;
@@ -430,6 +509,8 @@ void MeleeEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3 & 
 
 void MeleeEnemy::fall()
 {
+  if (profile.boss)
+    player->freeze_inflation(profile.zone);
   end_attack();
   actions.die();
   statuses.clear();
@@ -480,6 +561,11 @@ void MeleeEnemy::go_down(float delta)
 // surrounded. It is also the only way the fallen get up, which keeps kills from paying twice.
 void MeleeEnemy::reset()
 {
+  if (beaten())
+  {
+    queue_free();
+    return;
+  }
   player_respawns = player->respawn_count();
   end_attack();
   health.restore();
@@ -494,6 +580,10 @@ void MeleeEnemy::reset()
   wandering = false;
   wander_time = UtilityFunctions::randf_range(0.f, WANDER_PAUSE_MAX);
   alert_time = 0.f;
+  fighting = false;
+  enraged = false;
+  if (core.is_valid())
+    core->set_feature(BaseMaterial3D::FEATURE_EMISSION, false);
   attack_wait = WAIT_MAX;
   current_clip = StringName();
   charge_wait = 0.f;

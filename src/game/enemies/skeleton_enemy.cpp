@@ -26,7 +26,7 @@ constexpr MeleeProfile SKELETON{
   1.9f, 4.4f, 2.6f, 1.25f,     // Near, medium, charge from, strike reach.
   1.4f, 3.8f, 1.1f, 1.1f, 4.f, // Walk, run (slower than the player), circle, back, run from.
   2.5f, 3.7f,                  // Circle gap.
-  {EnemyAction::Chop, EnemyAction::Sweep},
+  {EnemyAction::Chop, EnemyAction::Sweep, EnemyAction::None},
   EnemyAction::Lunge,
   nullptr,
   skeleton_loot,

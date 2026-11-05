@@ -37,6 +37,7 @@ class BehaviorTree
 {
 public:
   static constexpr int NO_ATTACK = -1;
+  static constexpr float FURY_HEALTH_RATIO = 0.3f;
 
   using AttackQueue = Designar::DynQueue<Attack>;
 
@@ -44,8 +45,9 @@ public:
                const AttackQueue & ranged, const AttackQueue & charge);
   ~BehaviorTree();
 
-  // Melee from close, a charge from the middle, and circling while it waits for a turn.
-  static BehaviorTree skeleton(const AttackQueue & melee, const AttackQueue & charge);
+  // Melee from close, a charge from the middle, and circling while it waits for a turn. Below
+  // FURY_HEALTH_RATIO the fury attacks take the place of the melee ones, if it has any.
+  static BehaviorTree skeleton(const AttackQueue & fury, const AttackQueue & melee, const AttackQueue & charge);
 
   BehaviorTree(const BehaviorTree &) = delete;
   BehaviorTree & operator=(const BehaviorTree &) = delete;

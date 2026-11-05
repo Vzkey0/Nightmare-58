@@ -25,7 +25,7 @@ constexpr MeleeProfile DOG{
   1.7f, 5.f, 2.6f, 1.05f,       // Near, medium, charge from, strike reach.
   1.3f, 5.8f, 1.3f, 1.f, 3.f,   // Walk, run, circle, back, run from.
   2.4f, 3.6f,                   // Circle gap.
-  {EnemyAction::Snap, EnemyAction::Thrash},
+  {EnemyAction::Snap, EnemyAction::Thrash, EnemyAction::None},
   EnemyAction::Leap,
   "bark",
   dog_loot,

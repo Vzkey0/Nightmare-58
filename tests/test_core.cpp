@@ -121,13 +121,21 @@ static void test_skeleton_tree()
 {
   BehaviorTree::AttackQueue melee = make_attacks(1);
   melee.put(Attack{2});
-  BehaviorTree tree = BehaviorTree::skeleton(melee, make_attacks(3));
+  BehaviorTree tree = BehaviorTree::skeleton(BehaviorTree::AttackQueue(), melee, make_attacks(3));
 
   EnemyContext context{1.f, DistanceRange::Near};
   assert(tree.decide(context).action == BehaviorAction::Melee);
   assert(tree.decide(context).attack_id == 1);
   tree.commit(tree.decide(context));
   assert(tree.decide(context).attack_id == 2);
+
+  // Without fury attacks, low health changes nothing; a boss swaps to its fury ones.
+  context.health_ratio = 0.2f;
+  assert(tree.decide(context).action == BehaviorAction::Melee);
+  BehaviorTree boss = BehaviorTree::skeleton(make_attacks(4), make_attacks(1), make_attacks(3));
+  assert(boss.decide(context).action == BehaviorAction::Fury && boss.decide(context).attack_id == 4);
+  context.health_ratio = 1.f;
+  assert(boss.decide(context).attack_id == 1);
 
   context.range = DistanceRange::Medium;
   assert(tree.decide(context).action == BehaviorAction::Charge);
@@ -185,9 +193,28 @@ static void test_enemy_attack()
   for (int id = 0; id < static_cast<int>(EnemyAction::None); ++id)
   {
     const EnemyTiming & attack = EnemyActions::timing(static_cast<EnemyAction>(id));
-    assert(attack.track_end < attack.hit_start && attack.hit_start < attack.hit_end && attack.hit_end < attack.duration);
+    // Each blow after the one before, and it commits before the last one.
+    float last = attack.hit_start;
+    for (int i = 0; i < EnemyTiming::MAX_AGAIN && attack.again[i] > 0.f; ++i)
+    {
+      assert(attack.again[i] > last + (attack.hit_end - attack.hit_start));
+      last = attack.again[i];
+    }
+    assert(attack.track_end < last && attack.hit_start < attack.hit_end && last + attack.hit_end - attack.hit_start < attack.duration);
     assert(attack.damage > 0);
   }
+
+  // A combo lands each blow in its own window and turns to the player between them.
+  const EnemyTiming & maul = EnemyActions::timing(EnemyAction::Maul);
+  assert(EnemyActions::window_at(maul, maul.hit_start) == 0);
+  assert(EnemyActions::window_at(maul, maul.hit_end + 0.05f) == -1);
+  assert(EnemyActions::window_at(maul, maul.again[0] + 0.01f) == 1);
+  EnemyActions combo;
+  combo.start(EnemyAction::Maul);
+  run_enemy(combo, maul.hit_start + 0.02f);
+  assert(combo.hitting() && !combo.tracking());
+  run_enemy(combo, maul.hit_end - maul.hit_start + 0.05f);
+  assert(!combo.hitting() && combo.tracking());
   const EnemyTiming & chop = EnemyActions::timing(EnemyAction::Chop);
 
   EnemyActions actions;

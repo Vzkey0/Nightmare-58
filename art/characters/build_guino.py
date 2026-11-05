@@ -4,6 +4,7 @@
 # and a broken chain dragging on the ground.
 # Modeled at the size of the common dog and scaled up at the end. Faces -Y with feet on the origin.
 #   blender --background --python art/characters/build_guino.py
+# It writes the model rigged and without animations; animate_guino.py adds them.
 import math
 import os
 import random
@@ -16,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "props"))
 
-from beast_tools import Body, along, paw, shade_fur, tuft
+from beast_tools import Body, Tags, along, chain_bones, leg_bones, mirrored, paw, rig, shade_fur, tuft
 from prop_tools import Shape, material
 
 BLEND_PATH = os.path.join(HERE, "guino.blend")
@@ -118,6 +119,9 @@ JAW = (((0, -0.01, -0.1), 0.16, 0.05), ((0, -0.12, -0.12), 0.18, 0.06), ((0, -0.
 JAW_OPEN = Matrix.Translation((0, -0.01, -0.1)) @ Matrix.Rotation(math.radians(34), 4, "X") @ Matrix.Translation((0, 0.01, 0.1))
 EYE = Vector((0.115, -0.14, 0.1))
 rng = random.Random(58)
+tag = None
+BODY_BONES = ("hips", "spine", "chest", "neck")
+NECK_BONES = ("chest", "neck", "head")
 BLOOD = []
 TAG = []
 
@@ -253,6 +257,7 @@ def build_jaw(jaw):
 
 
 def build_head(shape):
+  tag(*NECK_BONES)
   shape.tube(NECK, M["fur"], n=12, side=(1, 0, 0))
   head = Shape()
   jaw = Shape()
@@ -263,10 +268,13 @@ def build_head(shape):
   grin_rows(head, jaw)
   # The throat fills the open mouth behind the teeth.
   head.tube([((0, 0.02, -0.05), 0.14, 0.09), ((0, -0.15, -0.14), 0.15, 0.1), ((0, -0.3, -0.18), 0.1, 0.08)], M["mouth"], n=10, side=(1, 0, 0))
+  tag("jaw")
   shape.add(jaw.verts, jaw.faces, jaw.mats, at=HEAD @ JAW_OPEN)
+  tag("head")
   shape.add(head.verts, head.faces, head.mats, at=HEAD)
   # Drool in strings off the lower lip, each ending in a drop, and blood running from the grin.
   opened = HEAD @ JAW_OPEN
+  tag("jaw")
   for x, length in ((0.12, 0.13), (0.075, 0.2), (-0.09, 0.16), (-0.14, 0.1)):
     center, ru, rv = along(JAW, -0.3 + abs(x) * 0.6)
     top = opened @ Vector((x, center.y, center.z - rv * 0.6))
@@ -280,6 +288,7 @@ def build_head(shape):
 
 
 def build_collar(shape):
+  tag("neck")
   points = []
   outward = []
   for k in range(16):
@@ -321,6 +330,8 @@ def link(shape, center, along_dir, across, length, width):
 
 def build_chain(shape, start):
   """A broken chain hanging from the collar and dragging behind on the ground."""
+  # The hanging links swing with the neck and the ones on the ground drag along with the root.
+  tag("neck", "chain")
   route = [start, Vector((0.06, -0.62, 0.3)), Vector((0.1, -0.6, 0.04)), Vector((0.08, -0.4, 0.012)),
            Vector((0.06, -0.1, 0.012)), Vector((0.1, 0.2, 0.012)), Vector((0.05, 0.42, 0.012))]
   step = 0.04
@@ -352,6 +363,7 @@ def spine_z(y):
 
 def build_ribs(shape):
   # The bare middle: a dark cavity, the spine on top, thin ribs with gaps between them and the sternum below.
+  tag("hips", "spine", "chest")
   shape.tube([((0, 0.2, 0.68), 0.07, 0.08), ((0, 0.08, 0.7), 0.1, 0.12), ((0, -0.06, 0.72), 0.12, 0.15)], M["core"], n=8, side=(1, 0, 0))
   shape.tube([((0, y, spine_z(y) - 0.04), 0.03, 0.03) for y in (0.2, 0.1, 0.0, -0.08)], M["bone"], n=6)
   shape.tube([((0, 0.12, 0.5), 0.022, 0.012), ((0, 0.0, 0.48), 0.026, 0.014), ((0, -0.12, 0.49), 0.026, 0.014)], M["bone"], n=5, side=(1, 0, 0))
@@ -379,6 +391,7 @@ def build_ribs(shape):
 TAIL = (((0, 0.48, 0.68), 0.05, 0.05), ((0, 0.62, 0.8), 0.045, 0.045), ((0.03, 0.8, 0.92), 0.038, 0.038),
         ((0.07, 0.98, 0.95), 0.03, 0.03), ((0.12, 1.14, 0.9), 0.022, 0.022), ((0.15, 1.26, 0.8), 0.014, 0.014),
         ((0.16, 1.32, 0.7), 0.005, 0.005))
+TAIL_BONES = tuple(f"tail_{i + 1}" for i in range(len(TAIL) - 1))
 
 
 def point_on(path, t):
@@ -394,12 +407,14 @@ def point_on(path, t):
 
 def build_spikes(shape):
   # Bone spikes break through the spine, tallest over the hump, and grow again toward the tip of the tail.
+  tag(*BODY_BONES)
   heights = {-0.42: 0.07, -0.34: 0.11, -0.26: 0.15, -0.18: 0.17, -0.1: 0.14, -0.02: 0.11, 0.06: 0.08, 0.14: 0.07,
              0.22: 0.06, 0.3: 0.06, 0.38: 0.05, 0.46: 0.04}
   for y, height in heights.items():
     base = Vector((0, y, spine_z(y) - 0.02))
     tip = base + Vector((0, 0.05 + height * 0.35, height))
     shape.tube([(base, 0.028, 0.038), (base.lerp(tip, 0.5), 0.017, 0.022), (tip, 0.002, 0.002)], M["bone"], n=4, side=(1, 0, 0))
+  tag(*TAIL_BONES)
   for t, height in ((0.2, 0.04), (0.35, 0.05), (0.5, 0.06), (0.65, 0.08), (0.8, 0.1), (0.92, 0.11)):
     base = point_on(TAIL, t)
     ahead = point_on(TAIL, min(t + 0.05, 1.0))
@@ -410,6 +425,7 @@ def build_spikes(shape):
 
 
 def build_tail(shape):
+  tag(*TAIL_BONES)
   shape.tube(TAIL, M["fur"], n=7)
   # Fur bristling off both sides of the tail.
   for t in (0.15, 0.3, 0.45, 0.6, 0.75, 0.88):
@@ -420,23 +436,28 @@ def build_tail(shape):
 
 def build_limbs(shape):
   for sign in (1, -1):
+    side = "_l" if sign > 0 else "_r"
     def at(x, y, z):
       return Vector((sign * x, y, z))
     # Front legs planted wide with the elbows out: a heavy upper arm, a forearm swelling with muscle
     # before it thins at the wrist, and hands spread flat on the asphalt.
     elbow = at(0.3, -0.14, 0.5)
+    tag(f"upper_front{side}", f"lower_front{side}", f"foot_front{side}")
     shape.tube([(at(0.18, -0.22, 0.86), 0.14, 0.17), (at(0.25, -0.18, 0.68), 0.12, 0.13), (elbow, 0.085, 0.09),
                 (at(0.3, -0.2, 0.38), 0.085, 0.09), (at(0.285, -0.27, 0.24), 0.065, 0.065), (at(0.275, -0.31, 0.15), 0.048, 0.05),
                 (at(0.28, -0.34, 0.09), 0.046, 0.046)], M["fur"], n=8)
     shape.tube([(elbow + Vector((0, 0.03, 0)), 0.04, 0.04), (elbow + Vector((sign * 0.02, 0.09, -0.02)), 0.022, 0.022)], M["bone_dark"], n=5)
     strand(shape, elbow + Vector((0, 0.05, -0.03)), Vector((sign * 0.3, 0.6, -1)).normalized(), 0.06, 0.03, sweep=0.02)
+    tag(f"foot_front{side}", f"toes_front{side}")
     paw(shape, M["skin_dark"], M["claw"], at(0.28, -0.34, 0.085), (sign * 0.35, -1, 0), (-0.06, -0.02, 0.02, 0.06), 0.08, sign,
         size=1.8, claw_length=0.11)
     # Hind legs: thin and bony, with the hock sticking out.
     hock = at(0.18, 0.44, 0.22)
+    tag(f"upper_hind{side}", f"lower_hind{side}", f"foot_hind{side}")
     shape.tube([(at(0.1, 0.34, 0.66), 0.11, 0.13), (at(0.17, 0.24, 0.48), 0.07, 0.075), (at(0.19, 0.2, 0.42), 0.055, 0.06),
                 (hock, 0.04, 0.045), (at(0.17, 0.38, 0.08), 0.035, 0.035)], M["fur"], n=8)
     shape.tube([(hock + Vector((0, 0.01, 0.01)), 0.035, 0.035), (hock + Vector((0, 0.06, 0.0)), 0.02, 0.02)], M["bone_dark"], n=5)
+    tag(f"foot_hind{side}", f"toes_hind{side}")
     paw(shape, M["skin_dark"], M["claw"], at(0.17, 0.38, 0.075), (sign * 0.12, -1, 0), (-0.045, -0.015, 0.015, 0.045), 0.06, sign,
         size=1.5, claw_length=0.08)
 
@@ -450,6 +471,7 @@ def strand(shape, base, out, length, width, sweep=0.0, droop=0.0):
 
 def build_fur(shape):
   # Mane: long, heavy locks over the neck and the hump that hang down the sides.
+  tag(*NECK_BONES)
   for y in (-0.62, -0.57, -0.52, -0.47, -0.42):
     for angle in range(-30, 211, 18):
       a = math.radians(angle + rng.uniform(-7, 7))
@@ -458,6 +480,7 @@ def build_fur(shape):
       out = Vector((math.cos(a), 0, math.sin(a)))
       hang = 1.0 - abs(math.sin(a))
       strand(shape, base, out, rng.uniform(0.1, 0.16), 0.055, sweep=rng.uniform(0.06, 0.1), droop=0.04 + 0.1 * hang)
+  tag("spine", "chest", "neck")
   for y in (-0.38, -0.32, -0.26, -0.2, -0.14, -0.08):
     for angle in range(20, 161, 20):
       a = angle + rng.uniform(-8, 8)
@@ -465,12 +488,14 @@ def build_fur(shape):
       hang = 1.0 - abs(math.sin(math.radians(a)))
       strand(shape, FRONT.surface(y, a, -0.02), out, rng.uniform(0.09, 0.14), 0.05, sweep=rng.uniform(0.07, 0.11), droop=0.03 + 0.09 * hang)
   # Rough, short fur over the starved hips.
+  tag("hips", "spine")
   for y in (0.2, 0.28, 0.36, 0.44):
     for angle in (150, 115, 65, 30):
       a = angle + rng.uniform(-10, 10)
       out = Vector((math.cos(math.radians(a)), 0, math.sin(math.radians(a))))
       strand(shape, HIND.surface(y, a, -0.012), out, rng.uniform(0.04, 0.06), 0.03, sweep=0.06)
   # Bristles standing up along the spine, between the bone spikes.
+  tag(*BODY_BONES)
   y = -0.44
   while y < 0.48:
     for x in (0.03, -0.03):
@@ -478,6 +503,7 @@ def build_fur(shape):
       strand(shape, base, Vector((x * 6, 0.25, 1)).normalized(), rng.uniform(0.05, 0.08), 0.016, sweep=0.02)
     y += 0.04
   # Ragged fringes where the fur gives out, hanging down over the ribs.
+  tag("hips", "spine", "chest")
   for side in (1, -1):
     for angle in (75, 50, 25, 0, -25, -50):
       a = angle if side > 0 else 180 - angle
@@ -540,11 +566,37 @@ def engrave_name(guino):
     bpy.ops.object.join()
 
 
+def bones():
+  """Bones as name: (head, tail, parent) at model size, for the side +X; _l bones get a mirrored _r twin."""
+  hinge = HEAD @ JAW_OPEN
+  table = {
+    # Carries root motion, so it sits on the ground and has no vertex weights.
+    "root": ((0, 0, 0), (0, 0.2, 0), None),
+    "hips": ((0, 0.34, 0.66), (0, 0.5, 0.66), "root"),
+    "spine": ((0, 0.34, 0.66), (0, -0.02, 0.76), "hips"),
+    "chest": ((0, -0.02, 0.76), (0, -0.38, 0.84), "spine"),
+    "neck": ((0, -0.38, 0.84), (0, -0.62, 0.69), "chest"),
+    "head": (tuple(HEAD @ Vector((0, 0.04, 0.03))), tuple(HEAD @ Vector((0, -0.45, -0.02))), "neck"),
+    "jaw": (tuple(hinge @ Vector((0, -0.01, -0.1))), tuple(hinge @ Vector((0, -0.4, -0.11))), "head"),
+    # Never posed: the links on the ground stay where the root leaves them.
+    "chain": ((0.08, -0.4, 0.012), (0.05, 0.42, 0.012), "root"),
+  }
+  table.update(chain_bones("tail", [p for p, _, _ in TAIL], "hips"))
+  table.update(leg_bones("front_l", "chest", (0.18, -0.22, 0.86), (0.3, -0.14, 0.5), (0.278, -0.32, 0.13), (0.31, -0.425, 0.03), (0.35, -0.56, 0.008)))
+  table.update(leg_bones("hind_l", "hips", (0.1, 0.34, 0.66), (0.19, 0.2, 0.42), (0.18, 0.44, 0.22), (0.178, 0.31, 0.03), (0.19, 0.18, 0.006)))
+  scaled = lambda p: tuple(c * SCALE for c in p)
+  return {name: (scaled(head), scaled(tail), parent) for name, (head, tail, parent) in mirrored(table).items()}
+
+
 def main():
   bpy.ops.wm.read_factory_settings(use_empty=True)
   make_materials()
   shape = Shape()
+  global tag
+  tag = Tags(shape)
+  tag("spine", "chest", "neck")
   FRONT.loft(shape, M["fur"], rng)
+  tag("hips", "spine")
   HIND.loft(shape, M["fur"], rng)
   build_ribs(shape)
   build_head(shape)
@@ -557,7 +609,11 @@ def main():
   shape.verts = [(x * SCALE, y * SCALE, z * SCALE) for x, y, z in shape.verts]
   guino = shape.finish("guino")
   shade_fur(guino, M, coat, rng, 0.7, scale=SCALE)
+  rig(guino, "guino", bones(), tag.ranges())
   engrave_name(guino)
+  # The letters joined in after the weights: they ride on the collar.
+  loose = [vertex.index for vertex in guino.data.vertices if not vertex.groups]
+  guino.vertex_groups["neck"].add(loose, 1.0, "REPLACE")
   bpy.ops.wm.save_as_mainfile(filepath=BLEND_PATH)
 
 

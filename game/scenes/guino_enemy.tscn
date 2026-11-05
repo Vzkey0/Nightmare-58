@@ -1,0 +1,199 @@
+[gd_scene load_steps=19 format=3]
+
+[ext_resource type="PackedScene" path="res://models/characters/guino.glb" id="1_model"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_1.ogg" id="swing_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_4.ogg" id="swing_4"]
+[ext_resource type="FontFile" path="res://fonts/Cinzel.ttf" id="cinzel"]
+
+[sub_resource type="AudioStreamRandomizer" id="swing_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 4
+stream_0/stream = ExtResource("swing_1")
+stream_1/stream = ExtResource("swing_2")
+stream_2/stream = ExtResource("swing_3")
+stream_3/stream = ExtResource("swing_4")
+
+[sub_resource type="CapsuleShape3D" id="body_shape"]
+radius = 1.25
+height = 3.4
+
+[sub_resource type="CapsuleShape3D" id="jaw_shape"]
+radius = 0.45
+height = 1.8
+
+[sub_resource type="CapsuleShape3D" id="paw_shape"]
+radius = 0.4
+height = 1.6
+
+[sub_resource type="CapsuleShape3D" id="tail_shape"]
+radius = 0.38
+height = 1.8
+
+[sub_resource type="CylinderShape3D" id="slam_shape"]
+height = 1.4
+radius = 3.2
+
+[sub_resource type="StandardMaterial3D" id="spark_material"]
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[sub_resource type="BoxMesh" id="spark_mesh"]
+material = SubResource("spark_material")
+size = Vector3(0.07, 0.07, 0.07)
+
+[sub_resource type="Gradient" id="spark_fade"]
+colors = PackedColorArray(1, 0.95, 0.75, 1, 0.75, 0.68, 0.5, 0)
+
+[sub_resource type="BoxMesh" id="dust_mesh"]
+material = SubResource("spark_material")
+size = Vector3(0.18, 0.18, 0.18)
+
+[sub_resource type="Gradient" id="dust_fade"]
+colors = PackedColorArray(0.42, 0.38, 0.33, 0.9, 0.24, 0.22, 0.2, 0)
+
+[sub_resource type="FontVariation" id="title_font"]
+base_font = ExtResource("cinzel")
+variation_opentype = {
+2003265652: 600
+}
+
+[node name="GuinoEnemy" type="GuinoEnemy"]
+collision_layer = 12
+collision_mask = 11
+
+[node name="Navigator" type="NavigationAgent3D" parent="."]
+path_desired_distance = 1.0
+target_desired_distance = 1.0
+
+[node name="Body" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+shape = SubResource("body_shape")
+
+[node name="Model" parent="." instance=ExtResource("1_model")]
+
+[node name="WeaponBone" type="BoneAttachment3D" parent="Model/armature_guino/Skeleton3D"]
+bone_name = "head"
+bone_idx = 6
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_guino/Skeleton3D/WeaponBone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+enabled = false
+shape = SubResource("jaw_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="PawBoneL" type="BoneAttachment3D" parent="Model/armature_guino/Skeleton3D"]
+bone_name = "lower_front_l"
+bone_idx = 9
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_guino/Skeleton3D/PawBoneL"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+enabled = false
+shape = SubResource("paw_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="PawBoneR" type="BoneAttachment3D" parent="Model/armature_guino/Skeleton3D"]
+bone_name = "lower_front_r"
+bone_idx = 13
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_guino/Skeleton3D/PawBoneR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+enabled = false
+shape = SubResource("paw_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="TailBone" type="BoneAttachment3D" parent="Model/armature_guino/Skeleton3D"]
+bone_name = "tail_4"
+bone_idx = 19
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_guino/Skeleton3D/TailBone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+enabled = false
+shape = SubResource("tail_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="Slam" type="ShapeCast3D" parent="Model/armature_guino/Skeleton3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 2)
+enabled = false
+shape = SubResource("slam_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="Dust" type="CPUParticles3D" parent="Model/armature_guino/Skeleton3D/Slam"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.6, 0)
+emitting = false
+amount = 70
+lifetime = 1.1
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+mesh = SubResource("dust_mesh")
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.1
+emission_ring_radius = 2.4
+emission_ring_inner_radius = 0.6
+direction = Vector3(0, 1, 0)
+spread = 70.0
+gravity = Vector3(0, -3, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 5.5
+damping_min = 2.0
+damping_max = 3.0
+scale_amount_min = 1.5
+scale_amount_max = 3.5
+color_ramp = SubResource("dust_fade")
+
+[node name="Sparks" type="CPUParticles3D" parent="."]
+physics_interpolation_mode = 2
+emitting = false
+amount = 34
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+mesh = SubResource("spark_mesh")
+spread = 40.0
+gravity = Vector3(0, -11, 0)
+initial_velocity_min = 3.0
+initial_velocity_max = 7.5
+color_ramp = SubResource("spark_fade")
+
+[node name="BarLayer" type="CanvasLayer" parent="."]
+
+[node name="HealthBar" type="StatBar" parent="BarLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 560.0
+offset_bottom = 18.0
+mouse_filter = 2
+fill_color = Color(0.72, 0.08, 0.1, 1)
+tip = 10.0
+
+[node name="Name" type="Label" parent="BarLayer/HealthBar"]
+layout_mode = 0
+offset_top = -32.0
+offset_right = 560.0
+offset_bottom = -4.0
+theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_fonts/font = SubResource("title_font")
+theme_override_font_sizes/font_size = 20
+text = "Güino"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Swing" type="AudioStreamPlayer" parent="."]
+stream = SubResource("swing_sound")
+volume_db = -1.0
+pitch_scale = 0.7
+
+[editable path="Model"]
