@@ -29,6 +29,7 @@ class CombatTarget;
 class GameMenu;
 class LostLochas;
 class Merchant;
+class ShortcutGate;
 class StatBar;
 class ThrownMachete;
 class WeaponTrail;
@@ -70,6 +71,8 @@ public:
   bool raise_stat(Stat stat);
   Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
   void set_nearby_merchant(Merchant * merchant);
+  void set_nearby_gate(ShortcutGate * gate);
+  void remember(int id); // Saves a one-time world change, such as an opened gate, as a pickup bit.
   Zone merchant_zone() const;
   bool buy(ItemId item);
   bool sell(ItemId item);
@@ -179,6 +182,7 @@ private:
   GameMenu * menu = nullptr;
   Chapel * nearby_chapel = nullptr;
   Merchant * nearby_merchant = nullptr;
+  ShortcutGate * nearby_gate = nullptr;
   LostLochas * dropped_lochas = nullptr;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.

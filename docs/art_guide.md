@@ -444,26 +444,97 @@ con balcones, casas de ladrillo con escaleras, comercios cerrados, hiedra densa,
 autobús y carros abandonados, postes con cables caídos, charcos, escombros detrás del
 inicio, torre escalonada y el Ávila al fondo.
 
-**Recorrido:** solo la avenida tiene arte. El resto de la zona es un bloqueo con cajas grises en
-[avenue_blockout.tscn](../game/scenes/avenue_blockout.tscn), con letreros donde va lo que aún falta.
-Se reemplaza por arte en su propia tarea, cuando el recorrido ya se sienta bien jugando.
+**Recorrido:** toda la zona tiene arte. Lo que todavía no existe (la radio, las pintadas legibles, el
+padre y el modelo del bachaquero) queda marcado con cápsulas y letreros en
+[avenue_markers.tscn](../game/scenes/avenue_markers.tscn).
 
 | Tramo | Dónde (x, z en Godot) | Qué hay |
 |---|---|---|
 | Avenida | 0, de 46 a -46 | Inicio, un esqueleto solo y luego una pareja |
-| Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos, la radio y el edificio saqueado al oeste, con un esqueleto y dos coleccionables |
-| Callejón del terremoto | 30 a 130, de -107 a -125 | Escombros en zigzag, dos esqueletos y pintadas |
-| Plazoleta de la capilla | 130 a 160, de -95 a -140 | Capilla y padre: aquí se descansa por primera vez |
-| Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos, tres ratas y dos perros |
-| Plaza de la catedral | 260 a 310, de -85 a -145 | Güino, el minijefe, y salida a la selva |
+| Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos afuera, la radio y el abasto saqueado al noreste, con tres ratas, el vinilo y la ficha |
+| Callejón del terremoto | 30 a 130, de -99 a -125 | Zigzag entre edificios agrietados, la casa partida, tres esqueletos y pintadas |
+| Plazoleta de la capilla | 130 a 160, de -94 a -140 | Capilla y padre: aquí se descansa por primera vez. El portón abre la callejuela hacia la plaza |
+| Calle a la catedral | 160 a 260, de -105 a -140 | Bachaquero, mercado de lonas con dos ratas, cancha con dos perros, una rata entre los carros, dos esqueletos y el café antes del jefe |
+| Plaza de la catedral | 260 a 312, de -85 a -145 | Güino frente a su guarida, y la puerta trancada de la catedral, salida a la selva |
 
 Al otro lado de la torre, el Ávila empieza en z = -170, así que el recorrido gira al este antes de
 llegar. La lluvia va con el jugador para cubrir toda la zona.
 
-[build_avenue.py](../art/environments/build_avenue.py) la genera, guarda
-`avenue.blend` y exporta `avenue.glb`. Los objetos terminados en `-colonly` son las
-colisiones. La escena [avenue.tscn](../game/scenes/avenue.tscn) añade cielo, niebla,
-luz de tormenta, reflejos y lluvia.
+[build_avenue.py](../art/environments/build_avenue.py) genera la avenida, guarda
+`avenue.blend` y exporta `avenue.glb`; su suelo termina en z = -50 y su fondo de edificios no pasa de
+ahí. [build_route.py](../art/environments/build_route.py) genera el resto con las mismas funciones y
+los mismos cinco materiales, guarda `route.blend` y exporta `route.glb` y `shortcut_gate.glb`:
+
+```bash
+blender --background --python art/environments/build_avenue.py
+blender --background --python art/environments/build_route.py
+```
+
+Los objetos terminados en `-colonly` son las colisiones: una malla por tramo. La escena
+[avenue.tscn](../game/scenes/avenue.tscn) añade cielo, niebla, luz de tormenta, reflejos y lluvia.
+`route.glb` usa el mismo `avenue_import.gd` que la avenida, así que su fondo (`backdrop_square`) no
+proyecta sombra y el resto la proyecta por las dos caras.
+
+**Fachadas en cualquier dirección:** `building(a, b, ...)` levanta una manzana cuya fachada va de `a` a
+`b` con la zona jugable a su izquierda. Por dentro usa un marco local (`frame`), así que reutiliza
+`window`, `shop_front` e `ivy_curtain` de la avenida tal cual. `collide` guarda colisiones giradas
+con el mismo marco, y `holed_wall` y `holed_slab` arman paredes y losas con huecos.
+
+**Plaza de la torre:** la torre tapa el frente al salir de la avenida y obliga a rodearla. El
+abasto y farmacia ocupa x 10 a 30, z -99 a -113, en dos pisos de 3,6 y 3,5 m:
+
+- Abajo: mostrador de farmacia con estantería, tres góndolas (una volcada) que forman pasillos de
+  2,8 m, neveras abiertas (una de cara al piso) y el depósito con su cocinita.
+- Escalera de concreto contra la pared norte, de 1,7 m de ancho: con menos, la navegación no sube.
+  Una rampa de colisión de 27° la cubre y bloques escalonados llenan su vientre.
+- Arriba: oficina con escritorio (la ficha de dominó), sala con tocadiscos (el vinilo), chinchorro y
+  sofá, y un cuarto abierto donde alguien durmió. El hueco del piso (x 18,9 a 21,4, z -105 a -108)
+  deja ver los pasillos y deja un paso de 1,6 m junto a él.
+- Luz: ventanas tapiadas con rendijas entre las tablas, por donde entra la luz de tormenta. El
+  `ReflectionProbe` `StoreInterior` baja la luz ambiente dentro.
+- Atajo de un solo sentido: la pared este rota del primer piso da a la losa caída de la casa vecina,
+  que baja de 3,5 a 2,3 m. Al final se salta al bolsillo del callejón (x 44 a 50), detrás del primer
+  zigzag y de su esqueleto. Con 1,1 m de salto no se vuelve a subir.
+
+**Callejón del terremoto:** las fachadas del norte avanzan y retroceden (z -121, -125, -116, -123,2,
+-115, -125) y el camino zigzaguea entre ellas y la fila sur (z -108). En la primera curva, una
+fachada caída y escombros de 1,3 m obligan a pegarse al norte. Una losa cruza el callejón por
+arriba, a más de 4 m. La casa partida (x 86 a 98) se cruza por dentro: entra por la puerta oeste,
+pasa por la sala y la cocina y sale por la pared este rota. La grieta corre por el medio y deja el
+techo abierto sobre el camino, para que la cámara tenga aire. La animita del norte, en x 56, es un
+punto de botín.
+
+**Callejuela del portón:** de 5 m de ancho (z -94 a -99), corre detrás de la fila sur del callejón,
+con ropa tendida, tanques y la casita de un perro. Termina en el portón de la plazoleta de la
+capilla, en x 130. [ShortcutGate](../src/game/world/shortcut_gate.cpp) solo se abre con E desde
+el lado +X (la capilla); del otro lado avisa "Cerrado por el otro lado". La hoja gira hacia la
+plazoleta y la apertura se guarda como el bit 200 de los pickups, así que ningún `pickup_id` debe
+usar ese número.
+
+**Plazoleta de la capilla:** casas coloniales pintadas de dos pisos, el mango con su banco
+redondo, bancos, matas en materos y un farol con luz cálida (`ChapelLamp`). No hay enemigos.
+
+**Calle a la catedral:** santamarías a ambos lados y el puesto del bachaquero (x 172). El mercado
+(x 185 a 212) tiene lonas caídas sobre cajas donde duermen las ratas. La cancha (x 216 a 244,
+z -125 a -140) tiene malla ciclón de 3,5 m con una rotura en el extremo oeste, por donde salen los
+perros. En x 248 la calle se estrecha a 6 m con huesos, una cadena rota, un collar y tres zarpazos
+en las paredes.
+
+**Plaza de la catedral:** la arena despejada mide 40 × 50 m. La fuente central tiene 3,5 m de radio
+y un borde de 0,45 m. La cobertura baja (bancos, materos, un taxi y los restos de la torre caída) va
+solo junto a las paredes. La catedral tiene la torre sur entera, la norte partida, la fachada con
+el rosetón y una viga caída que tranca la puerta. Bajo el pórtico de tres arcos está la guarida, con
+colchones, huesos, platos oxidados y una cadena.
+
+**Botín:** se colocan pocos de los objetos actuales: el vinilo y la ficha en el abasto, y el
+segundo café antes del jefe. Los nodos `Marker3D` de `LootSpots` en `avenue.tscn` marcan superficies
+listas para el botín nuevo: cocina, caja registradora, estante y sofá del abasto, colchón, bañera,
+animita, mesa y cocina de la casa partida, casita del perro, banco de la capilla, puesto del mercado,
+colchón de la cancha, guarida y fuente. Un `LootPickup` nuevo va en la posición de uno de ellos.
+
+**Navegación:** después de cambiar colisiones, hay que hornear de nuevo con el botón Bake del nodo
+`Navigation`. Hay que comprobar que la escalera, la oficina y el depósito sigan dentro: las puertas
+interiores miden 2 m porque la malla pierde 0,5 m de cada lado.
 
 **Optimización de escenarios:**
 
@@ -471,7 +542,8 @@ luz de tormenta, reflejos y lluvia.
 - La vegetación se hace con láminas continuas y domos, no con objetos sueltos.
 - Se borran las caras que quedan dentro de sólidos o de espaldas a toda la zona
   jugable. Por eso el mapa se ve incompleto desde fuera o desde arriba: es a propósito.
-  Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`.
+  Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`. El de `build_route.py`
+  llega a 8,6 m por el primer piso del abasto y por la losa del atajo.
 - Las capas largas se parten por tramos para que Godot omita lo que no está en cámara.
 
 ## Presupuesto inicial

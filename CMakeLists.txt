@@ -74,6 +74,7 @@ add_library(nightmare58_ext SHARED
   src/game/weapons/weapon_trail.cpp
   src/game/world/chapel.cpp
   src/game/world/merchant.cpp
+  src/game/world/shortcut_gate.cpp
   src/game/weapons/thrown_machete.cpp
   src/game/world/loot_pickup.cpp
   src/game/world/lost_lochas.cpp
