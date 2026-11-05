@@ -25,11 +25,13 @@ protected:
   static constexpr int MAX_HEALTH = 100;
 
   Health health{MAX_HEALTH};
+  float aim_height = 1.2f; // The chest, or the head of something low.
   StatusEffects statuses;
 
 public:
   virtual void take_hit(int damage, const godot::Vector3 & attacker, const godot::Vector3 & point) {}
   bool is_down() const { return health.dead(); }
+  godot::Vector3 aim_point() const { return get_global_position() + godot::Vector3(0, aim_height, 0); }
   void set_targeted(bool value) { targeted = value; }
   void apply_status(Status kind) { statuses.apply(kind); }
 

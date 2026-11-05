@@ -182,8 +182,13 @@ static void run_enemy(EnemyActions & actions, float seconds)
 
 static void test_enemy_attack()
 {
+  for (int id = 0; id < static_cast<int>(EnemyAction::None); ++id)
+  {
+    const EnemyTiming & attack = EnemyActions::timing(static_cast<EnemyAction>(id));
+    assert(attack.track_end < attack.hit_start && attack.hit_start < attack.hit_end && attack.hit_end < attack.duration);
+    assert(attack.damage > 0);
+  }
   const EnemyTiming & chop = EnemyActions::timing(EnemyAction::Chop);
-  assert(chop.track_end < chop.hit_start && chop.hit_start < chop.hit_end && chop.hit_end < chop.duration);
 
   EnemyActions actions;
   assert(!actions.busy());

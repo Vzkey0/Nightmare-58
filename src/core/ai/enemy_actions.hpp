@@ -1,9 +1,11 @@
 #pragma once
 
-// Chop, Sweep and Lunge stay first: their value is the attack id the behavior tree hands out.
-enum class EnemyAction { Chop, Sweep, Lunge, None, Hurt, Dead };
+// The attacks stay first: their value is the attack id the behavior tree hands out.
+// Chop, Sweep and Lunge are the skeleton's; Bite, Pounce and Rake the rat's; Snap, Leap and Thrash the dog's.
+enum class EnemyAction { Chop, Sweep, Lunge, Bite, Pounce, Rake, Snap, Leap, Thrash, None, Hurt, Dead };
 
-// Seconds from the start of the clip. duration must match art/characters/animate_skeleton.py.
+// Seconds from the start of the clip. duration must match animate_skeleton.py, animate_rat.py
+// or animate_dog.py in art/characters.
 struct EnemyTiming
 {
   float duration;
@@ -35,7 +37,7 @@ public:
   EnemyAction current() const { return action; }
   float elapsed() const { return action_time; }
   bool busy() const { return action != EnemyAction::None; }
-  bool attacking() const { return action <= EnemyAction::Lunge; }
+  bool attacking() const { return action < EnemyAction::None; }
   bool tracking() const { return attacking() && action_time < timing(action).track_end; }
   bool winding_up() const { return attacking() && action_time < timing(action).hit_start; }
 

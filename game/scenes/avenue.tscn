@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -8,6 +8,8 @@
 [ext_resource type="PackedScene" path="res://scenes/loot_pickup.tscn" id="6_pickup"]
 [ext_resource type="NavigationMesh" path="res://navigation/avenue.tres" id="7_navigation"]
 [ext_resource type="PackedScene" path="res://scenes/merchant.tscn" id="8_merchant"]
+[ext_resource type="PackedScene" path="res://scenes/rat_enemy.tscn" id="9_rat"]
+[ext_resource type="PackedScene" path="res://scenes/dog_enemy.tscn" id="10_dog"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.09, 0.1, 0.13, 1)
@@ -120,6 +122,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 205, 0.1, -114)
 
 [node name="Skeleton11" parent="." instance=ExtResource("4_skeleton")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 245, 0.1, -118)
+
+[node name="Rat1" parent="." instance=ExtResource("9_rat")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 188, 0.1, -110)
+
+[node name="Rat2" parent="." instance=ExtResource("9_rat")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 191, 0.1, -121)
+
+[node name="Dog1" parent="." instance=ExtResource("10_dog")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 224, 0.1, -122)
+
+[node name="Rat3" parent="." instance=ExtResource("9_rat")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 238, 0.1, -108)
+
+[node name="Dog2" parent="." instance=ExtResource("10_dog")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 256, 0.1, -113)
 
 [node name="Chapel1" parent="." instance=ExtResource("5_chapel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 145, 0.1, -137.5)

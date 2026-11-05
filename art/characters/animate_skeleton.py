@@ -235,7 +235,7 @@ def walk_clip():
   return Clip("walk-loop", WALK_FRAMES, channels, loop=True)
 
 
-# SkeletonEnemy::RUN_SPEED must match this speed.
+# The run speed in skeleton_enemy.cpp must match this speed.
 RUN_SPEED = 3.8
 RUN_FRAMES = 20
 RUN_STANCE = 0.4
@@ -259,7 +259,7 @@ def run_clip():
   return Clip("run-loop", RUN_FRAMES, channels, loop=True)
 
 
-# SkeletonEnemy::CIRCLE_SPEED must match this speed.
+# The circle speed in skeleton_enemy.cpp must match this speed.
 CIRCLE_SPEED = 1.1
 CIRCLE_FRAMES = 24
 CIRCLE_STANCE = 0.55

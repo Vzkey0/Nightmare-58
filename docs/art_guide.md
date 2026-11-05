@@ -105,7 +105,7 @@ Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos br
 señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
 queda en el último cuadro, y el esqueleto queda así hasta que el jugador descansa o muere.
 
-**IA:** [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
+**IA:** [`MeleeEnemy`](../src/game/enemies/melee_enemy.cpp), con el perfil de [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp), reúne lo que el enemigo sabe, el árbol elige
 qué hacer y `EnemyActions` lo ejecuta. Un paseo se puede cambiar, un ataque no: un golpe solo lo
 interrumpe antes del barrido, y un combo aturde una vez cada 2,5 s. Deja de girar poco antes del golpe,
 para que esquivar tarde funcione.
@@ -121,6 +121,60 @@ carros. Si cambian las colisiones de la avenida, hay que volver a hornearla con 
 **Sin haber visto al jugador:** pasean alrededor de su sitio, a menos de 4 m, con pausas de 2 a 5 s, así
 que miran hacia todos lados y pueden descubrirlo desde cualquier dirección. Al verlo corren hacia él
 y caminan solo en los últimos 4 m. Corren más lento que el jugador, que todavía puede escapar.
+
+### Rata gigante y perro
+
+[build_rat.py](../art/characters/build_rat.py) y [build_dog.py](../art/characters/build_dog.py) generan
+cada modelo ya con esqueleto. Los huesos son `root`, `hips`, `spine`, `chest`, `neck`, `head`, `jaw`,
+`tail_*` y, por pata, `upper_`, `lower_`, `foot_` y `toes_`, más `front_l`, `front_r`, `hind_l` o
+`hind_r`. Cada tramo de la malla se marca con los huesos que lo pueden mover, y cada vértice sigue a
+los dos más cercanos de esa lista. Las ayudas compartidas están en
+[beast_tools.py](../art/characters/beast_tools.py).
+
+[animate_rat.py](../art/characters/animate_rat.py) y [animate_dog.py](../art/characters/animate_dog.py)
+generan los clips y exportan `rat.glb` y `dog.glb`. Usan
+[beast_anim.py](../art/characters/beast_anim.py), que resuelve las cuatro patas con cinemática inversa
+y deja que el hombro se deslice un poco cuando la pata no alcanza, como la escápula. La cabeza
+mantiene su dirección aunque el cuerpo se mueva, y la cola sigue al cuerpo con retraso:
+
+```bash
+blender --background art/characters/rat.blend --python art/characters/animate_rat.py
+blender --background art/characters/dog.blend --python art/characters/animate_dog.py
+```
+
+| Rata | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 4 s, en bucle | | Olfatea a ráfagas, cambia el peso y levanta una mano |
+| `walk` | 0,53 s, en bucle | | Paso sigiloso a 0,9 m/s, culebreando |
+| `run` | 0,27 s, en bucle | | A saltos a 4,8 m/s: más rápida que el trote del jugador, más lenta que su esprint |
+| `strafe_left`, `strafe_right` | 0,4 s, en bucle | | Rodear a 1,2 m/s con los dientes fuera |
+| `walk_back` | 0,53 s, en bucle | | Retroceder a 0,9 m/s |
+| `attack_bite` | 1,13 s, avanza 0,35 m | 0,57 a 0,7 s | Echa la cabeza atrás y muerde corto |
+| `attack_pounce` | 1,8 s, avanza 2,5 m | 0,9 a 1,03 s | Se agacha meneando la cadera, salta y cae mordiendo |
+| `attack_rake` | 1,67 s, avanza 0,3 m | 0,63 a 0,73 s | Se para en dos patas y rasga con las dos manos |
+| `threat` | 1,8 s | | Medio erguida, boca abierta y temblando: aviso al ver al jugador |
+| `hurt` | 0,53 s | | |
+| `death` | 2,33 s | | Rueda patas arriba y patalea; se queda en el último cuadro |
+
+| Perro | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 3 s, en bucle | | Agachado, jadeando y gruñendo |
+| `walk` | 0,67 s, en bucle | | Acecho a 1,3 m/s con la cabeza baja |
+| `run` | 0,4 s, en bucle | | Galope a 5,8 m/s |
+| `strafe_left`, `strafe_right` | 0,53 s, en bucle | | Rodear a 1,3 m/s |
+| `walk_back` | 0,6 s, en bucle | | Retroceder a 1 m/s |
+| `attack_snap` | 1,47 s, avanza 0,55 m | 0,53 a 0,6 s y 0,77 a 0,8 s | Doble dentellada |
+| `attack_lunge` | 1,93 s, avanza 3 m | 0,87 a 1 s | Salto con la boca abierta |
+| `attack_thrash` | 2 s, avanza 0,3 m | Muerde a 0,53 s y sacude de 0,73 a 1,4 s | Muerde y sacude la cabeza; puede ser un agarre |
+| `bark` | 1,53 s | | Tres ladridos para llamar a la jauría |
+| `hurt` | 0,53 s | | Aullido de dolor |
+| `death` | 2,47 s | | Cae de lado y patalea; se queda en el último cuadro |
+
+La IA es la del esqueleto: [`MeleeEnemy`](../src/game/enemies/melee_enemy.cpp) la comparte, y
+[`RatEnemy`](../src/game/enemies/rat_enemy.cpp) y [`DogEnemy`](../src/game/enemies/dog_enemy.cpp) solo
+dan su perfil: vida, rangos, ataques y velocidades. Esas velocidades deben coincidir con las de los
+bucles, o las patas patinan. Al ver al jugador, la rata amenaza y el perro ladra antes de atacar; los
+dos muerden con una cápsula en la cabeza.
 
 ## Animaciones
 
@@ -363,7 +417,7 @@ Se reemplaza por arte en su propia tarea, cuando el recorrido ya se sienta bien 
 | Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos, la radio y el edificio saqueado al oeste, con un esqueleto y dos coleccionables |
 | Callejón del terremoto | 30 a 130, de -107 a -125 | Escombros en zigzag, dos esqueletos y pintadas |
 | Plazoleta de la capilla | 130 a 160, de -95 a -140 | Capilla y padre: aquí se descansa por primera vez |
-| Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos y sitio para ratas y perros |
+| Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos, tres ratas y dos perros |
 | Plaza de la catedral | 260 a 310, de -85 a -145 | Arena del perro minijefe y salida a la selva |
 
 Al otro lado de la torre, el Ávila empieza en z = -170, así que el recorrido gira al este antes de
