@@ -6,6 +6,7 @@
 #include <game/world/chapel.hpp>
 #include <game/world/lost_lochas.hpp>
 #include <game/world/merchant.hpp>
+#include <game/world/shortcut_gate.hpp>
 #include <game/weapons/thrown_machete.hpp>
 #include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
@@ -703,6 +704,21 @@ void PlayerController::set_nearby_merchant(Merchant * merchant)
   prompt_label->set_text(merchant != nullptr ? "[E]  Bachaquero" : "");
 }
 
+void PlayerController::set_nearby_gate(ShortcutGate * gate)
+{
+  nearby_gate = gate;
+  if (gate == nullptr)
+    prompt_label->set_text("");
+  else
+    prompt_label->set_text(gate->openable_by(this) ? String::utf8("[E]  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+}
+
+void PlayerController::remember(int id)
+{
+  save.take_pickup(id);
+  SaveFile::write(save);
+}
+
 Zone PlayerController::merchant_zone() const
 {
   return nearby_merchant != nullptr ? nearby_merchant->zone_kind() : Zone::Avenue;
@@ -852,6 +868,8 @@ void PlayerController::read_item_input()
     menu->open(MenuScreen::Chapel);
   else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
     menu->open(MenuScreen::Shop);
+  else if (input->is_action_just_pressed(interact_input) && nearby_gate != nullptr && alive)
+    nearby_gate->open(*this);
 
   const ItemId item = save.quick_slots().current();
   if (input->is_action_just_pressed(use_item_input) && item != NO_ITEM && save.inventory().count(item) > 0)

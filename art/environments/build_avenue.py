@@ -447,20 +447,23 @@ def clear():
 
 def build_ground():
   layer = Layer("ground")
-  length = 170.0
-  box(layer, (0, 0, -0.25), (130, length, 0.5), "asphalt")
-  add_collider((0, 0, -0.25), (130, length, 0.5))
+  # Ends where the tower square starts: build_route.py paves everything past it.
+  start = -85.0
+  length = BUILDINGS_END - start
+  mid = (start + BUILDINGS_END) / 2
+  box(layer, (0, mid, -0.25), (130, length, 0.5), "asphalt")
+  add_collider((0, mid, -0.25), (130, length, 0.5))
   for side in (-1, 1):
     x = side * (STREET_HALF + SIDEWALK_EDGE) / 2
     width = SIDEWALK_EDGE - STREET_HALF
-    box(layer, (x, 0, 0.09), (width, length, 0.18), "sidewalk")
-    add_collider((x, 0, 0.09), (width, length, 0.18))
-    box(layer, (side * (STREET_HALF + 0.12), 0, 0.1), (0.26, length, 0.2), "curb")
-    y = -length / 2
-    while y < length / 2:
+    box(layer, (x, mid, 0.09), (width, length, 0.18), "sidewalk")
+    add_collider((x, mid, 0.09), (width, length, 0.18))
+    box(layer, (side * (STREET_HALF + 0.12), mid, 0.1), (0.26, length, 0.2), "curb")
+    y = start
+    while y < BUILDINGS_END:
       box(layer, (x, y, 0.182), (width - 0.34, 0.03, 0.01), "crack")
       y += 2.4
-    box(layer, (side * 8.0, 0, 0.182), (0.03, length, 0.01), "crack")
+    box(layer, (side * 8.0, mid, 0.182), (0.03, length, 0.01), "crack")
     y = AVENUE_START
     while y < AVENUE_END:
       # Cracked or lifted slabs, each slightly tilted.
@@ -1353,10 +1356,15 @@ def build_backdrop():
       y = -66 + k * 13 + rng.uniform(-3, 3)
       width = rng.uniform(12, 20)
       height = rng.uniform(26, 60)
+      roof_box = rng.random() < 0.5
+      if y > 40:
+        # Past the avenue, build_route.py raises its own skyline around the square. The draws
+        # above still happen, so everything after keeps its place.
+        continue
       box(layer, (x, y, height / 2), (width, 12, height), "skyline")
       for row in range(int(height / 7)):
         box(layer, (x - side * (width / 2 + 0.05), y, 4 + row * 7), (0.1, 10.5, 2.2), "window_dark")
-      if rng.random() < 0.5:
+      if roof_box:
         box(layer, (x, y, height + 2), (6, 5, 4), "skyline")
       tube(layer, [((x, y, height), 0.2), ((x, y, height + 9), 0.03)], "iron", n=3)
   for side in (-1, 1):
