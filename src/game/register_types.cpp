@@ -15,6 +15,8 @@
 #include <game/enemies/training_dummy.hpp>
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
+#include <game/world/merchant.hpp>
+#include <game/weapons/thrown_machete.hpp>
 #include <game/world/loot_pickup.hpp>
 #include <game/world/lost_lochas.hpp>
 
@@ -36,6 +38,8 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(MetalPlate);
     GDREGISTER_RUNTIME_CLASS(TitleScreen);
     GDREGISTER_RUNTIME_CLASS(Chapel);
+    GDREGISTER_RUNTIME_CLASS(Merchant);
+    GDREGISTER_RUNTIME_CLASS(ThrownMachete);
     GDREGISTER_RUNTIME_CLASS(LostLochas);
     GDREGISTER_RUNTIME_CLASS(LootPickup);
   }

@@ -1,10 +1,11 @@
-// J-007 to J-012: the structures behind items, loot and the saved world. Each one is
+// J-007 to J-012 and J-016: the structures behind items, loot, the saved world and status effects. Each one is
 // compared with its real alternatives, at the expected size and ten times that.
 #include <iostream>
 #include <string>
 
 #include <array.hpp>
 #include <bitset.hpp>
+#include <list.hpp>
 #include <map.hpp>
 #include <now.hpp>
 #include <set.hpp>
@@ -199,6 +200,85 @@ static void measure_taken(int count)
             << ", scanning a list " << scan << " (" << sink % 2 << ")\n";
 }
 
+struct Effect
+{
+  int kind;
+  float left;
+  float tick;
+};
+
+constexpr float TICK = 1.f / 60.f;
+constexpr int MAX_EFFECTS = 64;
+
+// The life of `count` effects on one enemy, one physics tick per run: every effect counts down,
+// burns deal damage on their own clock, and a spent effect is removed and applied again, as a
+// player who keeps hitting does. Each effect starts at a different point of its life.
+static void measure_statuses(int count)
+{
+  Designar::SLList<Effect> list;
+  Designar::FixedArray<Effect> fixed(MAX_EFFECTS);
+  int used = 0;
+  for (int i = 0; i < count; ++i)
+  {
+    const Effect effect{i % 2, 0.5f + 3.5f * i / count, 0.5f};
+    list.append(effect);
+    fixed[used++] = effect;
+  }
+
+  int sink = 0;
+  const double linked = median_ns([&](int) {
+    int added = 0;
+    auto it = list.begin();
+    while (it.has_current())
+    {
+      Effect & effect = it.get_current();
+      effect.left -= TICK;
+      effect.tick -= TICK;
+      if (effect.kind == 0 && effect.tick <= 0.f)
+      {
+        sink += 2;
+        effect.tick += 0.5f;
+      }
+      if (effect.left <= 0.f)
+      {
+        it.del();
+        ++added;
+      }
+      else
+        it.next();
+    }
+    for (; added > 0; --added)
+      list.append(Effect{added % 2, 4.f, 0.5f});
+  });
+  // The array removes by moving the last effect into the hole, so it never shifts the rest.
+  const double array = median_ns([&](int) {
+    int added = 0;
+    for (int at = 0; at < used;)
+    {
+      Effect & effect = fixed[at];
+      effect.left -= TICK;
+      effect.tick -= TICK;
+      if (effect.kind == 0 && effect.tick <= 0.f)
+      {
+        sink += 2;
+        effect.tick += 0.5f;
+      }
+      if (effect.left <= 0.f)
+      {
+        fixed[at] = fixed[--used];
+        ++added;
+      }
+      else
+        ++at;
+    }
+    for (; added > 0; --added)
+      fixed[used++] = Effect{added % 2, 4.f, 0.5f};
+  });
+
+  std::cout << "statuses " << count << " effects, ns per tick: SLList " << linked << ", FixedArray " << array
+            << " (" << sink % 2 << ")\n";
+}
+
 // A full game: every item, half the pickups taken and a death mark.
 static void measure_save()
 {
@@ -233,5 +313,7 @@ int main()
   measure_taken(40);
   measure_taken(400);
   measure_save();
+  measure_statuses(4);
+  measure_statuses(40);
   return 0;
 }

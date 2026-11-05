@@ -195,11 +195,19 @@ void SkeletonEnemy::_process(double delta)
 
 void SkeletonEnemy::_physics_process(double delta_time)
 {
-  const float delta = static_cast<float>(delta_time);
+  const float real_delta = static_cast<float>(delta_time);
   if (player == nullptr)
     return;
   if (player_respawns != player->respawn_count())
     reset();
+
+  const int burned = statuses.update(real_delta);
+  if (burned > 0)
+    burn(burned);
+  // Chilled, its own clock runs slow: actions, timers, steps and clips alike.
+  const float slow = statuses.slow_scale();
+  const float delta = real_delta * slow;
+  animator->set_speed_scale(animator->get_speed_scale() / applied_slow);
 
   const EnemyAction before = actions.current();
   if (actions.update(delta) && before <= EnemyAction::Lunge)
@@ -214,7 +222,8 @@ void SkeletonEnemy::_physics_process(double delta_time)
 
   if (actions.current() == EnemyAction::Dead)
   {
-    go_down(delta);
+    applied_slow = 1.f;
+    go_down(real_delta);
     return;
   }
 
@@ -231,7 +240,7 @@ void SkeletonEnemy::_physics_process(double delta_time)
       aim_step();
     if (actions.hitting())
       hit_player();
-    velocity = root_motion_step(delta).rotated(UP, facing_yaw) * step_scale / delta;
+    velocity = root_motion_step(delta).rotated(UP, facing_yaw) * step_scale / real_delta;
     const EnemyTiming & timing = EnemyActions::timing(actions.current());
     if (actions.elapsed() >= timing.hit_start && actions.elapsed() - delta < timing.hit_start)
       swing_sound->play();
@@ -240,16 +249,20 @@ void SkeletonEnemy::_physics_process(double delta_time)
     velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
   else
   {
-    const Vector3 wanted = walk_velocity();
+    const Vector3 wanted = walk_velocity() * slow;
     velocity = velocity.move_toward(wanted, (wanted.is_zero_approx() ? DECELERATION : ACCELERATION) * delta);
     play_locomotion(velocity);
   }
 
   turn(delta);
-  vertical_speed = is_on_floor() ? 0.f : vertical_speed - GRAVITY * delta;
+  vertical_speed = is_on_floor() ? 0.f : vertical_speed - GRAVITY * real_delta;
   velocity.y = vertical_speed;
   set_velocity(velocity);
   move_and_slide();
+
+  // Every clip speed set above is for a warm skeleton; the chill scales whichever is playing.
+  applied_slow = slow;
+  animator->set_speed_scale(animator->get_speed_scale() * slow);
 }
 
 void SkeletonEnemy::think()
@@ -405,15 +418,7 @@ void SkeletonEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3
 
   if (health.dead())
   {
-    end_attack();
-    actions.die();
-    pay_the_player();
-    remove_from_group("targets");
-    set_collision_layer(0);
-    set_collision_mask(LEVEL_MASK);
-    set_velocity(Vector3());
-    animator->set_speed_scale(1.f);
-    play(death_clip, BLEND_ACTION);
+    fall();
     return;
   }
 
@@ -427,6 +432,30 @@ void SkeletonEnemy::take_hit(int damage, const Vector3 & attacker, const Vector3
     current_clip = StringName();
     play(hurt_clip, BLEND_ACTION);
   }
+}
+
+void SkeletonEnemy::fall()
+{
+  end_attack();
+  actions.die();
+  statuses.clear();
+  pay_the_player();
+  remove_from_group("targets");
+  set_collision_layer(0);
+  set_collision_mask(LEVEL_MASK);
+  set_velocity(Vector3());
+  animator->set_speed_scale(1.f);
+  play(death_clip, BLEND_ACTION);
+}
+
+// Fire keeps cutting without a blow: no stagger, and it does not give the player away.
+void SkeletonEnemy::burn(int damage)
+{
+  if (health.dead())
+    return;
+  receive_damage(damage, Vector3(), get_global_position() + CHEST, true);
+  if (health.dead())
+    fall();
 }
 
 void SkeletonEnemy::pay_the_player()
@@ -460,6 +489,7 @@ void SkeletonEnemy::reset()
   player_respawns = player->respawn_count();
   end_attack();
   health.restore();
+  statuses.clear();
   actions.revive();
   add_to_group("targets");
   set_collision_layer(BODY_LAYERS);

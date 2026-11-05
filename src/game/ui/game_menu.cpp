@@ -28,11 +28,31 @@ enum PauseRow { ROW_RESUME, ROW_OPTIONS, ROW_TO_TITLE };
 constexpr int CHAPEL_ROWS = 4;
 enum ChapelRow { ROW_REST, ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
 
+constexpr int SHOP_ROWS = 4;
+enum ShopRow { ROW_BUY, ROW_SELL, ROW_MACHETE, ROW_SHOP_LEAVE };
+
+// The machete tree without its root, which is always there.
+constexpr int SKILL_ROWS = MacheteSkill::COUNT - 1;
+
+// Where Rows and Detail sit in player.tscn, and how far apart MetalPlate stacks its rows.
+constexpr float ROWS_TOP = 188.f;
+constexpr float DETAIL_TOP = 596.f;
+constexpr float ROW_PITCH = 66.f;
+constexpr float DETAIL_GAP = 12.f;
+
 const char * const STAT_NAMES[STAT_COUNT] = {
   "Vida máxima", "Recuperación de stamina", "Regeneración de vida", "Velocidad al correr", "Cadencia de ataque", "Poder de ataque",
 };
 
 const char * const SORT_NAMES[INVENTORY_SORTS] = {"recientes", "tipo", "valor"};
+
+// Outfits share the right tab with the machete: both are what the player carries on.
+constexpr int INVENTORY_TABS = 3;
+
+ItemKind tab_of(ItemKind kind)
+{
+  return kind == ItemKind::Outfit ? ItemKind::Weapon : kind;
+}
 
 String text(const char * value)
 {
@@ -208,7 +228,7 @@ void GameMenu::move_row(int step)
 
 void GameMenu::next_tab(int step)
 {
-  show_tab(static_cast<ItemKind>((static_cast<int>(tab) + step + ITEM_KINDS) % ITEM_KINDS));
+  show_tab(static_cast<ItemKind>((static_cast<int>(tab) + step + INVENTORY_TABS) % INVENTORY_TABS));
 }
 
 void GameMenu::show_tab(ItemKind kind)
@@ -311,7 +331,7 @@ Designar::DynArray<ItemStack> GameMenu::tab_stacks() const
   const Designar::DynArray<ItemStack> stacks = player->progress().inventory().sorted(sort_mode);
   Designar::DynArray<ItemStack> shown;
   for (int i = 0; i < static_cast<int>(stacks.size()); ++i)
-    if (catalog[stacks[i].item].kind == tab)
+    if (tab_of(catalog[stacks[i].item].kind) == tab)
       shown.append(stacks[i]);
   return shown;
 }
@@ -328,6 +348,14 @@ int GameMenu::row_count() const
       return PAUSE_ROWS;
     case MenuScreen::Options:
       return GameSettings::ROWS;
+    case MenuScreen::Shop:
+      return SHOP_ROWS;
+    case MenuScreen::ShopBuy:
+      return static_cast<int>(player->progress().shop_stock().size());
+    case MenuScreen::ShopSell:
+      return static_cast<int>(sellable().size());
+    case MenuScreen::Machete:
+      return SKILL_ROWS;
     default:
       return static_cast<int>(tab_stacks().size());
   }
@@ -359,10 +387,52 @@ void GameMenu::accept()
       return;
     case MenuScreen::Options:
       return;
+    case MenuScreen::Shop:
+      accept_shop();
+      return;
+    case MenuScreen::ShopBuy:
+      if (row_count() > 0)
+        UiSounds::play(this, player->buy(player->progress().shop_stock()[menu.cursor()]) ? "Accept" : "Deny");
+      break;
+    case MenuScreen::ShopSell:
+      if (row_count() > 0)
+        UiSounds::play(this, player->sell(sellable()[menu.cursor()].item) ? "Accept" : "Deny");
+      break;
+    case MenuScreen::Machete:
+      UiSounds::play(this, player->learn(menu.cursor() + 1) ? "Accept" : "Deny");
+      break;
+    case MenuScreen::Inventory:
+      if (row_count() > 0 && ItemCatalog::instance()[tab_stacks()[menu.cursor()].item].kind == ItemKind::Outfit)
+        UiSounds::play(this, player->wear(tab_stacks()[menu.cursor()].item) ? "Accept" : "Deny");
+      break;
     default:
       break;
   }
   refresh();
+}
+
+void GameMenu::accept_shop()
+{
+  if (menu.cursor() == ROW_SHOP_LEAVE)
+  {
+    close();
+    return;
+  }
+  const MenuScreen screens[] = {MenuScreen::ShopBuy, MenuScreen::ShopSell, MenuScreen::Machete};
+  menu.open(screens[menu.cursor()]);
+  UiSounds::play(this, "Accept");
+  refresh();
+}
+
+Designar::DynArray<ItemStack> GameMenu::sellable() const
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemStack> stacks = player->progress().inventory().sorted(InventorySort::Value);
+  Designar::DynArray<ItemStack> shown;
+  for (int i = 0; i < static_cast<int>(stacks.size()); ++i)
+    if (catalog[stacks[i].item].kind == ItemKind::Collectible)
+      shown.append(stacks[i]);
+  return shown;
 }
 
 // Once per visit: each rest is a day of inflation, so a second press must not cost another.
@@ -404,10 +474,30 @@ void GameMenu::refresh()
     case MenuScreen::Options:
       show_options();
       break;
+    case MenuScreen::Shop:
+      show_shop();
+      break;
+    case MenuScreen::ShopBuy:
+      show_shop_buy();
+      break;
+    case MenuScreen::ShopSell:
+      show_shop_sell();
+      break;
+    case MenuScreen::Machete:
+      show_machete();
+      break;
     default:
       show_inventory();
       break;
   }
+  place_detail();
+}
+
+// A long list pushes the description down instead of running under it.
+void GameMenu::place_detail()
+{
+  const float below_rows = ROWS_TOP + rows->get_child_count() * ROW_PITCH + DETAIL_GAP;
+  detail->set_position(Vector2(detail->get_position().x, rows->is_visible() ? MAX(DETAIL_TOP, below_rows) : DETAIL_TOP));
 }
 
 void GameMenu::show_tabs(bool visible)
@@ -417,7 +507,7 @@ void GameMenu::show_tabs(bool visible)
   tab_right->set_visible(visible);
   tab_left->set_text("Z   Consumibles");
   tab_middle->set_text("Coleccionables");
-  tab_right->set_text("Armas   C");
+  tab_right->set_text("Equipo   C");
   paint_tab(tab_left, tab_left_plate, tab == ItemKind::Consumable);
   paint_tab(tab_middle, tab_middle_plate, tab == ItemKind::Collectible);
   paint_tab(tab_right, tab_right_plate, tab == ItemKind::Weapon);
@@ -484,8 +574,15 @@ void GameMenu::show_options()
 void GameMenu::show_chapel()
 {
   const PlayerProgress & progress = player->progress();
-  title->set_text(vformat(text("Capilla  ·  día %d"), progress.day()));
-  detail->set_text(text(rested ? "Pasó un día. Los enemigos volvieron a su sitio." : "El lugar sigue a salvo."));
+  const Zone zone = player->chapel_zone();
+  const int rate = progress.exchange_rate(zone);
+  title->set_text(vformat(text("Capilla  ·  día %d  ·  tasa ×%d,%02d"), progress.day(), rate / 100, rate % 100));
+  if (!rested)
+    detail->set_text(text("El lugar sigue a salvo."));
+  else if (progress.devalued_today(zone))
+    detail->set_text(text("Pasó un día. La locha perdió valor."));
+  else
+    detail->set_text(text("Pasó un día. Los enemigos volvieron a su sitio."));
   add_row("Descansar", menu.cursor() == ROW_REST);
   add_row("Subir de nivel", menu.cursor() == ROW_LEVEL_UP);
   add_row("Inventario", menu.cursor() == ROW_INVENTORY);
@@ -499,7 +596,7 @@ void GameMenu::show_stats()
   const PlayerProgress & progress = player->progress();
   const PlayerStats & stats = progress.stats();
   title->set_text("Subir de nivel");
-  detail->set_text(vformat(text("Costo: %d lochas  ·  Tienes: %d"), stats.next_cost(), progress.lochas()));
+  detail->set_text(vformat(text("Costo: %d lochas  ·  Tienes: %d"), progress.stat_cost(player->chapel_zone()), progress.lochas()));
   for (int stat = 0; stat < STAT_COUNT; ++stat)
     add_row(text(STAT_NAMES[stat]), menu.cursor() == stat, vformat("%d / %d", stats.level(static_cast<Stat>(stat)), PlayerStats::MAX_LEVEL));
   hints->set_text("E  subir");
@@ -521,12 +618,105 @@ void GameMenu::show_inventory()
   }
   if (count > 0)
   {
-    const Item & item = catalog[stacks[menu.cursor()].item];
-    item_name->set_text(text(item.name));
+    const ItemId chosen = stacks[menu.cursor()].item;
+    const Item & item = catalog[chosen];
+    const bool worn = player->progress().worn() == chosen;
+    item_name->set_text(worn ? text(item.name) + text("  ·  puesta") : text(item.name));
     detail->set_text(text(item.description));
+    if (item.kind == ItemKind::Outfit)
+    {
+      hints->set_text(text(worn ? "E  quitar" : "E  poner"));
+      hint_back->set_text("Esc  volver");
+      return;
+    }
   }
   else
     detail->set_text(text("No llevas nada aquí."));
   hints->set_text(vformat("R  ordenar: %s", text(SORT_NAMES[static_cast<int>(sort_mode)])));
+  hint_back->set_text("Esc  volver");
+}
+
+String GameMenu::shop_title() const
+{
+  const int rate = player->progress().exchange_rate(player->merchant_zone());
+  return vformat(text("Bachaquero  ·  tasa ×%d,%02d"), rate / 100, rate % 100);
+}
+
+void GameMenu::show_shop()
+{
+  const PlayerProgress & progress = player->progress();
+  title->set_text(shop_title());
+  if (progress.markup() > 0)
+    detail->set_text(vformat(text("\"Cada vez que te mueres, yo subo.\"  Recargo: +%d %%"), progress.markup()));
+  else
+    detail->set_text(text("\"Lo que tengo no pierde valor, pana.\""));
+  add_row("Comprar", menu.cursor() == ROW_BUY);
+  add_row("Vender", menu.cursor() == ROW_SELL);
+  add_row("Machete", menu.cursor() == ROW_MACHETE);
+  add_row("Salir", menu.cursor() == ROW_SHOP_LEAVE);
+  hints->set_text("E  aceptar");
+  hint_back->set_text("Esc  salir");
+}
+
+void GameMenu::show_shop_buy()
+{
+  const PlayerProgress & progress = player->progress();
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemId> stock = progress.shop_stock();
+  const int count = static_cast<int>(stock.size());
+  const Zone zone = player->merchant_zone();
+  menu.keep_cursor_within(count);
+  title->set_text(shop_title());
+  for (int i = 0; i < count; ++i)
+  {
+    const Item & item = catalog[stock[i]];
+    add_row(text(item.name), menu.cursor() == i, vformat("%d", progress.shop_price(item.value, zone)));
+  }
+  const String described = count > 0 ? text(catalog[stock[menu.cursor()]].description) + "\n" : String();
+  detail->set_text(described + vformat(text("Tienes: %d lochas"), progress.lochas()));
+  hints->set_text("E  comprar");
+  hint_back->set_text("Esc  volver");
+}
+
+void GameMenu::show_shop_sell()
+{
+  const PlayerProgress & progress = player->progress();
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const Designar::DynArray<ItemStack> stacks = sellable();
+  const int count = static_cast<int>(stacks.size());
+  const Zone zone = player->merchant_zone();
+  menu.keep_cursor_within(count);
+  title->set_text(shop_title());
+  for (int i = 0; i < count; ++i)
+  {
+    const Item & item = catalog[stacks[i].item];
+    add_row(vformat("%s  x%d", text(item.name), stacks[i].count), menu.cursor() == i, vformat("%d", progress.sell_price(stacks[i].item, zone)));
+  }
+  if (count > 0)
+    detail->set_text(vformat(text("Paga más mientras más cae la locha.\nTienes: %d lochas"), progress.lochas()));
+  else
+    detail->set_text(text("No tienes nada que le interese."));
+  hints->set_text("E  vender");
+  hint_back->set_text("Esc  volver");
+}
+
+void GameMenu::show_machete()
+{
+  const PlayerProgress & progress = player->progress();
+  const Zone zone = player->merchant_zone();
+  title->set_text(text("Machete"));
+  // Indented by depth, in the tree's own order, so each branch reads under its parent.
+  progress.machete_tree().visit([&](const Skill & skill, int depth) {
+    if (depth == 0)
+      return;
+    const MacheteSkillInfo & info = machete_skill(skill.id);
+    const bool open = progress.has_skill(info.parent);
+    const String price = skill.unlocked ? text("Aprendido") : (open ? vformat("%d", progress.skill_price(skill.id, zone)) : text("—"));
+    add_row(String("    ").repeat(depth - 1) + text(info.name), menu.cursor() == skill.id - 1, price);
+  });
+  const MacheteSkillInfo & chosen = machete_skill(menu.cursor() + 1);
+  const String needs = progress.has_skill(chosen.parent) ? String() : vformat(text("Necesitas %s.  "), text(machete_skill(chosen.parent).name));
+  detail->set_text(text(chosen.description) + "\n" + needs + vformat(text("Tienes: %d lochas"), progress.lochas()));
+  hints->set_text("E  aprender");
   hint_back->set_text("Esc  volver");
 }

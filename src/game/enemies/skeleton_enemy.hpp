@@ -45,6 +45,8 @@ private:
   void end_attack();
   void hit_player();
   void go_down(float delta);
+  void fall();
+  void burn(int damage);
   void pay_the_player();
   void reset();
 
@@ -89,6 +91,7 @@ private:
   float circle_gap = 3.f; // Each skeleton keeps its own distance, so they spread around the player.
   float step_scale = 1.f;
   bool has_turn = false;
+  float applied_slow = 1.f; // The chill already folded into the clip speed.
   bool wandering = false;
   int player_respawns = 0;
 

@@ -1,5 +1,6 @@
 #undef NDEBUG
 #include <cassert>
+#include <utility>
 
 #include <sort.hpp>
 
@@ -12,13 +13,18 @@
 #include <core/lock_on.hpp>
 #include <core/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/player/rage.hpp>
+#include <core/player/thrown_weapon.hpp>
+#include <core/progression/inflation.hpp>
 #include <core/progression/inventory.hpp>
 #include <core/progression/item_catalog.hpp>
+#include <core/progression/machete_skills.hpp>
 #include <core/progression/loot_table.hpp>
 #include <core/progression/player_progress.hpp>
 #include <core/progression/quick_slots.hpp>
 #include <core/progression/skill_tree.hpp>
 #include <core/stamina.hpp>
+#include <core/status_effects.hpp>
 
 static void test_skill_tree()
 {
@@ -867,10 +873,10 @@ static void test_player_stats()
 {
   PlayerStats stats;
   assert(stats.max_health() == 100);
-  assert(stats.next_cost() == 80);
+  assert(stats.next_cost() == 50);
   stats.raise(Stat::Health);
   assert(stats.max_health() == 110);
-  assert(stats.next_cost() == 120);
+  assert(stats.next_cost() == 75);
   stats.raise(Stat::Speed);
   assert(stats.speed_scale() > 1.03f && stats.speed_scale() < 1.05f);
   assert(stats.total_levels() == 2);
@@ -883,17 +889,69 @@ static void test_player_stats()
 static void test_raising_a_stat()
 {
   PlayerProgress progress;
-  assert(!progress.raise(Stat::Power));
+  assert(!progress.raise(Stat::Power, Zone::Avenue));
 
-  progress.earn(100);
-  assert(progress.raise(Stat::Power));
-  assert(progress.lochas() == 20);
-  assert(!progress.raise(Stat::Power)); // The next level costs more than what is left.
+  progress.earn(60);
+  assert(progress.raise(Stat::Power, Zone::Avenue));
+  assert(progress.lochas() == 10);
+  assert(!progress.raise(Stat::Power, Zone::Avenue)); // The next level costs more than what is left.
 
-  progress.earn(100);
-  assert(progress.raise(Stat::Power));
+  progress.earn(65);
+  assert(progress.raise(Stat::Power, Zone::Avenue));
   assert(progress.lochas() == 0);
   assert(progress.stats().level(Stat::Power) == 2);
+}
+
+static void test_exchange_rate()
+{
+  assert(exchange_rate(0) == 100);
+  assert(exchange_rate(1) == 110);
+  assert(exchange_rate(2) == 110); // Between steps the rate holds.
+  assert(exchange_rate(3) == 120);
+  assert(exchange_rate(4) == 120);
+  assert(exchange_rate(24) == 280);
+  assert(exchange_rate(500) == 280); // Past the last step it stays put.
+  assert(inflate(80, 0) == 80);
+  assert(inflate(80, 1) == 88);
+  assert(inflate(15, 1) == 17); // 16.5 rounds up.
+  assert(!devalues_on(0));
+  assert(devalues_on(1) && !devalues_on(2) && devalues_on(3));
+}
+
+static void test_inflation_by_zone()
+{
+  PlayerProgress progress;
+  progress.earn(1000);
+  assert(progress.stat_cost(Zone::Avenue) == 50);
+  progress.rest(0);
+  assert(progress.devalued_today(Zone::Avenue));
+  assert(progress.stat_cost(Zone::Avenue) == 55);
+
+  progress.freeze_inflation(Zone::Avenue);
+  progress.rest(0);
+  progress.rest(0);
+  assert(progress.day() == 3);
+  assert(progress.exchange_rate(Zone::Avenue) == 110);
+  assert(!progress.devalued_today(Zone::Avenue));
+  assert(progress.exchange_rate(Zone::Jungle) == 120);
+  assert(progress.devalued_today(Zone::Jungle));
+  progress.freeze_inflation(Zone::Avenue); // A second win keeps the first day.
+  assert(progress.inflation_day(Zone::Avenue) == 1);
+
+  assert(progress.raise(Stat::Power, Zone::Jungle));
+  assert(progress.lochas() == 1000 - 60);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.inflation_frozen(Zone::Avenue) && !loaded.inflation_frozen(Zone::Plain));
+  assert(loaded.exchange_rate(Zone::Avenue) == 110);
+  assert(!loaded.from_text("nightmare58 2\nfrozen 3 1\n"));
+  assert(!loaded.from_text("nightmare58 2\nfrozen 0 -1\n"));
+
+  // A version 1 save has no frozen zones and still loads.
+  assert(loaded.from_text("nightmare58 1\nlochas 9\nday 4\n"));
+  assert(loaded.lochas() == 9 && !loaded.inflation_frozen(Zone::Avenue));
+  assert(loaded.exchange_rate(Zone::Avenue) == 120);
 }
 
 static void test_coffee_capacity()
@@ -960,7 +1018,7 @@ static void test_save_round_trip()
 {
   PlayerProgress saved;
   saved.earn(500);
-  saved.raise(Stat::Regeneration);
+  saved.raise(Stat::Regeneration, Zone::Avenue);
   saved.collect(ItemCatalog::COFFEE);
   saved.collect(ItemCatalog::CANDLE, 2);
   saved.collect(ItemCatalog::instance().find("family_photo"));
@@ -983,7 +1041,7 @@ static void test_save_round_trip()
   assert(loaded.quick_slots().holds(ItemCatalog::CANDLE));
   assert(loaded.pickup_taken(7) && loaded.pickup_taken(200) && !loaded.pickup_taken(8));
   assert(loaded.has_death_mark());
-  assert(loaded.death_mark().lochas == 420);
+  assert(loaded.death_mark().lochas == 450);
   assert(loaded.death_mark().z == 9.f);
   assert(loaded.to_text() == saved.to_text());
 }
@@ -1123,6 +1181,311 @@ static void test_menu_stack()
   assert(!menu.is_open());
 }
 
+static void test_shop()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  const ItemId vinyl = ItemCatalog::VINYL;
+  const int candle = catalog[ItemCatalog::CANDLE].value;
+
+  PlayerProgress progress;
+  assert(progress.shop_price(candle, Zone::Avenue) == candle);
+  assert(!progress.buy(ItemCatalog::CANDLE, Zone::Avenue)); // No lochas yet.
+  assert(!progress.buy(ItemCatalog::COFFEE, Zone::Avenue)); // Not for sale.
+
+  progress.earn(candle);
+  assert(progress.buy(ItemCatalog::CANDLE, Zone::Avenue));
+  assert(progress.lochas() == 0);
+  assert(progress.inventory().count(ItemCatalog::CANDLE) == 1);
+  assert(progress.quick_slots().holds(ItemCatalog::CANDLE));
+
+  // Only collectibles sell, at the day's rate.
+  assert(!progress.sell(ItemCatalog::CANDLE, Zone::Avenue));
+  assert(!progress.sell(vinyl, Zone::Avenue));
+  progress.collect(vinyl, 2);
+  progress.rest(0);
+  progress.rest(0);
+  progress.rest(0);
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 120 / 100);
+  assert(progress.sell(vinyl, Zone::Avenue));
+  assert(progress.lochas() == catalog[vinyl].value * 120 / 100);
+  assert(progress.inventory().count(vinyl) == 1);
+
+  // Each death raises his prices, up to a cap, on top of inflation.
+  progress.die(0.f, 0.f, 0.f);
+  assert(progress.deaths() == 1 && progress.markup() == PlayerProgress::DEATH_MARKUP);
+  assert(progress.shop_price(100, Zone::Avenue) == 126);
+  for (int i = 0; i < 20; ++i)
+    progress.die(0.f, 0.f, 0.f);
+  assert(progress.markup() == PlayerProgress::MAX_MARKUP);
+  assert(progress.sell_price(vinyl, Zone::Avenue) == catalog[vinyl].value * 120 / 100); // Selling is not marked up.
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.deaths() == 21);
+  assert(!loaded.from_text("nightmare58 3\ndeaths -1\n"));
+}
+
+static void test_machete_tree()
+{
+  SkillTree tree = make_machete_tree();
+  assert(tree.is_unlocked(MacheteSkill::MACHETE));
+  assert(tree.cost(MacheteSkill::EDGE_2) == machete_skill(MacheteSkill::EDGE_2).cost);
+  assert(tree.cost(99) == -1);
+
+  // Visited parents first, in the order of the table.
+  int expected = 0;
+  tree.visit([&expected](const Skill & skill, int depth) {
+    assert(skill.id == expected++);
+    assert(depth == 0 || machete_skill(skill.id).parent != MacheteSkill::NONE);
+  });
+  assert(expected == MacheteSkill::COUNT);
+
+  assert(!tree.restore(MacheteSkill::EDGE_2)); // Its parent is still locked.
+  assert(tree.restore(MacheteSkill::EDGE_1) && tree.restore(MacheteSkill::EDGE_2));
+  assert(!tree.restore(MacheteSkill::MACHETE) && !tree.restore(99));
+
+  SkillTree moved = std::move(tree);
+  assert(moved.is_unlocked(MacheteSkill::EDGE_2));
+  assert(find_machete_skill("throw") == MacheteSkill::THROW);
+  assert(find_machete_skill("nothing") == MacheteSkill::NONE);
+}
+
+static void test_learning_machete_skills()
+{
+  PlayerProgress progress;
+  assert(progress.machete_damage_scale() == 1.f);
+  assert(!progress.learn(MacheteSkill::EDGE_1, Zone::Avenue));
+
+  progress.earn(2000);
+  assert(!progress.learn(MacheteSkill::EDGE_2, Zone::Avenue)); // Filo comes first.
+  assert(progress.learn(MacheteSkill::EDGE_1, Zone::Avenue));
+  assert(progress.lochas() == 2000 - 60);
+  assert(!progress.learn(MacheteSkill::EDGE_1, Zone::Avenue)); // Already known.
+
+  // Paid at the bachaquero's prices: inflation and the death markup.
+  progress.rest(0);
+  progress.die(0.f, 0.f, 0.f);
+  progress.recover();
+  assert(progress.skill_price(MacheteSkill::EDGE_2, Zone::Avenue) == 139); // 132 at the rate, then +5 %, rounded up.
+  assert(progress.learn(MacheteSkill::EDGE_2, Zone::Avenue));
+  assert(progress.machete_damage_scale() > 1.29f && progress.machete_damage_scale() < 1.31f);
+  assert(progress.learn(MacheteSkill::TECHNIQUE, Zone::Avenue) && progress.learn(MacheteSkill::THROW, Zone::Avenue));
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.has_skill(MacheteSkill::EDGE_2) && loaded.has_skill(MacheteSkill::THROW));
+  assert(!loaded.has_skill(MacheteSkill::RAGE));
+  assert(loaded.to_text() == progress.to_text());
+  assert(!loaded.from_text("nightmare58 3\nskill edge_2\n")); // A child without its parent is damage.
+  assert(!loaded.from_text("nightmare58 3\nskill nothing\n"));
+}
+
+static void test_status_effects()
+{
+  StatusEffects effects;
+  assert(effects.update(1.f) == 0 && effects.slow_scale() == 1.f);
+
+  effects.apply(Status::Burn);
+  assert(effects.update(0.4f) == 0);
+  assert(effects.update(0.1f) == StatusEffects::BURN_DAMAGE); // First tick at 0.5 s.
+
+  // Burns stack up to the limit; past it the oldest one starts over.
+  for (int i = 0; i < 5; ++i)
+    effects.apply(Status::Burn);
+  assert(effects.count(Status::Burn) == StatusEffects::MAX_BURNS);
+
+  effects.apply(Status::Chill);
+  effects.apply(Status::Chill);
+  assert(effects.count(Status::Chill) == 1);
+  assert(effects.slow_scale() == StatusEffects::CHILL_SLOW);
+
+  int total = 0;
+  for (int tick = 0; tick < 600; ++tick)
+    total += effects.update(1.f / 60.f);
+  assert(!effects.has(Status::Burn) && !effects.has(Status::Chill));
+  assert(total > 0 && total <= StatusEffects::MAX_BURNS * 8 * StatusEffects::BURN_DAMAGE);
+
+  effects.apply(Status::Burn);
+  effects.clear();
+  assert(!effects.has(Status::Burn));
+
+  WeaponCoat coat;
+  assert(!coat.active());
+  coat.apply(Status::Chill);
+  assert(coat.active() && coat.kind() == Status::Chill && coat.ratio() == 1.f);
+  coat.update(WeaponCoat::DURATION - 1.f);
+  assert(coat.active());
+  coat.update(2.f);
+  assert(!coat.active() && coat.ratio() == 0.f);
+}
+
+static void test_grease_in_the_shop()
+{
+  PlayerProgress progress;
+  progress.earn(5000);
+  auto offers = [&progress](ItemId item) {
+    const Designar::DynArray<ItemId> stock = progress.shop_stock();
+    for (Designar::nat_t i = 0; i < stock.size(); ++i)
+      if (stock[i] == item)
+        return true;
+    return false;
+  };
+  assert(!offers(ItemCatalog::FIRE_GREASE) && !progress.buy(ItemCatalog::FIRE_GREASE, Zone::Avenue));
+  assert(progress.learn(MacheteSkill::GREASE, Zone::Avenue) && progress.learn(MacheteSkill::FIRE, Zone::Avenue));
+  assert(offers(ItemCatalog::FIRE_GREASE) && !offers(ItemCatalog::ICE_GREASE));
+  assert(progress.buy(ItemCatalog::FIRE_GREASE, Zone::Avenue));
+  assert(progress.inventory().count(ItemCatalog::FIRE_GREASE) == 1);
+  assert(progress.quick_slots().holds(ItemCatalog::FIRE_GREASE));
+}
+
+static void test_thrown_weapon_flight()
+{
+  ThrownWeapon flight;
+  assert(!flight.in_air());
+  flight.release();
+  assert(flight.heading_out());
+
+  // Out in a straight line until its range, never past it.
+  float out = 0.f;
+  while (flight.heading_out())
+    out += flight.step(1.f / 60.f);
+  assert(out > ThrownWeapon::RANGE - 0.001f && out < ThrownWeapon::RANGE + 0.001f);
+  assert(flight.current() == ThrownWeapon::Phase::Back);
+
+  // Back until the hand is within reach of the step.
+  const float step = flight.step(1.f / 60.f);
+  assert(!flight.caught(5.f, step));
+  assert(flight.caught(step + ThrownWeapon::CATCH_RADIUS, step));
+  assert(!flight.in_air());
+
+  // A wall sends it back early, and a hand it never reaches still gets it after a while.
+  flight.release();
+  flight.step(0.1f);
+  flight.turn_back();
+  assert(flight.current() == ThrownWeapon::Phase::Back);
+  for (int tick = 0; tick < 300; ++tick)
+    flight.step(1.f / 60.f);
+  assert(flight.caught(100.f, 0.3f));
+}
+
+static void test_player_throw()
+{
+  PlayerActions actions;
+  actions.press(PlayerAction::Throw);
+  assert(actions.update(0.016f, false));
+  assert(actions.current() == PlayerAction::Throw);
+  assert(PlayerActions::timing(PlayerAction::Throw).hit_end == 0.f); // The flying weapon hits, not the swing.
+
+  // Once it is in the air, nothing that needs it gets through, not even a second throw.
+  actions.release_weapon();
+  actions.press(PlayerAction::Attack);
+  actions.press(PlayerAction::HeavyAttack);
+  for (int tick = 0; tick < 60; ++tick)
+    actions.update(0.016f, false);
+  assert(actions.current() == PlayerAction::None);
+  actions.press(PlayerAction::Throw);
+  assert(!actions.update(0.016f, false));
+  actions.press(PlayerAction::Attack);
+  assert(!actions.update(0.016f, false));
+  actions.press(PlayerAction::Dodge);
+  assert(actions.update(0.016f, false) && actions.current() == PlayerAction::Dodge);
+
+  // Caught mid-dodge it is just back; caught while idle it plays the catch.
+  assert(!actions.catch_weapon());
+  assert(!actions.weapon_away());
+  for (int tick = 0; tick < 60; ++tick)
+    actions.update(0.016f, false);
+  actions.release_weapon();
+  assert(actions.catch_weapon() && actions.current() == PlayerAction::Catch);
+  for (int tick = 0; tick < 30; ++tick)
+    actions.update(0.016f, false);
+  actions.press(PlayerAction::Attack);
+  assert(actions.update(0.016f, false) && actions.current() == PlayerAction::Attack);
+
+  actions.release_weapon();
+  actions.revive(); // Death puts it back in the hand.
+  assert(!actions.weapon_away());
+}
+
+static void test_rage()
+{
+  Rage rage;
+  assert(!rage.activate()); // Empty.
+  assert(rage.damage_dealt_scale() == 1.f && rage.damage_taken_scale() == 1.f);
+
+  rage.deal(20);
+  assert(rage.ratio() > 0.15f && rage.ratio() < 0.17f);
+  rage.take(20);
+  assert(rage.ratio() > 0.39f && rage.ratio() < 0.41f); // Being hit fills it faster.
+  for (int i = 0; i < 10; ++i)
+    rage.deal(20);
+  assert(rage.full() && rage.ratio() == 1.f);
+
+  assert(rage.activate());
+  assert(!rage.activate()); // Already burning.
+  assert(rage.damage_dealt_scale() == Rage::DEALT_SCALE && rage.damage_taken_scale() == Rage::TAKEN_SCALE);
+  rage.deal(50); // Nothing refills it while it burns.
+  rage.update(Rage::DURATION * 0.5f);
+  assert(rage.active() && rage.ratio() > 0.49f && rage.ratio() < 0.51f);
+  rage.update(Rage::DURATION);
+  assert(!rage.active() && rage.ratio() == 0.f && rage.damage_dealt_scale() == 1.f);
+
+  rage.deal(200);
+  rage.reset();
+  assert(rage.ratio() == 0.f);
+}
+
+static void test_wearing_the_cap()
+{
+  const ItemCatalog & catalog = ItemCatalog::instance();
+  assert(catalog[ItemCatalog::CAP].kind == ItemKind::Outfit);
+
+  PlayerProgress progress;
+  assert(!progress.wear(ItemCatalog::CAP)); // Not owned yet.
+  assert(!progress.wear(ItemCatalog::MACHETE)); // Not an outfit.
+  assert(progress.outfit_damage_scale() == 1.f);
+
+  progress.earn(1000);
+  assert(progress.buy(ItemCatalog::CAP, Zone::Avenue));
+  assert(!progress.buy(ItemCatalog::CAP, Zone::Avenue)); // Only one.
+  assert(!progress.quick_slots().holds(ItemCatalog::CAP));
+
+  assert(progress.wear(ItemCatalog::CAP) && progress.worn() == ItemCatalog::CAP);
+  assert(progress.outfit_damage_scale() == PlayerProgress::CAP_STRENGTH);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()));
+  assert(loaded.worn() == ItemCatalog::CAP);
+  assert(loaded.to_text() == progress.to_text());
+
+  assert(progress.wear(ItemCatalog::CAP) && progress.worn() == NO_ITEM); // Taken off.
+  assert(loaded.from_text(progress.to_text()) && loaded.worn() == NO_ITEM);
+
+  assert(!loaded.from_text("nightmare58 3\nwear coffee\n"));
+  assert(!loaded.from_text("nightmare58 3\nwear cap\n")); // Worn but not in the bag.
+  assert(loaded.from_text("nightmare58 3\nlochas 4\nwear old_hat\n") && loaded.worn() == NO_ITEM);
+}
+
+static void test_endless_lochas()
+{
+  PlayerProgress progress;
+  progress.set_endless(true);
+  const int wallet = progress.lochas();
+  assert(wallet == PlayerProgress::ENDLESS_WALLET);
+  assert(progress.learn(MacheteSkill::TECHNIQUE, Zone::Avenue) && progress.learn(MacheteSkill::THROW, Zone::Avenue));
+  assert(progress.raise(Stat::Power, Zone::Avenue) && progress.buy(ItemCatalog::CAP, Zone::Avenue));
+  assert(progress.lochas() == wallet);
+
+  progress.die(1.f, 2.f, 3.f);
+  assert(!progress.has_death_mark() && progress.lochas() == wallet && progress.deaths() == 1);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()) && loaded.endless());
+  assert(!loaded.from_text("nightmare58 3\nendless 2\n"));
+  PlayerProgress normal;
+  assert(loaded.from_text(normal.to_text()) && !loaded.endless());
+}
+
 int main()
 {
   assert(classify_distance(2.f, 3.f, 8.f) == DistanceRange::Near);
@@ -1163,6 +1526,8 @@ int main()
   test_loot_table();
   test_player_stats();
   test_raising_a_stat();
+  test_exchange_rate();
+  test_inflation_by_zone();
   test_coffee_capacity();
   test_death_and_recovery();
   test_pickups_taken();
@@ -1173,5 +1538,15 @@ int main()
   test_player_use_item();
   test_menu_stack();
   test_player_name();
+  test_shop();
+  test_machete_tree();
+  test_learning_machete_skills();
+  test_status_effects();
+  test_grease_in_the_shop();
+  test_thrown_weapon_flight();
+  test_player_throw();
+  test_rage();
+  test_wearing_the_cap();
+  test_endless_lochas();
   return 0;
 }

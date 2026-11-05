@@ -821,6 +821,62 @@ def use_candle_clip():
   ))
 
 
+def apply_grease_clip():
+  """The blade held across the chest and the free hand wiping grease from guard to tip. USE_ITEM
+  in player_actions.cpp coats the blade at 0.45 s, as the hand reaches the tip."""
+  across = {
+    "grip": (-0.18, 0.32, 1.05), "aim": (1.0, 0.25, 0.1), "pole_r": (-0.6, -0.4, -1.0),
+    "hips_rot": (6, 6, 0), "chest_rot": (6, -2, 0), "head_rot": (16, 10, 0),
+    "hand_l_curl": 40.0, "pole_l": (0.6, -0.5, -0.9),
+  }
+  return Clip("apply_grease", 27, timeline(
+    (0, dict(GUARD, hand_l_curl=25.0)),
+    (6, dict(across, hand_l=(0.04, 0.42, 1.1))),
+    (14, {"hand_l": (0.44, 0.5, 1.16), "head_rot": (16, 16, 0)}),
+    (19, {"hand_l": (0.48, 0.52, 1.19), "hand_l_curl": 30.0}),
+    (27, dict(recovery(0.0), hand_l_curl=25.0)),
+  ))
+
+
+def throw_clip():
+  """The machete hauled behind the right shoulder and whipped out flat, the left arm pointing the
+  way. THROW in player_actions.cpp lets it go at 0.3 s, as the arm passes the shoulder; from there
+  the hand is empty and only follows through."""
+  wound = {
+    "hips_pos": (0.02, -0.06, -0.12), "hips_rot": (2, -32, 2), "spine_rot": (0, -12, 0), "chest_rot": (-4, -22, 0), "head_rot": (4, 18, 0),
+    "grip": (-0.4, -0.18, 1.38), "aim": (-0.5, -0.5, 0.7), "pole_r": (-0.7, 0.2, -0.6),
+    "hand_l": (0.3, 0.38, 1.3), "hand_l_curl": 10.0, "pole_l": (0.6, -0.4, -0.8),
+    "foot_l": (0.19, -0.1, 0.0), "foot_l_rot": (0, 20),
+  }
+  released = {
+    "hips_pos": (-0.02, 0.06, -0.16), "hips_rot": (12, 24, -2), "spine_rot": (6, 10, 0), "chest_rot": (8, 16, 0), "head_rot": (8, -6, 0),
+    "grip": (-0.1, 0.62, 1.18), "aim": (0.3, 0.95, 0.0), "pole_r": (-0.6, -0.25, -1.0),
+    "hand_l": (0.34, -0.05, 1.0), "hand_l_curl": 40.0,
+    "foot_l": (0.19, 0.12, 0.0), "foot_l_rot": (24, 18),
+  }
+  return Clip("throw", 21, timeline(
+    (0, dict(GUARD)),
+    (5, wound),
+    (7, wound),
+    (9, released),
+    (13, dict(released, grip=(0.1, 0.5, 0.86), aim=(0.6, 0.5, -0.6), hips_rot=(14, 30, -2))),
+    (21, recovery(0.0)),
+  ))
+
+
+def catch_clip():
+  """The hand up and open to meet the returning machete, which snaps it back into guard."""
+  reach = {
+    "hips_rot": (2, 4, 0), "chest_rot": (-2, 2, 0), "head_rot": (0, 0, 0),
+    "grip": (-0.26, 0.42, 1.4), "aim": (-0.3, 0.5, 0.8), "pole_r": (-0.6, -0.3, -1.0),
+  }
+  return Clip("catch", 12, timeline(
+    (0, dict(GUARD, **reach)),
+    (3, {"grip": (-0.32, 0.26, 1.22), "aim": (-0.4, 0.7, 0.4), "hips_pos": (0.015, -0.04, -0.13)}),
+    (12, recovery(0.0)),
+  ))
+
+
 # PlayerController::LOCK_SPEED must match this speed.
 LOCK_SPEED = 2.2
 LOCK_FRAMES = 12
@@ -950,6 +1006,9 @@ CLIPS = [
   death_clip(),
   drink_clip(),
   use_candle_clip(),
+  apply_grease_clip(),
+  throw_clip(),
+  catch_clip(),
   lock_clip("walk_back-loop", (0.0, -1.0), 0.15),
   lock_clip("strafe_left-loop", (1.0, 0.0), 0.2),
   lock_clip("strafe_right-loop", (-1.0, 0.0), 0.2),

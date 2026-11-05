@@ -9,9 +9,9 @@ using ItemId = int;
 
 constexpr ItemId NO_ITEM = -1;
 
-enum class ItemKind { Consumable, Collectible, Weapon };
+enum class ItemKind { Consumable, Collectible, Weapon, Outfit };
 
-constexpr int ITEM_KINDS = 3;
+constexpr int ITEM_KINDS = 4;
 
 struct Item
 {
@@ -34,6 +34,9 @@ public:
   static constexpr ItemId TILE = 4;
   static constexpr ItemId PHOTO = 5;
   static constexpr ItemId MACHETE = 6;
+  static constexpr ItemId FIRE_GREASE = 7;
+  static constexpr ItemId ICE_GREASE = 8;
+  static constexpr ItemId CAP = 9;
 
   static const ItemCatalog & instance();
 

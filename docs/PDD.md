@@ -88,13 +88,32 @@ miente al jugador sobre la misma distancia que usa el árbol.
 ### Economía y progreso
 
 - **Lochas:** se obtienen al matar. Cada descanso en una capilla cuenta como un día y
-  les quita valor; vencer a un jefe frena la inflación en esa zona.
+  les quita valor; vencer a un jefe o a un minijefe frena la inflación en esa zona.
+- **Inflación:** los precios se fijan en lochas del día 0 y se pagan con la tasa del
+  día, que sube por escalones, como devaluaciones anunciadas: ×1,10 el día 1, ×1,20 el
+  3, ×1,35 el 5, ×1,55 el 8, ×1,80 el 12, ×2,20 el 17 y ×2,80 el día 24, donde se queda. Lo que sueltan los
+  enemigos no sube, así que guardar lochas sale caro. Afecta a subir de nivel y a la
+  tienda. Cada zona congela su tasa en el día en que cae su jefe. La capilla muestra
+  la tasa y avisa cuando la locha pierde valor.
+- **Botín por enemigo:** cada enemigo suelta una cantidad fija, pero los que llegan
+  después en el recorrido sueltan más, para que la inflación no ahogue al jugador. El
+  esqueleto da 30; la rata y el perro, unas 50. Se ajusta jugando.
+- **Escala de precios:** la avenida tiene 11 esqueletos, así que una pasada completa da
+  330 lochas, más unas 500 si se venden sus coleccionables. Los precios se miden contra
+  eso: una pasada alcanza para una mejora de segundo nivel del machete o un par de
+  niveles de capilla, y el árbol completo pide unas tres pasadas. Subir de nivel cuesta
+  50 más 25 por cada nivel ya subido. La vela cuesta 30, cada grasa 25 y la gorra 120.
+- **Perfil de pruebas:** la ranura 6 puede guardar una partida con lochas sin fin
+  (`endless 1` en el archivo): los precios se muestran y se cobran, pero la cartera no
+  baja y morir no deja lochas. El HUD muestra ∞. Sirve para probar la tienda.
 - **Muerte:** se dejan las lochas donde se cayó, y hay que volver por ellas. Si se muere
   otra vez antes de recuperarlas, se pierden.
 - **Capillas:** son los puntos de control. Permiten descansar y subir de nivel.
 - **Curación:** café, en cantidad limitada. Se recarga en las capillas.
 - **Bachaquero:** mercader que cambia lochas por objetos que no se devalúan. Sus
-  precios suben cada vez que mueres.
+  precios suben cada vez que mueres: un 5 % por muerte, hasta un 50 % más. Cobra con la
+  tasa de su zona y compra coleccionables a su valor por la tasa del día, sin recargo.
+  Está a la salida de la primera capilla y se abre con E.
 
 ### Estadísticas
 
@@ -121,10 +140,34 @@ Machete
 └─ Técnica → Lanzar machete / Modo Arrechera
 ```
 
+Cada rama se compra en la tienda del bachaquero, con sus precios: cobra la inflación y el
+recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
+
+| Mejora | Costo | Efecto |
+|---|---|---|
+| Filo, Filo II, Filo III | 60, 120, 200 | +15 % de daño del machete por nivel |
+| Grasa | 40 | Abre las grasas |
+| Fuego, Hielo | 80 cada una | El bachaquero vende esa grasa |
+| Técnica | 60 | Abre las técnicas |
+| Lanzar machete | 120 | Tecla G |
+| Modo Arrechera | 160 | Tecla V con la barra llena |
+
 - **Grasas:** duran 60 s. El fuego quema con el tiempo y el hielo frena al enemigo.
-- **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar.
+  Se compran al bachaquero tras aprender su rama y se usan como el café, desde el objeto
+  rápido. Cada golpe con fuego agrega una quemadura de 4 s que hace 2 de daño cada medio
+  segundo, hasta tres a la vez. El hielo frena al enemigo a la mitad durante 3 s. La
+  hoja brilla del color de la grasa y parpadea en sus últimos segundos.
+- **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar. Sale con G hacia el
+  enemigo fijado o hacia el frente, gira plano, recorre 9 m o hasta chocar con una pared y
+  vuelve a la mano esté donde esté. Golpea con la malla completa del arma a la ida y a la
+  vuelta, una vez por tramo, con 18 de daño más las mejoras y la grasa. Esquivar sigue
+  permitido; si vuelve en medio de otra acción, solo regresa a la mano sin animación.
 - **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega
-  más fuerte unos 12 s, pero también se recibe más daño.
+  más fuerte unos 12 s, pero también se recibe más daño. La barra roja aparece bajo la
+  stamina al aprender la rama. Se llena con el daño hecho (0,8 por punto) y más rápido
+  con el recibido (1,2 por punto); llena, late, y con V se suelta: ×1,4 al daño que se
+  hace y ×1,3 al que se recibe mientras se vacía. El cuerpo brilla en rojo, la cámara
+  sacude y aparece "¡Arrechera!". Morir la vacía.
 
 ### Objetos
 
@@ -135,7 +178,9 @@ Machete
 | Coleccionables | Vinilo de gaita, cromo de béisbol, ficha de dominó, foto familiar |
 
 - **Atuendos:** se ven puestos en el personaje. Se empieza por la gorra, porque los
-  uniformes hay que modelarlos sobre el cuerpo.
+  uniformes hay que modelarlos sobre el cuerpo. La gorra se compra una sola vez al
+  bachaquero, se pone y se quita con E en la pestaña Equipo del inventario, y da un 10 %
+  más de daño. Se lleva un atuendo a la vez y queda guardado en la partida.
 - **Coleccionables:** no se devalúan y el bachaquero los paga mejor con la inflación.
   Guardarlos es una decisión económica real.
 - **Vela de retorno:** devuelve a la última capilla. Con 25 minutos de juego no hace

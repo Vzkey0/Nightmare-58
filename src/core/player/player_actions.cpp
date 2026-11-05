@@ -20,6 +20,9 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
   static constexpr ActionTiming USE_ITEM{0.9f, 0.9f, 0.9f, 0.f, 0.f, 0, 0.5f, 0.45f};
   // Only revive() ends it.
   static constexpr ActionTiming DEAD{1e9f, 1e9f, 1e9f};
+  // Its ground_hit is the release: the thrown weapon does the hitting, so the window stays empty.
+  static constexpr ActionTiming THROW{0.7f, 0.55f, 0.6f, 0.f, 0.f, 0, 0.4f, 0.3f, 18.f};
+  static constexpr ActionTiming CATCH{0.4f, 0.25f, 0.25f};
 
   switch (action)
   {
@@ -47,6 +50,10 @@ const ActionTiming & PlayerActions::timing(PlayerAction action)
       return DODGE;
     case PlayerAction::UseItem:
       return USE_ITEM;
+    case PlayerAction::Throw:
+      return THROW;
+    case PlayerAction::Catch:
+      return CATCH;
     default:
       return NONE;
   }
@@ -117,6 +124,17 @@ void PlayerActions::revive()
 {
   interrupt(PlayerAction::None);
   stamina.restore();
+  weapon_out = false;
+}
+
+bool PlayerActions::catch_weapon()
+{
+  weapon_out = false;
+  if (action != PlayerAction::None)
+    return false;
+  action = PlayerAction::Catch;
+  action_time = 0.f;
+  return true;
 }
 
 bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
@@ -125,6 +143,8 @@ bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
   action_time += delta;
 
   while (!buffer.is_empty() && clock - buffer.front().time > BUFFER_TIME)
+    buffer.get();
+  while (!buffer.is_empty() && weapon_out && needs_weapon(buffer.front().action))
     buffer.get();
 
   const bool free = action == PlayerAction::None;

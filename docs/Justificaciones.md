@@ -26,7 +26,7 @@ implementarse.
 | Sistema | Propuesta del PDD | Ficha |
 |---|---|---|
 | Zonas | Árbol n-ario | Pendiente |
-| Combos y estados alterados | Listas | Pendiente |
+| Combos y estados alterados | Listas | J-016 para los estados alterados; combos, pendiente |
 | Objeto rápido | Lista recorrida en círculo | J-013 |
 | Rastro de enemigos | Lista de posiciones | Pendiente |
 | Búfer de inputs | Cola | J-004 |
@@ -39,18 +39,19 @@ implementarse.
 | Inventario | `merge_sort` | J-008 y J-009 |
 | Récords | `quicksort` | Pendiente |
 | Botín | `binary_search` | J-010: gana el recorrido lineal |
-| Nivel, fase, tasa de cambio | `binary_search` | Pendiente |
+| Nivel, fase, tasa de cambio | `binary_search` | J-015 para la tasa de cambio; nivel y fase, pendientes |
 
 ## Fichas
 
 ## J-001: Árbol de habilidades con `MTreeNode`
 
 - **Estado:** Aceptada
-- **Código:** `src/core/progression/skill_tree.hpp`, `SkillTree::root`
+- **Código:** `src/core/progression/skill_tree.hpp`, `SkillTree::root`; el árbol del machete se arma en
+  `machete_skills.cpp` y lo guarda `PlayerProgress::machete`
 - **Crítico:** No. Corre al usar el menú de habilidades, no en cada frame
-- **Datos:** alrededor de 20 habilidades; máximo por definir
-- **Operaciones:** crear el árbol una vez, buscar por ID y consultar al padre. Domina
-  la búsqueda
+- **Datos:** 10 habilidades en el árbol del machete; alrededor de 20 al terminar el juego
+- **Operaciones:** crear el árbol una vez, buscar por ID, consultar al padre y recorrerlo en preorden
+  para la tienda y el guardado. Domina la búsqueda
 - **Elegida:** `MTreeNode`. Búsqueda `O(n)`, acceso al padre `O(1)`
 - **Descartadas:** `Tree` (`tree.hpp`) es un árbol binario de búsqueda: ordena por
   clave y no representa una jerarquía con varios hijos. `DynArray` con índice al
@@ -335,3 +336,48 @@ implementarse.
   el cursor. `DynStack` puede reservar memoria sin necesidad
 - **Medición:** No aplica
 - **Conclusión:** los menús se cierran en orden inverso al que se abren, que es exactamente una pila
+
+## J-015: Tasa de cambio con `binary_search`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/progression/inflation.cpp`, `step_for`
+- **Crítico:** No. Corre al mostrar o cobrar un precio: en la capilla y en la tienda
+- **Datos:** 8 escalones en el capítulo 1; crecerá con cada capítulo, a unas decenas
+- **Operaciones:** crear la tabla una vez y buscar el escalón vigente para un día. Domina la búsqueda
+- **Elegida:** escalones `{día, tasa}` ordenados por día en un `DynArray` y `binary_search`, `O(lg n)`.
+  Si el día no coincide con un escalón, DeSiGNAR devuelve el punto de inserción y se toma el anterior
+- **Descartadas:** un arreglo con una tasa por día se indexa en `O(1)`, pero los días no tienen tope y
+  obliga a repetir la misma tasa en cada día de un escalón. El recorrido lineal ganó en J-010 con este
+  tamaño por unos pocos nanosegundos, pero crece con la tabla, y aquí la diferencia no se nota porque
+  la búsqueda corre al abrir un menú. Una fórmula, como `1,1^día`, no deja diseñar los saltos de cada
+  devaluación
+- **Medición:** No aplica. No es código crítico; la medición de J-010 ya da el orden de magnitud
+- **Conclusión:** la tasa cambia por escalones y se busca por día, que es una búsqueda en datos fijos y
+  ordenados, el caso de `binary_search` en la guía de Convenciones
+
+## J-016: Estados alterados con `SLList`
+
+- **Estado:** Aceptada
+- **Código:** `src/core/status_effects.hpp`, `StatusEffects::effects`
+- **Crítico:** Sí. `update` corre en cada tick físico por enemigo
+- **Datos:** hasta 4 efectos por enemigo: tres quemaduras y un frío; se midió también con 40
+- **Operaciones:** descontar el tiempo de cada efecto en cada tick, agregar uno por golpe con grasa y
+  quitar los que se acaban. Domina el recorrido
+- **Elegida:** `SLList`. Recorrer es `O(n)`, y agregar al final o quitar durante el recorrido es `O(1)`
+  con el iterador, sin mover nada. Cada quemadura lleva su propio reloj y pueden acumularse
+- **Descartadas:** un `FixedArray` que quita moviendo el último efecto al hueco empató con el tamaño
+  real y fue más rápido con 40, pero obliga a fijar un máximo y a manejar el hueco a mano. Un arreglo
+  indexado por tipo de estado es lo más simple con dos estados, pero no deja que las quemaduras se
+  acumulen cada una con su tiempo
+- **Medición:** Intel Core i5-13420H, Windows 11, GCC UCRT64, modo Release, con
+  `benchmarks/progression_benchmark.cpp`. Mediana de 101 muestras de 200 ticks, en tres ejecuciones, en
+  nanosegundos por tick para un enemigo, quitando y volviendo a aplicar los efectos que se acaban:
+
+  | Efectos | `SLList` | `FixedArray` |
+  |---|---|---|
+  | 4 | 4 a 8 | 4 a 8 |
+  | 40 | 80 a 110,5 | 52 a 68 |
+
+- **Conclusión:** con el tamaño real son iguales y el costo no se nota: 8 enemigos usan menos de
+  0,0004 % de un frame de 16,6 ms. La lista solo reserva memoria al recibir un golpe, nunca en el
+  recorrido. Si los estados crecieran a decenas por enemigo, conviene cambiar al arreglo

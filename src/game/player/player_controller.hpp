@@ -9,6 +9,8 @@
 #include <godot_cpp/classes/cpu_particles3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -18,13 +20,17 @@
 #include <core/health_trail.hpp>
 #include <core/lock_on.hpp>
 #include <core/player/player_actions.hpp>
+#include <core/player/rage.hpp>
+#include <core/status_effects.hpp>
 #include <core/progression/player_progress.hpp>
 
 class Chapel;
 class CombatTarget;
 class GameMenu;
 class LostLochas;
+class Merchant;
 class StatBar;
+class ThrownMachete;
 class WeaponTrail;
 
 // Translates input and animation into movement; the rules live in PlayerActions.
@@ -62,6 +68,20 @@ public:
   void rest();
   void recover_lochas();
   bool raise_stat(Stat stat);
+  Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
+  void set_nearby_merchant(Merchant * merchant);
+  Zone merchant_zone() const;
+  bool buy(ItemId item);
+  bool sell(ItemId item);
+  bool learn(int skill);
+  bool wear(ItemId item);
+
+  // For a boss: beating it stops inflation in its zone.
+  void freeze_inflation(Zone zone);
+
+  // Called by the machete in the air.
+  void throw_hit(CombatTarget * target, const godot::Vector3 & point);
+  void catch_machete();
 
   // Shared by every enemy around the player, however many there are.
   AttackTurns & attack_turns() { return turns; }
@@ -89,8 +109,14 @@ private:
   void clear_dropped_lochas();
   void read_item_input();
   void use_item();
+  void launch_machete();
+  void drop_thrown_machete();
   void update_progress(float delta);
   void update_hud(float delta);
+  void update_coat(float delta);
+  void update_rage(float delta);
+  float blow_scale() const;
+  void dealt(int damage);
   void refresh_hud();
   void show_toast(const godot::String & text);
 
@@ -113,6 +139,8 @@ private:
   HealthTrail health_trail;
   LockOnList lock_candidates;
   AttackTurns turns;
+  WeaponCoat coat;
+  Rage rage;
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
@@ -132,15 +160,25 @@ private:
   godot::Control * death_screen = nullptr;
   StatBar * health_bar = nullptr;
   StatBar * stamina_bar = nullptr;
+  StatBar * rage_bar = nullptr;
+  godot::MeshInstance3D * body_mesh = nullptr;
+  godot::Ref<godot::StandardMaterial3D> rage_material;
   godot::Node2D * lock_marker = nullptr;
   godot::Label * lochas_label = nullptr;
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
+  godot::Node3D * cap = nullptr;
+  godot::MeshInstance3D * machete = nullptr;
+  godot::Node3D * weapon_bone = nullptr;
+  godot::Transform3D machete_from_bone; // The machete's mesh, placed in the weapon bone's frame.
+  ThrownMachete * thrown = nullptr;
+  godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
   godot::Label * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
   Chapel * nearby_chapel = nullptr;
+  Merchant * nearby_merchant = nullptr;
   LostLochas * dropped_lochas = nullptr;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.
@@ -201,6 +239,9 @@ private:
   godot::StringName death_clip = "death";
   godot::StringName drink_clip = "drink";
   godot::StringName use_candle_clip = "use_candle";
+  godot::StringName grease_clip = "apply_grease";
+  godot::StringName throw_clip = "throw";
+  godot::StringName catch_clip = "catch";
   godot::StringName idle_clip = "idle";
   godot::StringName walk_clip = "walk";
   godot::StringName walk_back_clip = "walk_back";
@@ -234,4 +275,6 @@ private:
   godot::StringName use_item_input = "use_item";
   godot::StringName next_item_input = "next_item";
   godot::StringName inventory_input = "inventory";
+  godot::StringName throw_input = "throw_weapon";
+  godot::StringName rage_input = "rage";
 };

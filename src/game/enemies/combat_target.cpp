@@ -17,6 +17,7 @@ namespace
 const Vector3 UP(0, 1, 0);
 const Vector3 BAR_ANCHOR(0, 2.1f, 0);
 const Color NUMBER_COLOR(1.f, 0.85f, 0.25f);
+const Color BURN_COLOR(1.f, 0.42f, 0.1f);
 
 constexpr float BAR_SHAKE_PER_DAMAGE = 0.25f; // Pixels.
 constexpr float BAR_SHAKE_FADE = 28.f;
@@ -32,7 +33,7 @@ void CombatTarget::ready_target()
   health_bar = get_node<StatBar>("BarLayer/HealthBar");
 }
 
-void CombatTarget::receive_damage(int damage, const Vector3 & away, const Vector3 & point)
+void CombatTarget::receive_damage(int damage, const Vector3 & away, const Vector3 & point, bool burn)
 {
   bar_shake = damage * BAR_SHAKE_PER_DAMAGE;
   bar_time = BAR_TIME;
@@ -42,7 +43,7 @@ void CombatTarget::receive_damage(int damage, const Vector3 & away, const Vector
   sparks->restart();
 
   health.damage(damage);
-  show_damage(damage);
+  show_damage(damage, burn ? BURN_COLOR : NUMBER_COLOR);
 }
 
 void CombatTarget::update_health_bar(float delta)
@@ -63,7 +64,7 @@ void CombatTarget::update_health_bar(float delta)
   health_bar->set_position(camera->unproject_position(anchor) - health_bar->get_size() * 0.5f + jitter);
 }
 
-void CombatTarget::show_damage(int damage)
+void CombatTarget::show_damage(int damage, const Color & color)
 {
   Label3D * number = memnew(Label3D);
   number->set_text(String::num_int64(damage));
@@ -72,7 +73,7 @@ void CombatTarget::show_damage(int damage)
   number->set_pixel_size(0.008f);
   number->set_font_size(52);
   number->set_outline_size(14);
-  number->set_modulate(NUMBER_COLOR);
+  number->set_modulate(color);
   const Vector3 start = BAR_ANCHOR + Vector3(UtilityFunctions::randf_range(-0.3f, 0.3f), -0.35f, 0);
   number->set_position(start);
   number->set_scale(Vector3(1.8f, 1.8f, 1.8f));
