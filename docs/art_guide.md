@@ -163,7 +163,7 @@ blender --background art/characters/dog.blend --python art/characters/animate_do
 | `run` | 0,4 s, en bucle | | Galope a 5,8 m/s |
 | `strafe_left`, `strafe_right` | 0,53 s, en bucle | | Rodear a 1,3 m/s |
 | `walk_back` | 0,6 s, en bucle | | Retroceder a 1 m/s |
-| `attack_snap` | 1,47 s, avanza 0,55 m | 0,53 a 0,6 s y 0,77 a 0,8 s | Doble dentellada |
+| `attack_snap` | 1,47 s, avanza 0,55 m | 0,53 a 0,63 s y 0,77 a 0,87 s | Doble dentellada: muerde dos veces |
 | `attack_lunge` | 1,93 s, avanza 3 m | 0,87 a 1 s | Salto con la boca abierta |
 | `attack_thrash` | 2 s, avanza 0,3 m | Muerde a 0,53 s y sacude de 0,73 a 1,4 s | Muerde y sacude la cabeza; puede ser un agarre |
 | `bark` | 1,53 s | | Tres ladridos para llamar a la jauría |
@@ -175,6 +175,43 @@ La IA es la del esqueleto: [`MeleeEnemy`](../src/game/enemies/melee_enemy.cpp) l
 dan su perfil: vida, rangos, ataques y velocidades. Esas velocidades deben coincidir con las de los
 bucles, o las patas patinan. Al ver al jugador, la rata amenaza y el perro ladra antes de atacar; los
 dos muerden con una cápsula en la cabeza.
+
+### Güino, el minijefe
+
+[build_guino.py](../art/characters/build_guino.py) lo arma con los mismos huesos que el perro, más
+`chain`, que nunca se anima: los eslabones del suelo se arrastran con la raíz y los que cuelgan, con el
+cuello. Mide 2,7 m a la cruz y la mandíbula está modelada abierta: en los clips, `jaw` 0 es la sonrisa
+completa y -34 la cierra. [animate_guino.py](../art/characters/animate_guino.py) exporta `guino.glb`;
+el canal `spin` de `beast_anim.py` gira el cuerpo entero, para el latigazo de cola:
+
+```bash
+blender --background --python art/characters/build_guino.py
+blender --background art/characters/guino.blend --python art/characters/animate_guino.py
+```
+
+| Güino | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 5 s, en bucle | | Respira pesado, ladea la cabeza como un perro curioso y raspa el asfalto |
+| `walk` | 1,2 s, en bucle | | Acecho pesado a 1,6 m/s, los hombros rodando |
+| `run` | 0,67 s, en bucle | | Galope a 7,5 m/s: el jugador no se le escapa corriendo |
+| `strafe_left`, `strafe_right` | 0,93 s, en bucle | | Rodear a 1,5 m/s |
+| `walk_back` | 1 s, en bucle | | Retroceder a 1,2 m/s |
+| `howl` | 2,8 s | | Aúlla al cielo al ver al jugador y le gruñe |
+| `attack_maul` | 2,4 s, avanza 1 m | 0,67 y 1,37 s | Zarpazo derecho y luego izquierdo, más rápido |
+| `attack_crunch` | 1,87 s, avanza 1,6 m | 0,67 a 0,83 s | Echa la cabeza atrás con las fauces abiertas, se lanza y sacude |
+| `attack_whirl` | 2 s | 0,63 a 0,9 s | Gira entero en un salto con la cola a la altura del pecho; solo se salva quien se pega a su costado |
+| `attack_crash` | 2,4 s, avanza 6 m | 1,03 a 1,17 s | Menea la grupa como un gato, salta y cae con las dos patas: onda en el suelo |
+| `enrage` | 3,2 s | | Fase 2: se sacude como perro mojado, se alza en dos patas y golpea el suelo rugiendo |
+| `attack_frenzy` | 2,8 s, avanza 2,2 m | 0,43, 0,67, 0,9 y 1,5 s | Fase 2: tres zarpazos seguidos y una mordida tardía |
+| `attack_quake` | 2,47 s, avanza 0,5 m | 0,93 a 1,07 s | Fase 2: se alza en dos patas y cae con todo su peso |
+| `death` | 4 s | | Último aullido, cae de pecho y rueda de lado; se queda en el último cuadro |
+
+[`GuinoEnemy`](../src/game/enemies/guino_enemy.cpp) usa la IA de `MeleeEnemy` con un perfil de jefe:
+no se aturde, su barra va fija arriba al centro con su nombre y vencerlo congela la inflación de la
+avenida para siempre. Bajo el 30 % de vida ruge una vez (`enrage`), las costillas se encienden como
+brasas, todo su reloj corre un 20 % más rápido y ataca con su cola de furia. Golpea con cápsulas en la
+cabeza, en cada antebrazo y en la cola, y con un cilindro en el suelo (`Slam`) en los impactos, que
+levanta polvo. Entre los golpes de un combo sigue girando hacia el jugador, pero nunca durante uno.
 
 ## Animaciones
 
@@ -418,7 +455,7 @@ Se reemplaza por arte en su propia tarea, cuando el recorrido ya se sienta bien 
 | Callejón del terremoto | 30 a 130, de -107 a -125 | Escombros en zigzag, dos esqueletos y pintadas |
 | Plazoleta de la capilla | 130 a 160, de -95 a -140 | Capilla y padre: aquí se descansa por primera vez |
 | Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos, tres ratas y dos perros |
-| Plaza de la catedral | 260 a 310, de -85 a -145 | Arena del perro minijefe y salida a la selva |
+| Plaza de la catedral | 260 a 310, de -85 a -145 | Güino, el minijefe, y salida a la selva |
 
 Al otro lado de la torre, el Ávila empieza en z = -170, así que el recorrido gira al este antes de
 llegar. La lluvia va con el jugador para cubrir toda la zona.

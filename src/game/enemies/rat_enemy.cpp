@@ -23,7 +23,7 @@ constexpr MeleeProfile RAT{
   1.5f, 4.5f, 2.2f, 1.f,        // Near, medium, charge from, strike reach.
   0.9f, 4.8f, 1.2f, 0.9f, 2.5f, // Walk, run (faster than a jog, slower than a sprint), circle, back, run from.
   1.8f, 2.8f,                   // Circle gap.
-  {EnemyAction::Bite, EnemyAction::Rake},
+  {EnemyAction::Bite, EnemyAction::Rake, EnemyAction::None},
   EnemyAction::Pounce,
   "threat",
   rat_loot,

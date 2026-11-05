@@ -26,6 +26,8 @@ protected:
 
   Health health{MAX_HEALTH};
   float aim_height = 1.2f; // The chest, or the head of something low.
+  bool pinned_bar = false; // A boss's: shown at the top of the screen while it fights.
+  bool fighting = false;
   StatusEffects statuses;
 
 public:

@@ -7,6 +7,7 @@
 #include <game/debug/designar_check.hpp>
 #include <game/player/player_controller.hpp>
 #include <game/enemies/dog_enemy.hpp>
+#include <game/enemies/guino_enemy.hpp>
 #include <game/enemies/rat_enemy.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
 #include <game/ui/metal_plate.hpp>
@@ -36,6 +37,7 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(SkeletonEnemy);
     GDREGISTER_RUNTIME_CLASS(RatEnemy);
     GDREGISTER_RUNTIME_CLASS(DogEnemy);
+    GDREGISTER_RUNTIME_CLASS(GuinoEnemy);
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);

@@ -44,8 +44,8 @@ class BeastRig(Rig):
     ground = at(0, pose["root"], 0)
     self.place("root", Quaternion(), ground)
 
-    # A roll turns the body around a point above the root; feet_free says whether the paws go along.
-    turn = rot(0, 0, pose.get("roll", 0.0))
+    # A roll or a spin turns the body around a point above the root; feet_free says whether the paws go along.
+    turn = rot(0, pose.get("spin", 0.0), pose.get("roll", 0.0))
     pivot = ground + UP * pose.get("pivot", 0.3)
     lift = UP * pose.get("lift", 0.0)
     turned = lambda point: pivot + turn @ (point - pivot) + lift

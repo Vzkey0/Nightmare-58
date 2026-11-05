@@ -2,8 +2,6 @@
 
 using Node = Designar::MTreeNode<BehaviorNode>;
 
-static constexpr float FURY_HEALTH_RATIO = 0.3f;
-
 static Node * make_node(BehaviorNodeType type, BehaviorCondition condition, BehaviorAction action)
 {
   return new Node(BehaviorNode{type, condition, action});
@@ -31,7 +29,7 @@ static bool holds(BehaviorCondition condition, const EnemyContext & context)
 {
   switch (condition)
   {
-    case BehaviorCondition::LowHealth: return context.health_ratio < FURY_HEALTH_RATIO;
+    case BehaviorCondition::LowHealth: return context.health_ratio < BehaviorTree::FURY_HEALTH_RATIO;
     case BehaviorCondition::Near: return context.range == DistanceRange::Near;
     case BehaviorCondition::Medium: return context.range == DistanceRange::Medium;
     case BehaviorCondition::Far: return context.range == DistanceRange::Far;
@@ -67,21 +65,25 @@ BehaviorTree::BehaviorTree(const AttackQueue & fury, const AttackQueue & melee,
   root->append_child(make_guard(BehaviorCondition::Far, make_action(BehaviorAction::Charge)));
 }
 
-BehaviorTree BehaviorTree::skeleton(const AttackQueue & melee, const AttackQueue & charge)
+BehaviorTree BehaviorTree::skeleton(const AttackQueue & fury, const AttackQueue & melee, const AttackQueue & charge)
 {
   using Condition = BehaviorCondition;
   using Action = BehaviorAction;
 
+  Node * close = make_selector();
+  close->append_child(make_guard(Condition::LowHealth, make_action(Action::Fury)));
+  close->append_child(make_action(Action::Melee));
+
   Node * tree = make_selector();
   tree->append_child(make_guard(Condition::Unaware, make_action(Action::Watch)));
   tree->append_child(make_guard(Condition::LostSight, make_action(Action::Investigate)));
-  tree->append_child(make_guard(Condition::Near, make_guard(Condition::CanAttack, make_action(Action::Melee))));
+  tree->append_child(make_guard(Condition::Near, make_guard(Condition::CanAttack, close)));
   tree->append_child(make_guard(Condition::Medium, make_guard(Condition::CanAttack,
                                                               make_guard(Condition::ChargeReady, make_action(Action::Charge)))));
   tree->append_child(make_guard(Condition::Far, make_action(Action::Approach)));
   tree->append_child(make_guard(Condition::CanAttack, make_action(Action::Approach)));
   tree->append_child(make_action(Action::Circle));
-  return BehaviorTree(tree, AttackQueue(), melee, AttackQueue(), charge);
+  return BehaviorTree(tree, fury, melee, AttackQueue(), charge);
 }
 
 BehaviorTree::~BehaviorTree()

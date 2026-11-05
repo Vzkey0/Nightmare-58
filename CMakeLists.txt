@@ -59,6 +59,7 @@ add_library(nightmare58_ext SHARED
   src/game/player/player_controller.cpp
   src/game/register_types.cpp
   src/game/enemies/dog_enemy.cpp
+  src/game/enemies/guino_enemy.cpp
   src/game/enemies/melee_enemy.cpp
   src/game/enemies/rat_enemy.cpp
   src/game/enemies/skeleton_enemy.cpp

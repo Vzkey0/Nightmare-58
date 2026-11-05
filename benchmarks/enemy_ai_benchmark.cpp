@@ -60,7 +60,7 @@ static void measure(int count)
 {
   Enemy ** enemies = new Enemy *[count];
   for (int i = 0; i < count; ++i)
-    enemies[i] = new Enemy{BehaviorTree::skeleton(queue_of(0), queue_of(2))};
+    enemies[i] = new Enemy{BehaviorTree::skeleton(BehaviorTree::AttackQueue(), queue_of(0), queue_of(2))};
 
   int sink = 0;
   const double every_tick = median_ns([&](int) {

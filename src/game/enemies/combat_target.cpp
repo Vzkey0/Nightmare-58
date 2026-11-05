@@ -24,6 +24,7 @@ constexpr float BAR_SHAKE_FADE = 28.f;
 constexpr float NUMBER_RISE = 0.7f;
 constexpr float NUMBER_TIME = 0.75f;
 constexpr float BAR_TIME = 4.f;
+constexpr float PINNED_TOP = 44.f; // Pixels, leaving room for the boss's name above the bar.
 }
 
 void CombatTarget::ready_target()
@@ -51,7 +52,8 @@ void CombatTarget::update_health_bar(float delta)
   const Camera3D * camera = get_viewport()->get_camera_3d();
   const Vector3 anchor = aim_point() + UP * BAR_ABOVE_AIM;
   bar_time = MAX(bar_time - delta, 0.f);
-  health_bar->set_visible((targeted || bar_time > 0.f) && camera != nullptr && !camera->is_position_behind(anchor));
+  const bool floating = (targeted || bar_time > 0.f) && camera != nullptr && !camera->is_position_behind(anchor);
+  health_bar->set_visible(pinned_bar ? fighting && !health.dead() : floating);
   if (!health_bar->is_visible())
     return;
 
@@ -61,7 +63,10 @@ void CombatTarget::update_health_bar(float delta)
 
   bar_shake = MAX(bar_shake - BAR_SHAKE_FADE * delta, 0.f);
   const Vector2 jitter(UtilityFunctions::randf_range(-bar_shake, bar_shake), UtilityFunctions::randf_range(-bar_shake, bar_shake));
-  health_bar->set_position(camera->unproject_position(anchor) - health_bar->get_size() * 0.5f + jitter);
+  const Vector2 size = health_bar->get_size();
+  const Vector2 place = pinned_bar ? Vector2((get_viewport()->get_visible_rect().size.x - size.x) * 0.5f, PINNED_TOP)
+                                   : camera->unproject_position(anchor) - size * 0.5f;
+  health_bar->set_position(place + jitter);
 }
 
 void CombatTarget::show_damage(int damage, const Color & color)

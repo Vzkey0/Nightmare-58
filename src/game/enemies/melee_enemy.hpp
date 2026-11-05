@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
+#include <godot_cpp/classes/cpu_particles3d.hpp>
 #include <godot_cpp/classes/navigation_agent3d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
@@ -10,6 +11,7 @@
 
 #include <core/ai/behavior_tree.hpp>
 #include <core/ai/enemy_actions.hpp>
+#include <core/progression/inflation.hpp>
 #include <core/progression/loot_table.hpp>
 
 #include "combat_target.hpp"
@@ -35,10 +37,18 @@ struct MeleeProfile
   float run_from; // Farther than this from where it is going, it runs.
   float circle_gap_min;
   float circle_gap_max;
-  EnemyAction melee[2];
+  EnemyAction melee[3]; // None fills the slots it does not use.
   EnemyAction charge;
   const char * alert_clip; // Played on spotting the player, or nullptr to go straight at them.
   const LootTable & (*loot)();
+  // Only a boss sets the rest. Below BehaviorTree::FURY_HEALTH_RATIO it plays fury_clip once, then
+  // fights with its fury attacks and its clock runs fury_haste times faster. A boss never staggers,
+  // its bar is pinned at the top of the screen and beating it freezes inflation in its zone for good.
+  EnemyAction fury[4] = {EnemyAction::None, EnemyAction::None, EnemyAction::None, EnemyAction::None};
+  const char * fury_clip = nullptr;
+  float fury_haste = 1.f;
+  bool boss = false;
+  Zone zone = Zone::Avenue;
 };
 
 // The body of a melee enemy: it gathers what the enemy knows, hands it to its BehaviorTree and
@@ -71,6 +81,8 @@ private:
   void wander();
   void sense();
   void notice();
+  void enrage();
+  bool beaten() const;
   bool sees_player() const;
   void start_attack(const Decision & decision);
   void end_attack();
@@ -96,10 +108,15 @@ private:
 
   godot::Node3D * model = nullptr;
   godot::AnimationPlayer * animator = nullptr;
-  godot::ShapeCast3D * hitbox = nullptr;
+  // By kind: the weapon (or the jaws), each forepaw, the tail and the slam on the ground. Each
+  // enemy's scene has the ones its attacks use.
+  static constexpr int HITBOX_COUNT = 5;
+  godot::ShapeCast3D * hitboxes[HITBOX_COUNT] = {};
+  godot::CPUParticles3D * dust = nullptr; // Raised by the slam.
   godot::AudioStreamPlayer * swing_sound = nullptr;
   godot::NavigationAgent3D * navigator = nullptr;
   godot::Ref<godot::StandardMaterial3D> eyes; // Local: each one's eyes flare on their own.
+  godot::Ref<godot::StandardMaterial3D> core; // A boss's ribs, lit by its fury.
 
   godot::Vector3 to_player;
   godot::Vector3 last_seen;
@@ -126,6 +143,8 @@ private:
   bool has_turn = false;
   float applied_slow = 1.f; // The chill already folded into the clip speed.
   bool wandering = false;
+  bool enraged = false;
+  int struck_window = -1; // The blow of the current attack that already hit.
   int player_respawns = 0;
 
   godot::NodePath root_path;
