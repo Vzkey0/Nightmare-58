@@ -114,7 +114,6 @@ constexpr float LOCK_RANGE = 12.f;
 constexpr float LOCK_BREAK_RANGE = 16.f;
 constexpr float LOCK_VIEW_ANGLE = 1.05f;
 constexpr float LOCK_HIDDEN_TIME = 1.f;
-constexpr float LOCK_HEIGHT = 1.2f; // Aims at the chest.
 constexpr float LOCK_CAMERA_FOLLOW = 9.f;
 constexpr float LOCK_CAMERA_PITCH = -0.2f; // Over the shoulder, so the player stays in view.
 constexpr float LOCK_MIN_CAMERA_GAP = 0.8f; // Closer than this, the direction spins too fast.
@@ -883,7 +882,7 @@ void PlayerController::launch_machete()
   // At the locked target's chest, or straight ahead at the height of the hand.
   const CombatTarget * locked = locked_target();
   const Vector3 from = weapon_bone->get_global_position();
-  const Vector3 direction = locked != nullptr ? locked->get_global_position() + UP * LOCK_HEIGHT - from
+  const Vector3 direction = locked != nullptr ? locked->aim_point() - from
                                               : MODEL_FORWARD.rotated(UP, facing_yaw);
   thrown = memnew(ThrownMachete);
   get_parent()->add_child(thrown);
@@ -1005,7 +1004,7 @@ float PlayerController::yaw_towards(const Node3D * node) const
 bool PlayerController::sees(const CombatTarget * target) const
 {
   const Vector3 from = get_global_position() + UP * CAMERA_HEIGHT;
-  const Vector3 to = target->get_global_position() + UP * LOCK_HEIGHT;
+  const Vector3 to = target->aim_point();
   const Dictionary hit = get_world_3d()->get_direct_space_state()->intersect_ray(PhysicsRayQueryParameters3D::create(from, to, LEVEL_MASK));
   return hit.is_empty() || static_cast<uint64_t>(hit["collider_id"]) == target->get_instance_id();
 }
@@ -1152,7 +1151,7 @@ void PlayerController::update_hud(float delta)
   }
 
   const CombatTarget * target = locked_target();
-  const Vector3 aim = target != nullptr ? target->get_global_position() + UP * LOCK_HEIGHT : Vector3();
+  const Vector3 aim = target != nullptr ? target->aim_point() : Vector3();
   lock_marker->set_visible(target != nullptr && !camera->is_position_behind(aim));
   if (lock_marker->is_visible())
     lock_marker->set_position(camera->unproject_position(aim));
@@ -1331,7 +1330,7 @@ void PlayerController::update_camera(float delta)
   camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
   if (locked != nullptr)
   {
-    const Vector3 offset = locked->get_global_position() + UP * LOCK_HEIGHT - camera_focus;
+    const Vector3 offset = locked->aim_point() - camera_focus;
     const float gap = offset.slide(UP).length();
     if (gap > LOCK_MIN_CAMERA_GAP)
       camera_yaw = Math::lerp_angle(camera_yaw, Math::atan2(-offset.x, -offset.z), damp(LOCK_CAMERA_FOLLOW, delta));

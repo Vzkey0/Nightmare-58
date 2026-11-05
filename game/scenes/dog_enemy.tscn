@@ -1,0 +1,92 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="PackedScene" path="res://models/characters/dog.glb" id="1_model"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_1.ogg" id="swing_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_4.ogg" id="swing_4"]
+
+[sub_resource type="AudioStreamRandomizer" id="swing_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 4
+stream_0/stream = ExtResource("swing_1")
+stream_1/stream = ExtResource("swing_2")
+stream_2/stream = ExtResource("swing_3")
+stream_3/stream = ExtResource("swing_4")
+
+[sub_resource type="CapsuleShape3D" id="body_shape"]
+radius = 0.45
+height = 1.3
+
+[sub_resource type="CapsuleShape3D" id="jaw_shape"]
+radius = 0.22
+height = 0.7
+
+[sub_resource type="StandardMaterial3D" id="spark_material"]
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[sub_resource type="BoxMesh" id="spark_mesh"]
+material = SubResource("spark_material")
+size = Vector3(0.05, 0.05, 0.05)
+
+[sub_resource type="Gradient" id="spark_fade"]
+colors = PackedColorArray(1, 0.95, 0.75, 1, 0.75, 0.68, 0.5, 0)
+
+[node name="DogEnemy" type="DogEnemy"]
+collision_layer = 12
+collision_mask = 11
+
+[node name="Navigator" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.6
+target_desired_distance = 0.6
+
+[node name="Body" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
+shape = SubResource("body_shape")
+
+[node name="Model" parent="." instance=ExtResource("1_model")]
+
+[node name="WeaponBone" type="BoneAttachment3D" parent="Model/armature_dog/Skeleton3D"]
+bone_name = "head"
+bone_idx = 5
+
+[node name="Hitbox" type="ShapeCast3D" parent="Model/armature_dog/Skeleton3D/WeaponBone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+enabled = false
+shape = SubResource("jaw_shape")
+target_position = Vector3(0, 0, 0)
+collision_mask = 2
+
+[node name="Sparks" type="CPUParticles3D" parent="."]
+physics_interpolation_mode = 2
+emitting = false
+amount = 26
+lifetime = 0.45
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+mesh = SubResource("spark_mesh")
+spread = 38.0
+gravity = Vector3(0, -11, 0)
+initial_velocity_min = 2.5
+initial_velocity_max = 6.5
+color_ramp = SubResource("spark_fade")
+
+[node name="BarLayer" type="CanvasLayer" parent="."]
+
+[node name="HealthBar" type="StatBar" parent="BarLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 150.0
+offset_bottom = 16.0
+mouse_filter = 2
+fill_color = Color(0.9, 0.1, 0.15, 1)
+tip = 8.0
+
+[node name="Swing" type="AudioStreamPlayer" parent="."]
+stream = SubResource("swing_sound")
+volume_db = -3.0
+
+[editable path="Model"]

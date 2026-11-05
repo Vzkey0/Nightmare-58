@@ -15,7 +15,7 @@ using namespace godot;
 namespace
 {
 const Vector3 UP(0, 1, 0);
-const Vector3 BAR_ANCHOR(0, 2.1f, 0);
+constexpr float BAR_ABOVE_AIM = 0.9f;
 const Color NUMBER_COLOR(1.f, 0.85f, 0.25f);
 const Color BURN_COLOR(1.f, 0.42f, 0.1f);
 
@@ -49,7 +49,7 @@ void CombatTarget::receive_damage(int damage, const Vector3 & away, const Vector
 void CombatTarget::update_health_bar(float delta)
 {
   const Camera3D * camera = get_viewport()->get_camera_3d();
-  const Vector3 anchor = get_global_position() + BAR_ANCHOR;
+  const Vector3 anchor = aim_point() + UP * BAR_ABOVE_AIM;
   bar_time = MAX(bar_time - delta, 0.f);
   health_bar->set_visible((targeted || bar_time > 0.f) && camera != nullptr && !camera->is_position_behind(anchor));
   if (!health_bar->is_visible())
@@ -74,7 +74,7 @@ void CombatTarget::show_damage(int damage, const Color & color)
   number->set_font_size(52);
   number->set_outline_size(14);
   number->set_modulate(color);
-  const Vector3 start = BAR_ANCHOR + Vector3(UtilityFunctions::randf_range(-0.3f, 0.3f), -0.35f, 0);
+  const Vector3 start = UP * (aim_height + BAR_ABOVE_AIM) + Vector3(UtilityFunctions::randf_range(-0.3f, 0.3f), -0.35f, 0);
   number->set_position(start);
   number->set_scale(Vector3(1.8f, 1.8f, 1.8f));
   add_child(number);

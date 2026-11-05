@@ -58,6 +58,9 @@ add_library(nightmare58_ext SHARED
   src/game/debug/designar_check.cpp
   src/game/player/player_controller.cpp
   src/game/register_types.cpp
+  src/game/enemies/dog_enemy.cpp
+  src/game/enemies/melee_enemy.cpp
+  src/game/enemies/rat_enemy.cpp
   src/game/enemies/skeleton_enemy.cpp
   src/game/ui/metal_plate.cpp
   src/game/ui/game_menu.cpp

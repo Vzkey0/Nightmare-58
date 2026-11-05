@@ -16,18 +16,45 @@
 
 class PlayerController;
 
-// The body of the skeleton: it gathers what the enemy knows, hands it to its BehaviorTree and
+// What sets one melee enemy apart from another; the rest of how they fight is shared.
+struct MeleeProfile
+{
+  const char * model; // Its scene holds Model/armature_<model>/Skeleton3D/<model>.
+  int max_health;
+  int reward;
+  float aim_height; // Where it looks from, and where the player aims at it.
+  float near_range;
+  float medium_range;
+  float charge_min_range; // The leap needs room, or it lands past the player.
+  float strike_reach;     // Where a blow ends its step, with the weapon on the player.
+  // Must match the clips in its animate_*.py, or the feet slide.
+  float walk_speed;
+  float run_speed;
+  float circle_speed;
+  float back_speed;
+  float run_from; // Farther than this from where it is going, it runs.
+  float circle_gap_min;
+  float circle_gap_max;
+  EnemyAction melee[2];
+  EnemyAction charge;
+  const char * alert_clip; // Played on spotting the player, or nullptr to go straight at them.
+  const LootTable & (*loot)();
+};
+
+// The body of a melee enemy: it gathers what the enemy knows, hands it to its BehaviorTree and
 // carries out the answer through EnemyActions. Every instance is independent; the only thing
 // they share is the player's AttackTurns, so a scene can hold any number of them.
-class SkeletonEnemy : public CombatTarget
+// Each kind passes its MeleeProfile.
+class MeleeEnemy : public CombatTarget
 {
-  GDCLASS(SkeletonEnemy, CombatTarget)
+  GDCLASS(MeleeEnemy, CombatTarget)
 
 protected:
   static void _bind_methods() {}
 
+  explicit MeleeEnemy(const MeleeProfile & profile);
+
 public:
-  SkeletonEnemy();
 
   void _ready() override;
   void _exit_tree() override;
@@ -37,9 +64,13 @@ public:
   void take_hit(int damage, const godot::Vector3 & attacker, const godot::Vector3 & point) override;
 
 private:
+  // Only for Godot's registry, which needs every class buildable; scenes use a kind.
+  MeleeEnemy();
+
   void think();
   void wander();
   void sense();
+  void notice();
   bool sees_player() const;
   void start_attack(const Decision & decision);
   void end_attack();
@@ -58,6 +89,7 @@ private:
   void play_locomotion(const godot::Vector3 & velocity);
   void play(const godot::StringName & clip, float blend);
 
+  const MeleeProfile & profile;
   BehaviorTree tree;
   EnemyActions actions;
   PlayerController * player = nullptr;
@@ -67,7 +99,7 @@ private:
   godot::ShapeCast3D * hitbox = nullptr;
   godot::AudioStreamPlayer * swing_sound = nullptr;
   godot::NavigationAgent3D * navigator = nullptr;
-  godot::Ref<godot::StandardMaterial3D> eyes; // Local: each skeleton's eyes flare on their own.
+  godot::Ref<godot::StandardMaterial3D> eyes; // Local: each one's eyes flare on their own.
 
   godot::Vector3 to_player;
   godot::Vector3 last_seen;
@@ -88,13 +120,15 @@ private:
   float circle_time = 0.f;
   float wander_time = 0.f; // The pause before the next stroll, or what is left of the current one.
   float circle_side = 1.f;
-  float circle_gap = 3.f; // Each skeleton keeps its own distance, so they spread around the player.
+  float alert_time = 0.f;
+  float circle_gap = 3.f; // Each one keeps its own distance, so they spread around the player.
   float step_scale = 1.f;
   bool has_turn = false;
   float applied_slow = 1.f; // The chill already folded into the clip speed.
   bool wandering = false;
   int player_respawns = 0;
 
+  godot::NodePath root_path;
   godot::Ref<godot::Animation> motion_animation;
   int motion_track = -1;
 
