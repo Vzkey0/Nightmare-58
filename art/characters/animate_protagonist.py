@@ -32,7 +32,7 @@ BAKE_FPS = 60
 # Follow-through: the farther from the hips, the later a part arrives.
 DELAYS = {
   "spine_rot": 0.4, "chest_rot": 0.8, "head_rot": 1.4,
-  "grip": 1.0, "aim": 1.4, "hand_l": 1.6,
+  "grip": 1.0, "aim": 1.4, "hand_l": 1.6, "swing_r": 1.0, "swing_l": 1.4,
 }
 
 LEFT_GRIP = 0.1 # How far behind the right hand the left one closes on the handle.
@@ -123,8 +123,11 @@ class Rig:
     origin = self.origin(upper)
     joint, end = solve_two_bones(origin, target, self.length(upper), self.length(lower), pole)
     self.max_stretch = max(self.max_stretch, (target - end).length)
-    self.place(upper, aim_delta(self.direction(upper), rest_pole, joint - origin, pole))
-    self.place(lower, aim_delta(self.direction(lower), rest_pole, end - joint, pole))
+    # Twist from the normal of the bend plane, not the raw pole: a pole nearly along a bone
+    # flips to its other side, and the limb spun half a turn in a single frame.
+    normal = (target - origin).cross(pole - pole.project(target - origin))
+    self.place(upper, aim_delta(self.direction(upper), rest_pole, joint - origin, normal.cross(joint - origin)))
+    self.place(lower, aim_delta(self.direction(lower), rest_pole, end - joint, normal.cross(end - joint)))
 
   def leg(self, side, ball, pitch, yaw, turn):
     ankle_rest = self.head["foot" + side]
@@ -151,6 +154,21 @@ class Rig:
     lift = Quaternion().slerp(rest_dir.rotation_difference((wrist - origin).normalized()), 0.15)
     self.place(shoulder, lift @ chest)
     self.limb("upper_arm" + side, "lower_arm" + side, wrist, pole, -FORWARD)
+
+  def swing_arm(self, side, chest, angles):
+    """Forward kinematics of a swinging arm in chest space, as (pitch forward, out from the
+    side, elbow bend, forearm turned in) in degrees. Returns the wrist, the elbow's pole and
+    the forearm's direction, for the solver to land the elbow exactly there."""
+    pitch, out, bend, across = (math.radians(a) for a in angles)
+    sign = 1.0 if side == "_l" else -1.0
+    down = Vector((0, 0, -1))
+    spread = Quaternion((0, 1, 0), -sign * out)
+    upper = chest @ Quaternion((1, 0, 0), -pitch) @ spread @ down
+    forearm = chest @ Quaternion(UP, -sign * across) @ Quaternion((1, 0, 0), -(pitch + bend)) @ Quaternion((0, 1, 0), -sign * out * 0.5) @ down
+    shoulder = self.world["chest"] @ self.rest["chest"].inverted() @ self.head["upper_arm" + side]
+    elbow = shoulder + upper * self.length("upper_arm" + side)
+    wrist = elbow + forearm * self.length("lower_arm" + side)
+    return wrist, (elbow - (shoulder + wrist) * 0.5).normalized(), forearm
 
   def hand(self, side, delta, curl):
     self.place("hand" + side, delta)
@@ -213,8 +231,20 @@ class Rig:
     shoulder_r = hips_at + chest @ Vector((-0.2, 0, 0.47))
     shoulder_l = hips_at + chest @ Vector((0.2, 0, 0.47))
 
+    pole_r = (turn @ at(*pose["pole_r"])).normalized()
+    pole_l = (turn @ at(*pose["pole_l"])).normalized()
+    hand_l = turned(root + at(*pose["hand_l"]))
+    swing = pose.get("arms_swing", 0.0)
+    if swing > 0.0:
+      wrist, pole, forearm = self.swing_arm("_r", chest, pose["swing_r"])
+      grip = grip.lerp(wrist + forearm * PALM_LENGTH, swing)
+      pole_r = pole_r.lerp(pole, swing)
+      wrist, pole, _ = self.swing_arm("_l", chest, pose["swing_l"])
+      hand_l = hand_l.lerp(wrist, swing)
+      pole_l = pole_l.lerp(pole, swing)
+
     grip_r, hand_axis = self.grip_delta("_r", shoulder_r, grip, blade)
-    self.arm("_r", grip - hand_axis * PALM_LENGTH, turn @ at(*pose["pole_r"]), chest)
+    self.arm("_r", grip - hand_axis * PALM_LENGTH, pole_r, chest)
     self.hand("_r", grip_r, FINGER_CURL)
     self.place("weapon", aim_delta(FORWARD, self.direction("hand_r"), blade, hand_axis), grip)
 
@@ -222,7 +252,7 @@ class Rig:
     grip_left = grip - blade * LEFT_GRIP
     grip_l, hand_axis_l = self.grip_delta("_l", shoulder_l, grip_left, blade)
     wrist_held = grip_left - hand_axis_l * PALM_LENGTH
-    self.arm("_l", turned(root + at(*pose["hand_l"])).lerp(wrist_held, held), turn @ at(*pose["pole_l"]), chest)
+    self.arm("_l", hand_l.lerp(wrist_held, held), pole_l, chest)
     lower = self.world["lower_arm_l"].to_quaternion() @ self.rest["lower_arm_l"].to_quaternion().inverted()
     curl = pose.get("hand_l_curl", 25.0)
     self.hand("_l", self.cup_hand(lower, pose).slerp(grip_l, held), curl + (FINGER_CURL - curl) * held)
@@ -376,7 +406,7 @@ def run_foot(side_x, offset, speed, frames, stance, step):
   return position
 
 
-def run_clip(name, speed, frames, stance, lean, drop, swing, step=1.0):
+def run_clip(name, speed, frames, stance, lean, drop, swing, elbow, step=1.0):
   def foot_rot(offset, yaw):
     return lambda phase: (interpolate(FOOT_PITCH, (phase + offset) % 1.0, 1.0), yaw)
 
@@ -392,15 +422,33 @@ def run_clip(name, speed, frames, stance, lean, drop, swing, step=1.0):
     "foot_r": run_foot(-0.125, 0.5, speed, frames, stance, step),
     "foot_l_rot": foot_rot(0.0, 5),
     "foot_r_rot": foot_rot(0.5, -5),
-    # The right arm swings less: it carries the blade, trailing low behind the run.
-    "grip": lambda p: (-0.33, 0.08 + 0.11 * wave(p, 0.04), 0.99 - 0.03 * wave(p, 0.04)),
     "aim": lambda p: (0.05 + 0.02 * wave(p, 0.04), 0.93, 0.36 + 0.03 * wave(p, 0.04)),
     "left_on": [(0, 0.0)],
-    "hand_l": lambda p: (0.25, 0.1 - swing * wave(p, 0.04), 1.04 - 0.08 * wave(p, 0.04)),
-    "pole_r": [(0, (-0.5, -0.8, -0.6))],
-    "pole_l": [(0, (0.5, -0.9, -0.5))],
   }
+  for key in run_arms(0.0):
+    channels[key] = lambda p, key=key: run_arms(wave(p, 0.04), swing, elbow)[key]
   return Clip(name, frames, channels, loop=True)
+
+
+def run_arms(back, swing=0.25, elbow=85):
+  """Arm channels of the run; back is 1 with the left hand behind and the blade forward. The
+  defaults are the run-loop's, for the clips that blend in and out of it.
+
+  Each arm swings from the shoulder in chest space: (pitch forward, out from the side, elbow
+  bend, forearm turned in). Following the torso's twist, the hands pass beside the hips and
+  only turn in across the front of the chest. The blade arm swings less, as it carries the
+  weight. The root-space targets only matter where a keyed clip fades the swing out."""
+  amp = 150.0 * swing
+  return {
+    "arms_swing": 1.0,
+    "hand_l_curl": 55.0,
+    "swing_l": (2 - amp * back, 15 + 4 * back, elbow - 15 * back, 13 - 9 * back),
+    "swing_r": (2 + 0.6 * amp * back, 15 - 4 * back, elbow + 5 * back, 8 + 5 * back),
+    "grip": (-0.33, 0.08 + 0.11 * back, 0.99),
+    "hand_l": (0.25, 0.1 - 0.25 * back, 1.04 - 0.08 * back),
+    "pole_r": (-0.5, -0.8, -0.6),
+    "pole_l": (0.5, -0.9, -0.5),
+  }
 
 
 # Pose in the air, with feet relative to the body: the jump's height comes from physics.
@@ -702,13 +750,12 @@ def attack_run_clip():
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (19, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, -0.35, 0.12), "foot_r_rot": (30, -5), "foot_l": (0.125, 0.3, 0.06), "foot_l_rot": (-6, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
-      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
+      "aim": (0.05, 0.93, 0.36), "left_on": 0.0, **run_arms(0.0),
     }),
     (2, {
       "root": 0.44, "hips_pos": (0.0, 0.02, -0.2), "hips_rot": (26, -22, 3), "spine_rot": (6, -8, 0), "chest_rot": (6, -10, 0), "head_rot": (8, 0, 0),
       "foot_l": plant_l, "foot_l_rot": (-4, 5), "foot_r": (-0.14, 0.1, 0.2), "foot_r_rot": (40, -5),
-      "grip": (-0.42, -0.2, 0.82), "aim": (-0.3, -0.62, -0.5), "left_on": 0.6,
+      "grip": (-0.42, -0.2, 0.82), "aim": (-0.3, -0.62, -0.5), "left_on": 0.6, "arms_swing": 0.0,
     }),
     (3, {"left_on": 1.0}),
     (4, {"root": 0.9, "hips_rot": (22, -14, 2), "grip": (-0.4, -0.05, 0.72), "aim": (-0.35, 0.4, -0.55), "foot_l": plant_l, "pole_r": (-0.6, -0.25, -1.0), "pole_l": (0.7, -0.25, -1.0)}),
@@ -920,18 +967,17 @@ def run_start_clip():
   the stance foot moves back at run speed from the moment it touches down."""
   step = RUN_SPEED / AUTHOR_FPS
   return Clip("run_start", 10, timeline(
-    (0, dict(GUARD)),
+    (0, dict(GUARD, arms_swing=0.0, hand_l_curl=25.0)),
     (2, {"hips_pos": (0.0, 0.04, -0.14), "hips_rot": (20, 8, 0), "foot_r": (-0.15, 0.2, 0.14), "foot_r_rot": (-5, -6), "foot_l": GUARD["foot_l"], "foot_l_rot": (30, 20)}),
     (5, {
       "hips_pos": (0.0, 0.05, -0.1), "hips_rot": (22, -6, -3), "spine_rot": (5, 6, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
       "foot_r": (-0.125, LANDING_REACH, 0.0), "foot_r_rot": (-8, -5), "foot_l": (0.125, -0.25, 0.22), "foot_l_rot": (58, 5),
-      "grip": (-0.33, 0.0, 0.98), "aim": (0.05, 0.93, 0.36), "hand_l": (0.25, 0.3, 1.0),
-      "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
+      "aim": (0.05, 0.93, 0.36), **run_arms(-1.0),
     }),
     (10, {
       "hips_pos": (0.018, 0.05, -0.05), "hips_rot": (13, -9, -2), "spine_rot": (5, 7, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
       "foot_r": (-0.125, LANDING_REACH - 5 * step, 0.0), "foot_r_rot": (24, -5), "foot_l": (0.125, LANDING_REACH, 0.0), "foot_l_rot": (-8, 5),
-      "grip": (-0.33, 0.19, 0.96), "aim": (0.07, 0.93, 0.39), "hand_l": (0.25, -0.15, 1.12),
+      "aim": (0.07, 0.93, 0.39), **run_arms(1.0),
     }),
   ))
 
@@ -943,13 +989,12 @@ def run_stop_clip():
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, -0.1, 0.1), "foot_r_rot": (20, -5), "foot_l": (0.125, 0.1, 0.0), "foot_l_rot": (0, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
-      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
+      "aim": (0.05, 0.93, 0.36), "left_on": 0.0, **run_arms(0.0),
     }),
     (3, {
       "hips_pos": (0.0, -0.1, -0.2), "hips_rot": (-6, 6, 0), "chest_rot": (-2, -4, 0), "head_rot": (2, 0, 0),
       "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (-14, -6), "foot_l": (0.14, -0.1, 0.0), "foot_l_rot": (26, 10),
-      "grip": (-0.34, 0.3, 0.96), "aim": (-0.1, 0.9, 0.0), "hand_l": (0.3, 0.2, 1.0),
+      "grip": (-0.34, 0.3, 0.96), "aim": (-0.1, 0.9, 0.0), "hand_l": (0.3, 0.2, 1.0), "arms_swing": 0.0, "hand_l_curl": 25.0,
     }),
     (6, {"hips_pos": (0.0, -0.05, -0.2), "hips_rot": (3, 10, 0), "foot_r": (-0.15, 0.42, 0.0), "foot_r_rot": (0, -8), "grip": (-0.34, 0.26, 0.9), "aim": (-0.22, 0.86, -0.3)}),
     (10, {"foot_r": (-0.15, 0.3, 0.05), "foot_r_rot": (4, -8), "foot_l": GUARD["foot_l"], "foot_l_rot": GUARD["foot_l_rot"], "hips_pos": (0.01, -0.02, -0.14)}),
@@ -964,30 +1009,29 @@ def run_turn_clip():
     (0, {
       "root": 0.0, "hips_pos": (0.0, 0.05, -0.075), "hips_rot": (11, 0, 0), "spine_rot": (5, 0, 0), "chest_rot": (3, 0, 0), "head_rot": (6, 0, 0),
       "foot_r": (-0.125, 0.1, 0.0), "foot_r_rot": (0, -5), "foot_l": (0.125, -0.1, 0.1), "foot_l_rot": (20, 5),
-      "grip": (-0.33, 0.08, 0.99), "aim": (0.05, 0.93, 0.36), "left_on": 0.0,
-      "hand_l": (0.25, 0.1, 1.04), "pole_r": (-0.5, -0.8, -0.6), "pole_l": (0.5, -0.9, -0.5),
+      "aim": (0.05, 0.93, 0.36), "left_on": 0.0, **run_arms(0.0),
     }),
     (3, {
       "hips_pos": (0.08, -0.04, -0.24), "hips_rot": (6, 22, 8), "spine_rot": (6, 8, 4), "chest_rot": (4, 10, 3), "head_rot": (6, 24, 0),
       "foot_r": (-0.38, 0.2, 0.0), "foot_r_rot": (-10, -28), "foot_l": (0.2, -0.22, 0.14), "foot_l_rot": (34, 14),
-      "grip": (-0.4, -0.12, 0.92), "aim": (-0.3, 0.84, 0.44), "hand_l": (0.4, 0.2, 1.1),
+      "grip": (-0.48, -0.1, 0.92), "aim": (-0.3, 0.84, 0.44), "hand_l": (0.4, 0.2, 1.1), "arms_swing": 0.0,
     }),
     (7, {"hips_pos": (0.06, 0.0, -0.2), "hips_rot": (10, 12, 6), "foot_r": (-0.34, 0.14, 0.0), "foot_r_rot": (6, -20), "foot_l": (0.18, 0.2, 0.16), "foot_l_rot": (-6, 8)}),
     (13, {
       "hips_pos": (0.018, 0.05, -0.05), "hips_rot": (13, -9, -2), "spine_rot": (5, 7, 0), "chest_rot": (4, 8, 0), "head_rot": (7, 0, 0),
       "foot_r": (-0.125, -0.05, 0.05), "foot_r_rot": (24, -5), "foot_l": (0.125, LANDING_REACH, 0.0), "foot_l_rot": (-8, 5),
-      "grip": (-0.33, 0.19, 0.96), "aim": (0.07, 0.93, 0.39), "hand_l": (0.25, -0.15, 1.12),
+      "aim": (0.07, 0.93, 0.39), **run_arms(1.0),
     }),
   ))
 
 
 CLIPS = [
   idle_clip(),
-  run_clip("run-loop", RUN_SPEED, RUN_FRAMES, STANCE_SHARE, lean=11, drop=-0.075, swing=0.25),
+  run_clip("run-loop", RUN_SPEED, RUN_FRAMES, STANCE_SHARE, lean=11, drop=-0.075, swing=0.25, elbow=85),
   # SPRINT_SPEED in PlayerController must match this speed.
-  run_clip("sprint-loop", 6.8, 15, 0.26, lean=19, drop=-0.1, swing=0.34),
+  run_clip("sprint-loop", 6.8, 15, 0.26, lean=19, drop=-0.1, swing=0.34, elbow=90),
   # WALK_SPEED in PlayerController must match this speed.
-  run_clip("walk-loop", WALK_SPEED, 24, 0.58, lean=4, drop=-0.05, swing=0.12, step=0.35),
+  run_clip("walk-loop", WALK_SPEED, 24, 0.58, lean=4, drop=-0.05, swing=0.12, elbow=35, step=0.35),
   run_start_clip(),
   run_stop_clip(),
   run_turn_clip(),
