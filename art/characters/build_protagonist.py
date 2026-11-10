@@ -733,7 +733,7 @@ def build_head():
 HAIR_CENTER = Vector((0, 0.004, 1.695))
 HAIR_RADII = Vector((0.102, 0.122, 0.15))
 # Across a lock: pointed to the sides, ridged on the outside.
-LOCK_SECTION = ((-1.0, 0.0), (0.0, 0.62), (1.0, 0.0), (0.45, -0.4), (-0.45, -0.4))
+LOCK_SECTION = ((-1.0, 0.0), (-0.6, 0.44), (0.0, 0.62), (0.6, 0.44), (1.0, 0.0), (0.5, -0.36), (-0.5, -0.36))
 # (start azimuth, start elevation, end azimuth, end elevation, width, tip flick, chain). Azimuth is
 # 0 at the front and grows towards the character's left. Mirrored entries are written out because
 # a parted head of hair is never symmetric.
@@ -775,6 +775,7 @@ HAIR_LOCKS = [
   (-48, 76, -122, 28, 0.056, 0.12, None),
 ]
 HAIR_CHAINS = {}
+LOCK_STEPS = 12
 
 
 def shell_point(azimuth, elevation, lift):
@@ -792,8 +793,8 @@ def lock_path(entry, seed):
   bulge = rng.uniform(0.11, 0.19)
   wave = rng.uniform(5, 10) * rng.choice((-1, 1))
   path = []
-  for i in range(7):
-    t = i / 6
+  for i in range(LOCK_STEPS):
+    t = i / (LOCK_STEPS - 1)
     # Falls off the crown quickly, then hangs and flicks out at the tip.
     along = 1 - (1 - t) ** 1.6
     lift = bulge * math.sin(min(t * 1.15, 1.0) * math.pi) + flick * t ** 3
@@ -1218,8 +1219,99 @@ def finish_painted(body):
   body["palette"] = {slot.name: list(COLORS[slot.name]) for slot in mesh.materials}
 
 
+# Hero proportions. Builders work in a design space, which the painter reads from "paint_co", and
+# reshape() moves the finished parts and bones together, so the paint stays where it was drawn.
+HEAD_SCALE = 0.88
+HEAD_PIVOT = Vector((0, 0.004, 1.55 + HEAD_LIFT))
+HAND_SCALE = 1.2
+SHOULDER_PUSH = 0.022
+SLEEVE_THICKEN = 1.1
+LEG_THICKEN = 1.15
+
+
+def nearest_on_path(point, path):
+  best = None
+  for head, tail in zip(path, path[1:]):
+    axis = tail - head
+    amount = max(0.0, min(1.0, (point - head).dot(axis) / axis.length_squared))
+    candidate = head + axis * amount
+    if best is None or (point - candidate).length < (point - best).length:
+      best = candidate
+  return best
+
+
+def reshape(point, kind, sign, bones):
+  p = Vector(point)
+  side = "_l" if sign > 0 else "_r"
+  if kind == "head":
+    return HEAD_PIVOT + (p - HEAD_PIVOT) * HEAD_SCALE
+  if kind == "leg":
+    axis = [Vector(bones["upper_leg" + side][0]), Vector(bones["lower_leg" + side][0]), Vector(bones["foot" + side][0])]
+    center = nearest_on_path(p, axis)
+    # Thick thighs and calves, back to the boot's size at its top.
+    # Thin again under the hip, or the thigh would poke through the coat.
+    k = 1 + (LEG_THICKEN - 1) * smooth(0.26, 0.42, p.z) * smooth(0.9, 0.72, p.z)
+    return Vector((center.x + (p.x - center.x) * k, center.y + (p.y - center.y) * k, p.z))
+  if kind == "hand":
+    wrist = Vector(bones["hand" + side][0])
+    p = wrist + (p - wrist) * HAND_SCALE
+  elif kind == "arm":
+    axis = [Vector(bones[bone + side][0]) for bone in ("upper_arm", "lower_arm", "hand")]
+    center = nearest_on_path(p, axis)
+    p = center + (p - center) * SLEEVE_THICKEN
+  if kind in ("hand", "arm"):
+    return p + Vector((sign * SHOULDER_PUSH, 0, 0))
+  # Body: only the shoulders spread, so the neck and the coat below the chest keep their width.
+  push = SHOULDER_PUSH * smooth(0.09, 0.17, abs(p.x)) * smooth(1.15, 1.38, p.z)
+  return p + Vector((math.copysign(push, p.x), 0, 0))
+
+
+def part_kind(name):
+  if name in hair_weights or name.startswith(HEAD_PREFIXES) or name.startswith("lock_"):
+    return "head"
+  if name.startswith(("hand", "finger", "thumb")):
+    return "hand"
+  if name.startswith(("sleeve", "jacket_cuff")):
+    return "arm"
+  if name.startswith("leg"):
+    return "leg"
+  return "body"
+
+
+def bone_kind(name):
+  if name == "head" or name.startswith("hair_"):
+    return "head"
+  if name.startswith(("hand_", "fingers_", "thumb_")) or name == "weapon":
+    return "hand"
+  if name.startswith(("shoulder_", "upper_arm_", "lower_arm_")):
+    return "arm"
+  return "body"
+
+
+def reshape_all(bones):
+  for part in parts:
+    name = part.name.split(".")[0]
+    kind = part_kind(name)
+    verts = part.data.vertices
+    middle = sum((v.co for v in verts), Vector()) / len(verts)
+    sign = 1 if middle.x >= 0 else -1
+    design = part.data.attributes.new("paint_co", "FLOAT_VECTOR", "POINT")
+    design.data.foreach_set("vector", [c for v in verts for c in v.co])
+    for v in verts:
+      v.co = reshape(v.co, kind, sign, bones)
+    part.data.update()
+  result = {}
+  for name, (head, tail, parent) in bones.items():
+    kind = bone_kind(name)
+    sign = -1 if name.endswith("_r") or name == "weapon" else 1
+    result[name] = (tuple(reshape(head, kind, sign, bones)), tuple(reshape(tail, kind, sign, bones)), parent)
+  return result
+
+
 def finish(name):
   bones = mirrored_bones(skeleton())
+  if variant["fingers"]:
+    bones = reshape_all(bones)
   for part in parts:
     assign_weights(part, bones)
   window = bpy.context.window_manager.windows[0] if bpy.context.window_manager.windows else None

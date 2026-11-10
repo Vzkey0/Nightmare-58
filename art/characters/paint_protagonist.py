@@ -16,8 +16,8 @@ import bpy
 import numpy as np
 from mathutils import Quaternion
 
-SIZE = 2048
-MARGIN = 8
+SIZE = 4096
+MARGIN = 16
 AO_SAMPLES = 96
 # Texture density by region: the face is seen up close on the title screen.
 UV_SCALE = {"head_skin": 2.7, "skin_tan": 1.9, "boot_leather": 0.8, "boot_sole": 0.6, "hair_lock": 0.8, "pants_black": 0.8}
@@ -546,7 +546,8 @@ def main():
   body.select_set(True)
   bpy.context.view_layer.objects.active = body
   region = baker.emit("ShaderNodeAttribute", "Vector", "region")
-  position = baker.emit("ShaderNodeTexCoord", "Object")
+  # The design-space position, from before build_protagonist.py reshaped the proportions.
+  position = baker.emit("ShaderNodeAttribute", "Vector", "paint_co")
   normal = baker.emit("ShaderNodeNewGeometry", "Normal")
   panel = baker.emit("ShaderNodeAttribute", "Vector", "panel")
   armature.data.pose_position = "POSE"

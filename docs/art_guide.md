@@ -57,8 +57,13 @@ compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y gol
 `jacket_front`, `jacket_side` y `jacket_back` con tres por cadena, y `hair_front`, `hair_side` y
 `hair_back` con dos, todos a cada lado.
 
+Las piezas se arman en un espacio de diseño y `reshape()` les da al final proporciones de héroe:
+cabeza al 88 %, hombros más anchos, mangas y piernas más gruesas y manos al 120 %. Los huesos se
+mueven con la misma función, y la posición de diseño queda en el atributo `paint_co`, que es la
+que lee el pintor, así las proporciones se ajustan sin tocar la pintura.
+
 [paint_protagonist.py](../art/characters/paint_protagonist.py) despliega las UV, hornea posición,
-normales y oclusión, y pinta una sola textura de 2048 px por posición en el cuerpo, así las costuras
+normales y oclusión, y pinta una sola textura de 4096 px por posición en el cuerpo, así las costuras
 de la UV no se notan. Hay que correrlo después de `build_protagonist.py`:
 
 ```bash
