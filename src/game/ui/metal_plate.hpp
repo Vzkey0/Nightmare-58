@@ -20,7 +20,7 @@ void well(godot::CanvasItem & canvas, const godot::Rect2 & area);
 godot::Ref<godot::Tween> pop(godot::Control & control, float settle);
 }
 
-// A surface behind text: the menu's sheet, or one row of a menu.
+// The title screen's steel rows. The game itself uses FacetPlate.
 class MetalPlate : public godot::Control
 {
   GDCLASS(MetalPlate, godot::Control)

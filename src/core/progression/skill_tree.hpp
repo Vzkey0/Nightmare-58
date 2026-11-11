@@ -1,10 +1,24 @@
 #pragma once
 
+#include <array.hpp>
 #include <mtreenode.hpp>
 
 struct Skill
 {
   int id;
+  int cost;
+  bool unlocked;
+};
+
+// Where a skill sits when the tree is drawn: each child of the root opens a branch,
+// depth counts down from the root, and a parent stands centered over its children.
+struct SkillSlot
+{
+  int id;
+  int parent; // -1 for the root.
+  int branch; // -1 for the root.
+  int depth;
+  float column; // Within its branch, from 0; leaves take whole steps.
   int cost;
   bool unlocked;
 };
@@ -31,6 +45,9 @@ public:
 
   // For a loaded game: unlocks without paying, but only under an unlocked parent.
   bool restore(int id);
+
+  // Root first, then each branch in order, parents before children.
+  Designar::DynArray<SkillSlot> layout() const;
 
   // Parents before children, so the order can be saved and restored as it is.
   template <class Visit>

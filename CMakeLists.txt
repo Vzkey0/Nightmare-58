@@ -64,6 +64,9 @@ add_library(nightmare58_ext SHARED
   src/game/enemies/rat_enemy.cpp
   src/game/enemies/skeleton_enemy.cpp
   src/game/ui/metal_plate.cpp
+  src/game/ui/facet_plate.cpp
+  src/game/ui/key_button.cpp
+  src/game/ui/skill_tree_view.cpp
   src/game/ui/game_menu.cpp
   src/game/ui/ui_sounds.cpp
   src/game/ui/game_settings.cpp

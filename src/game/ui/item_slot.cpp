@@ -1,5 +1,5 @@
 #include "item_slot.hpp"
-#include "metal_plate.hpp"
+#include "facet_plate.hpp"
 #include "ui_palette.hpp"
 
 #include <godot_cpp/classes/font.hpp>
@@ -15,7 +15,9 @@ constexpr float ICON_SHARE = 0.86f;
 constexpr float SELECTED_BORDER = 3.f;
 constexpr float COUNT_SHARE = 0.22f;
 constexpr float COUNT_OUTLINE = 6.f;
-constexpr int GLOW_LAYERS = 3;
+constexpr float SLOT_CUT = 10.f;
+constexpr float SLOT_CHIP = 3.f;
+const Vector2 SLOT_SHADOW(3.f, 4.f);
 }
 
 void ItemSlot::_bind_methods()
@@ -30,13 +32,16 @@ void ItemSlot::_notification(int what)
   if (what == NOTIFICATION_RESIZED)
     set_pivot_offset(get_size() * 0.5f);
   else if (what == NOTIFICATION_READY)
+    {
     set_texture_filter(TEXTURE_FILTER_LINEAR_WITH_MIPMAPS); // Icons are drawn far smaller than rendered.
+    set_texture_repeat(TEXTURE_REPEAT_ENABLED); // For the plaster grain.
+  }
 }
 
 void ItemSlot::show_item(ItemId value, int amount, bool is_selected)
 {
   if (is_selected && !selected && framed)
-    tween = Metal::pop(*this, 1.f);
+    tween = Facet::pop(*this, 1.f);
   if (value != item && value != NO_ITEM)
     icon = ResourceLoader::get_singleton()->load(vformat("res://ui/icons/%s.png", ItemCatalog::instance()[value].key));
   item = value;
@@ -51,12 +56,13 @@ void ItemSlot::_draw()
   const Rect2 area(Vector2(), size);
   if (framed)
   {
-    Metal::well(*this, area);
+    const PackedVector2Array shape = Facet::outline(area, get_index() + 1, SLOT_CUT, SLOT_CHIP);
+    Facet::panel(*this, shape, selected ? UiPalette::JACKET_YELLOW : UiPalette::PLASTER_SHADE, SLOT_SHADOW);
     if (selected)
     {
-      for (int layer = GLOW_LAYERS; layer > 0; --layer)
-        draw_rect(area.grow(layer * 2.f), Color(UiPalette::ICE, 0.14f), false, 2.f);
-      draw_rect(area, UiPalette::HIGHLIGHT, false, SELECTED_BORDER);
+      PackedVector2Array edge = shape;
+      edge.push_back(shape[0]);
+      draw_polyline(edge, UiPalette::JACKET_RED, SELECTED_BORDER);
     }
   }
   if (item == NO_ITEM)
@@ -70,6 +76,6 @@ void ItemSlot::_draw()
   const float width = size.x - font_size * 0.4f;
   const String amount = String::num_int64(count);
   // Icons are bright, so the number needs its own edge to read on top of one.
-  draw_string_outline(get_theme_default_font(), at, amount, HORIZONTAL_ALIGNMENT_RIGHT, width, font_size, COUNT_OUTLINE, UiPalette::ON_BRIGHT);
-  draw_string(get_theme_default_font(), at, amount, HORIZONTAL_ALIGNMENT_RIGHT, width, font_size, UiPalette::HIGHLIGHT);
+  draw_string_outline(get_theme_default_font(), at, amount, HORIZONTAL_ALIGNMENT_RIGHT, width, font_size, COUNT_OUTLINE, UiPalette::INK);
+  draw_string(get_theme_default_font(), at, amount, HORIZONTAL_ALIGNMENT_RIGHT, width, font_size, UiPalette::ON_PAINT);
 }
