@@ -81,6 +81,7 @@ public:
   float stamina_ratio() const { return stamina.ratio(); }
   bool winded() const { return stamina.winded(); }
   void set_stamina_regen(float scale) { stamina.set_regen_scale(scale); }
+  void refill_stamina() { stamina.restore(); }
 
   bool invulnerable() const
   {

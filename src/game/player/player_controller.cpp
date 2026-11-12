@@ -110,6 +110,11 @@ constexpr float RESPAWN_TIME = 3.f;
 constexpr float DEATH_FADE = 0.6f;
 
 constexpr int COFFEE_HEAL = 45;
+constexpr float HALLACA_TIME = 20.f;
+constexpr float HALLACA_REGEN = 3.f; // Health per second after the full heal.
+constexpr float PAPELON_TIME = 30.f;
+constexpr float PAPELON_BREATH = 1.5f;
+constexpr float HOLY_DAMAGE = 1.25f; // Against the "unholy" group: skeletons and the legends.
 constexpr float TOAST_TIME = 2.5f;
 
 constexpr float LOCK_SPEED = 2.2f; // Must match LOCK_SPEED in animate_protagonist.py.
@@ -136,6 +141,7 @@ const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
 const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
 const Color FIRE_COAT(1.f, 0.38f, 0.05f);
 const Color ICE_COAT(0.45f, 0.85f, 1.f);
+const Color HOLY_COAT(1.f, 0.92f, 0.62f);
 constexpr float COAT_ALPHA = 0.55f;
 constexpr float COAT_GLOW = 2.2f;
 constexpr float COAT_PULSE = 9.f;     // Radians per second.
@@ -234,6 +240,7 @@ void PlayerController::_ready()
   coat_material->set_grow_enabled(true);
   coat_material->set_grow(0.004f);
   item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
+  keepsake_slot = get_node<ItemSlot>("Hud/Panel/KeepsakeSlot");
   prompt_label = get_node<KeyButton>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
@@ -483,7 +490,7 @@ void PlayerController::start_action(const Vector3 & wish)
       break;
     case PlayerAction::UseItem:
       item_in_use = save.quick_slots().current();
-      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
         play(grease_clip, BLEND_TO_DODGE);
       else
         play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
@@ -552,15 +559,15 @@ void PlayerController::hit_targets()
 {
   // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
   hitbox->force_shapecast_update();
-  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * blow_scale());
+  const float blow = PlayerActions::timing(actions.current()).damage * blow_scale();
   for (int i = 0; i < hitbox->get_collision_count(); ++i)
   {
     CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
     if (target != nullptr)
     {
+      const int damage = blow_on(target, blow);
       target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
-      if (coat.active())
-        target->apply_status(coat.kind());
+      coat_target(target);
       dealt(damage);
       feel_hit(damage);
       hit_sound->play();
@@ -646,6 +653,8 @@ void PlayerController::take_hit(int raw_damage, const Vector3 & attacker)
     respawn_time = RESPAWN_TIME;
     coat.clear();
     rage.reset();
+    feast_time = 0.f;
+    sweet_time = 0.f;
     drop_thrown_machete();
     play(death_clip, BLEND_TO_DODGE);
     clear_dropped_lochas();
@@ -675,7 +684,7 @@ void PlayerController::respawn()
 
 void PlayerController::earn(int lochas)
 {
-  save.earn(lochas);
+  save.earn(save.bounty(lochas));
   SaveFile::write(save);
   refresh_hud();
 }
@@ -755,6 +764,15 @@ bool PlayerController::wear(ItemId item)
   return true;
 }
 
+bool PlayerController::carry(ItemId item)
+{
+  if (!save.carry(item))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
 bool PlayerController::sell(ItemId item)
 {
   if (!save.sell(item, merchant_zone()))
@@ -809,7 +827,6 @@ void PlayerController::freeze_inflation(Zone zone)
 void PlayerController::apply_stats()
 {
   health.set_maximum(save.stats().max_health());
-  actions.set_stamina_regen(save.stats().stamina_regen_scale());
 }
 
 void PlayerController::place_at_saved_chapel()
@@ -893,9 +910,23 @@ void PlayerController::use_item()
     release_lock();
     SaveFile::write(save);
   }
-  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
   {
-    coat.apply(item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn : Status::Chill);
+    const Status kind = item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn
+                      : item_in_use == ItemCatalog::ICE_GREASE ? Status::Chill : Status::Holy;
+    coat.apply(kind); // Replaces whatever coat was on: one at a time.
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::HALLACA)
+  {
+    health.restore();
+    feast_time = HALLACA_TIME;
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::PAPELON)
+  {
+    actions.refill_stamina();
+    sweet_time = PAPELON_TIME;
     SaveFile::write(save);
   }
   item_in_use = NO_ITEM;
@@ -918,10 +949,9 @@ void PlayerController::launch_machete()
 
 void PlayerController::throw_hit(CombatTarget * target, const Vector3 & point)
 {
-  const int damage = Math::round(ThrownWeapon::DAMAGE * blow_scale());
+  const int damage = blow_on(target, ThrownWeapon::DAMAGE * blow_scale() * save.throw_scale());
   target->take_hit(damage, get_global_position(), point);
-  if (coat.active())
-    target->apply_status(coat.kind());
+  coat_target(target);
   dealt(damage);
   // No hitstop: the blow lands away from the player, who is not the one feeling it.
   camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE * 0.5f, 1.f);
@@ -953,6 +983,18 @@ void PlayerController::drop_thrown_machete()
 float PlayerController::blow_scale() const
 {
   return save.stats().damage_scale() * save.machete_damage_scale() * save.outfit_damage_scale() * rage.damage_dealt_scale();
+}
+
+int PlayerController::blow_on(const CombatTarget * target, float damage) const
+{
+  const bool blessed = coat.active() && coat.kind() == Status::Holy && target->is_in_group("unholy");
+  return Math::round(blessed ? damage * HOLY_DAMAGE : damage);
+}
+
+void PlayerController::coat_target(CombatTarget * target) const
+{
+  if (coat.active() && coat.kind() != Status::Holy)
+    target->apply_status(coat.kind());
 }
 
 void PlayerController::dealt(int damage)
@@ -988,7 +1030,7 @@ void PlayerController::update_coat(float delta)
     machete->set_material_overlay(Ref<Material>());
     return;
   }
-  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : ICE_COAT;
+  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : coat.kind() == Status::Chill ? ICE_COAT : HOLY_COAT;
   // A slow pulse while it lasts, and a flicker in its last seconds.
   const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
   const float pulse = 0.75f + 0.25f * Math::sin(clock * COAT_PULSE);
@@ -1005,7 +1047,11 @@ void PlayerController::update_progress(float delta)
   if (health.dead())
     return;
 
-  regen_carry += save.stats().regen_per_second() * delta;
+  feast_time = MAX(feast_time - delta, 0.f);
+  sweet_time = MAX(sweet_time - delta, 0.f);
+  actions.set_stamina_regen(save.stamina_regen_scale() * (sweet_time > 0.f ? PAPELON_BREATH : 1.f));
+
+  regen_carry += (save.stats().regen_per_second() + (feast_time > 0.f ? HALLACA_REGEN : 0.f)) * delta;
   const int whole = static_cast<int>(regen_carry);
   if (whole > 0)
   {
@@ -1206,6 +1252,8 @@ void PlayerController::refresh_hud()
   cap->set_visible(save.worn() == ItemCatalog::CAP);
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
+  keepsake_slot->set_visible(save.keepsake() != NO_ITEM);
+  keepsake_slot->show_item(save.keepsake(), -1, false);
 }
 
 void PlayerController::show_lochas(float value)

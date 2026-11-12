@@ -15,6 +15,7 @@ constexpr float ICON_SHARE = 0.86f;
 constexpr float SELECTED_BORDER = 3.f;
 constexpr float COUNT_SHARE = 0.22f;
 constexpr float COUNT_OUTLINE = 6.f;
+constexpr float MARK_SHARE = 0.11f;
 constexpr float SLOT_CUT = 10.f;
 constexpr float SLOT_CHIP = 3.f;
 const Vector2 SLOT_SHADOW(3.f, 4.f);
@@ -38,7 +39,7 @@ void ItemSlot::_notification(int what)
   }
 }
 
-void ItemSlot::show_item(ItemId value, int amount, bool is_selected)
+void ItemSlot::show_item(ItemId value, int amount, bool is_selected, bool is_marked)
 {
   if (is_selected && !selected && framed)
     tween = Facet::pop(*this, 1.f);
@@ -47,6 +48,7 @@ void ItemSlot::show_item(ItemId value, int amount, bool is_selected)
   item = value;
   count = amount;
   selected = is_selected;
+  marked = is_marked;
   queue_redraw();
 }
 
@@ -70,6 +72,19 @@ void ItemSlot::_draw()
 
   const float side = MIN(size.x, size.y) * ICON_SHARE;
   draw_texture_rect(icon, Rect2((size - Vector2(side, side)) * 0.5f, Vector2(side, side)), false);
+  if (marked)
+  {
+    // A red diamond in the corner: worn, or carried as a keepsake.
+    const float r = size.y * MARK_SHARE;
+    const Vector2 c(r * 1.6f, r * 1.6f);
+    const PackedVector2Array diamond = {c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)};
+    draw_colored_polygon(diamond, UiPalette::JACKET_RED);
+    PackedVector2Array edge = diamond;
+    edge.push_back(diamond[0]);
+    draw_polyline(edge, UiPalette::INK, 2.f);
+  }
+  if (count < 0)
+    return;
 
   const int font_size = static_cast<int>(size.y * COUNT_SHARE);
   const Vector2 at(0.f, size.y - font_size * 0.3f);

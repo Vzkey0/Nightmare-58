@@ -415,6 +415,9 @@ pintadas con ruido y figuras simples en [prop_tools.py](../art/props/prop_tools.
 | Cromo de béisbol | Bateador con marco rojo, doblado por una esquina | 48 |
 | Ficha de dominó | Doble seis de marfil con reverso oscuro y remache de latón | 364 |
 | Foto familiar | Sepia, doblada al medio y con una esquina rota; una de las figuras casi se borró | 94 |
+| Hallaca | Paquete de hoja de plátano atado con pabilo en cruz, con una punta de hoja seca doblada encima | 210 |
+| Papelón con limón | Vaso alto color papelón, rueda de limón en el borde y pitillo a rayas | 392 |
+| Agua bendita | Botella plástica azul de capilla con etiqueta de cruz y tapa de rosca | 244 |
 | Machete | Lomo recto, panza hacia la punta, bisel limado, dos muescas, cachas con tres remaches y óxido en bandas | 521 |
 | Capilla | Capilla de carretera: arco azul, techo de zinc, Virgen, velas, placas y hiedra | 1.766 |
 | Mancha de lochas | Charco de brea con borde pálido y monedas sueltas | Cerca de 900 |

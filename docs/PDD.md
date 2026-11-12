@@ -174,7 +174,7 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
 | Tipo | Objetos |
 |---|---|
 | Atuendos | Uniforme militar (más defensa), uniforme de Bolívar (más ataque), gorra (más fuerza) |
-| Consumibles | Café, grasas, vela de retorno |
+| Consumibles | Café, grasas, vela de retorno, hallaca, papelón con limón, agua bendita |
 | Coleccionables | Vinilo de gaita, cromo de béisbol, ficha de dominó, foto familiar |
 
 - **Atuendos:** se ven puestos en el personaje. Se empieza por la gorra, porque los
@@ -183,6 +183,16 @@ recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
   más de daño. Se lleva un atuendo a la vez y queda guardado en la partida.
 - **Coleccionables:** no se devalúan y el bachaquero los paga mejor con la inflación.
   Guardarlos es una decisión económica real.
+- **Recuerdos:** se lleva un coleccionable a la vez como recuerdo, con E en la pestaña Coleccionables.
+  Sigue valiendo lo mismo y se puede vender; al vender el último se deja de llevar. El vinilo da un
+  15 % más de recuperación de stamina; el cromo, un 30 % más de daño al machete lanzado, que además
+  vuelve un 30 % más rápido; la ficha, un 10 % más de lochas por enemigo. La foto familiar solo se vende.
+- **Hallaca:** solo se encuentra (una en la cocina de la casa partida). Cura toda la vida y da 3 de
+  vida por segundo durante 20 s.
+- **Papelón con limón:** lo vende el bachaquero por 20. Llena la stamina y la recupera un 50 % más
+  rápido durante 30 s.
+- **Agua bendita:** el padre da una al descansar en una capilla si no se tiene ninguna. Se unta como
+  una grasa y la reemplaza: 60 s con +25 % de daño a los esqueletos y las leyendas (el grupo `unholy`).
 - **Vela de retorno:** devuelve a la última capilla. Con 25 minutos de juego no hace
   falta otro teletransporte.
 

@@ -276,6 +276,82 @@ def build_tile():
   return shape.finish("domino_tile")
 
 
+def build_hallaca():
+  """A December hallaca: a plantain-leaf parcel tied with string, a corner of leaf folded over the top."""
+  leaf = material("hallaca_leaf", (0.12, 0.27, 0.1), 0.55)
+  leaf_light = material("hallaca_leaf_light", (0.2, 0.38, 0.13), 0.55)
+  leaf_dry = material("hallaca_leaf_dry", (0.45, 0.4, 0.2), 0.7)
+  string = material("hallaca_string", (0.86, 0.82, 0.7))
+
+  def ring(z, half_x, half_y, cut):
+    return [
+      (half_x - cut, half_y, z), (half_x, half_y - cut, z), (half_x, -half_y + cut, z), (half_x - cut, -half_y, z),
+      (-half_x + cut, -half_y, z), (-half_x, -half_y + cut, z), (-half_x, half_y - cut, z), (-half_x + cut, half_y, z),
+    ]
+
+  # A pillow: low edges, a rounded middle.
+  rings = [ring(z, hx, hy, c) for z, hx, hy, c in (
+    (0.0, 0.062, 0.042, 0.012), (0.008, 0.07, 0.048, 0.014), (0.026, 0.071, 0.049, 0.016),
+    (0.04, 0.064, 0.043, 0.016), (0.046, 0.05, 0.032, 0.014),
+  )]
+  shape = Shape()
+  shape.loft(rings, lambda band, side: leaf_light if side % 2 else leaf)
+  # The fold of leaf over the top, slightly lifted at its tip.
+  shape.add([(-0.05, -0.032, 0.0462), (0.03, -0.032, 0.0462), (0.012, 0.018, 0.0475), (-0.05, 0.024, 0.0462)],
+            [(0, 1, 2, 3)], leaf_dry)
+  # Two loops of string each way, crossing on top.
+  for x in (-0.024, 0.024):
+    shape.tube([((x, 0.04, 0.0), 0.0012, 0.0012), ((x, 0.05, 0.03), 0.0012, 0.0012), ((x, 0.03, 0.0485), 0.0012, 0.0012),
+                ((x, -0.03, 0.0485), 0.0012, 0.0012), ((x, -0.05, 0.03), 0.0012, 0.0012), ((x, -0.04, 0.0), 0.0012, 0.0012)],
+               string, n=4, side=(1, 0, 0))
+  shape.tube([((0.06, 0, 0.0), 0.0012, 0.0012), ((0.072, 0, 0.03), 0.0012, 0.0012), ((0.05, 0, 0.0485), 0.0012, 0.0012),
+              ((-0.05, 0, 0.0485), 0.0012, 0.0012), ((-0.072, 0, 0.03), 0.0012, 0.0012), ((-0.06, 0, 0.0), 0.0012, 0.0012)],
+             string, n=4, side=(0, 1, 0))
+  return shape.finish("hallaca")
+
+
+def build_papelon():
+  """Papelón con limón in a tall glass: cane-sugar amber, a lime wheel on the rim and a striped straw."""
+  drink = material("papelon_drink", (0.62, 0.36, 0.08), 0.15)
+  drink_top = material("papelon_foam", (0.8, 0.6, 0.3), 0.4)
+  glass = material("papelon_glass", (0.78, 0.88, 0.86), 0.08)
+  rind = material("lime_rind", (0.22, 0.52, 0.1), 0.5)
+  pulp = material("lime_pulp", (0.72, 0.86, 0.36), 0.5)
+  straw = material("straw_red", (0.82, 0.12, 0.1), 0.4)
+  straw_white = material("straw_white", (0.92, 0.9, 0.86), 0.4)
+
+  shape = Shape()
+  shape.lathe([(0.025, 0.0), (0.027, 0.004), (0.0333, 0.1), (0.0335, 0.104)],
+              lambda band, side: drink_top if band == 2 else drink, n=12)
+  shape.lathe([(0.0335, 0.104), (0.0348, 0.122), (0.0332, 0.122), (0.0322, 0.104)], glass, n=12, caps=(False, False))
+  shape.lathe([(0.0275, -0.004), (0.0275, 0.0)], glass, n=12)
+  # The lime wheel stands on the rim, cut to sit over the glass.
+  at = Matrix.Translation((0.03, -0.004, 0.122)) @ Matrix.Rotation(math.radians(90), 4, "X")
+  shape.lathe([(0.017, -0.0025), (0.017, 0.0025)], lambda band, side: rind, n=10, at=at, caps=(False, False))
+  shape.lathe([(0.0158, -0.0026), (0.0158, 0.0026)], lambda band, side: pulp, n=10, at=at, caps=(True, True))
+  path = [((-0.008 - 0.0026 * i, 0.004, 0.03 + 0.0145 * i), 0.0028, 0.0028) for i in range(11)]
+  shape.tube(path, lambda band, side: straw if band % 2 == 0 else straw_white, n=6)
+  return shape.finish("papelon")
+
+
+def build_holy_water():
+  """The plastic Virgin-blue bottle every chapel keeps: holy water behind a cross label and a screw cap."""
+  water = material("holy_water", (0.55, 0.75, 0.9), 0.1)
+  label = material("holy_label", (0.92, 0.9, 0.82), 0.6)
+  blue = material("holy_cap", CHAPEL_BLUE, 0.4)
+  cross = material("holy_cross", CHAPEL_BLUE_DARK, 0.5)
+
+  shape = Shape()
+  shape.lathe([
+    (0.019, 0.0), (0.022, 0.003), (0.0225, 0.02), (0.0225, 0.065), (0.02, 0.08), (0.011, 0.094), (0.0085, 0.1),
+  ], lambda band, side: label if band in (2,) else water, n=12)
+  shape.lathe([(0.0105, 0.1), (0.0105, 0.116), (0.009, 0.118)], blue, n=10)
+  # The cross on the label, toward the camera.
+  shape.box((-0.0018, -0.0235, 0.03), (0.0018, -0.0225, 0.058), cross)
+  shape.box((-0.009, -0.0235, 0.046), (0.009, -0.0225, 0.0495), cross)
+  return shape.finish("holy_water")
+
+
 def figure(canvas, x, ground, height, tone, width_share=0.2):
   canvas.stroke([(x, ground - height * 0.72), (x, ground - height * 0.08)], height * width_share, tone)
   canvas.circle(x, ground - height * 0.9, height * 0.1, tone)
@@ -690,6 +766,9 @@ def main():
     (build_card(), turn(y=8, z=-14, x=4)),
     (build_tile(), turn(y=-20, z=-22, x=5)),
     (build_photo(), turn(y=6, z=-12, x=4)),
+    (build_hallaca(), turn(x=34, z=-22)),
+    (build_papelon(), turn(x=8, z=-18)),
+    (build_holy_water(), turn(x=6, z=-16)),
     (machete.build(), turn(y=-54, z=-86, x=2)),
     (build_chapel(), turn(x=6, z=-24)),
   ]

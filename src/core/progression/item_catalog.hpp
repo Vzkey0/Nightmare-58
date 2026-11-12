@@ -37,6 +37,9 @@ public:
   static constexpr ItemId FIRE_GREASE = 7;
   static constexpr ItemId ICE_GREASE = 8;
   static constexpr ItemId CAP = 9;
+  static constexpr ItemId HALLACA = 10;
+  static constexpr ItemId PAPELON = 11;
+  static constexpr ItemId HOLY_WATER = 12;
 
   static const ItemCatalog & instance();
 

@@ -29,6 +29,9 @@ public:
   static constexpr int DEATH_MARKUP = 5; // Percent the bachaquero adds per death.
   static constexpr int MAX_MARKUP = 50;
   static constexpr float CAP_STRENGTH = 1.1f; // The cap's "más fuerza": a tenth more damage.
+  static constexpr float VINYL_BREATH = 1.15f; // The vinyl as a keepsake: stamina comes back 15 % faster.
+  static constexpr float CARD_THROW = 1.3f; // The card: the thrown machete hits harder and flies home faster.
+  static constexpr int TILE_BOUNTY = 10; // The tile: percent more lochas from each kill.
   static constexpr int START_COFFEE = 3;
   static constexpr int MAX_COFFEE = 6;
   static constexpr int MAX_PICKUPS = 256;
@@ -99,6 +102,15 @@ public:
   bool wear(ItemId item);
   float outfit_damage_scale() const { return outfit == ItemCatalog::CAP ? CAP_STRENGTH : 1.f; }
 
+  // One keepsake at a time: a collectible carried for its joy instead of sold. The photo is only
+  // worth its price. Carrying the one already carried puts it away; selling the last one does too.
+  static bool is_keepsake(ItemId item);
+  ItemId keepsake() const { return carried; }
+  bool carry(ItemId item);
+  float stamina_regen_scale() const;
+  float throw_scale() const { return carried == ItemCatalog::CARD ? CARD_THROW : 1.f; }
+  int bounty(int reward) const { return carried == ItemCatalog::TILE ? reward * (100 + TILE_BOUNTY) / 100 : reward; }
+
   int stat_cost(Zone zone) const { return price(levels.next_cost(), zone); }
   bool can_raise(Stat stat, Zone zone) const;
   bool raise(Stat stat, Zone zone);
@@ -136,6 +148,7 @@ private:
   int coffee_limit = START_COFFEE;
   int death_count = 0;
   ItemId outfit = NO_ITEM;
+  ItemId carried = NO_ITEM;
   bool endless_lochas = false;
 
   void spend(int amount) { wallet -= endless_lochas ? 0 : amount; }

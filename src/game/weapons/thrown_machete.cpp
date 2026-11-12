@@ -42,7 +42,7 @@ void ThrownMachete::launch(PlayerController * thrower, const MeshInstance3D * ha
   hitbox->set_enabled(false);
   blade->add_child(hitbox);
 
-  flight.release();
+  flight.release(thrower->progress().throw_scale());
 }
 
 void ThrownMachete::_physics_process(double delta_time)

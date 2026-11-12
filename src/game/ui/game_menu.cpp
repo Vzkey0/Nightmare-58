@@ -579,6 +579,8 @@ void GameMenu::accept()
     case MenuScreen::Inventory:
       if (row_count() > 0 && ItemCatalog::instance()[tab_stacks()[menu.cursor()].item].kind == ItemKind::Outfit)
         UiSounds::play(this, player->wear(tab_stacks()[menu.cursor()].item) ? "Accept" : "Deny");
+      else if (row_count() > 0 && PlayerProgress::is_keepsake(tab_stacks()[menu.cursor()].item))
+        UiSounds::play(this, player->carry(tab_stacks()[menu.cursor()].item) ? "Accept" : "Deny");
       break;
     default:
       break;
@@ -878,18 +880,26 @@ void GameMenu::show_inventory()
   for (int i = 0; i < GRID_SLOTS; ++i)
   {
     const bool filled = i < count;
-    slots[i]->show_item(filled ? stacks[i].item : NO_ITEM, filled ? stacks[i].count : 0, filled && i == menu.cursor());
+    const bool marked = filled && (player->progress().worn() == stacks[i].item || player->progress().keepsake() == stacks[i].item);
+    slots[i]->show_item(filled ? stacks[i].item : NO_ITEM, filled ? stacks[i].count : 0, filled && i == menu.cursor(), marked);
   }
   if (count > 0)
   {
     const ItemId chosen = stacks[menu.cursor()].item;
     const Item & item = catalog[chosen];
     const bool worn = player->progress().worn() == chosen;
-    item_name->set_text(worn ? text(item.name) + text("  ·  puesta") : text(item.name));
+    const bool carried = player->progress().keepsake() == chosen;
+    item_name->set_text(worn ? text(item.name) + text("  ·  puesta") : carried ? text(item.name) + text("  ·  recuerdo") : text(item.name));
     detail->set_text(text(item.description));
     if (item.kind == ItemKind::Outfit)
     {
       hints->set_text(text(worn ? "E  quitar" : "E  poner"));
+      hint_back->set_text("Esc  volver");
+      return;
+    }
+    if (PlayerProgress::is_keepsake(chosen))
+    {
+      hints->set_text(text(carried ? "E  guardar" : "E  llevar de recuerdo"));
       hint_back->set_text("Esc  volver");
       return;
     }

@@ -19,7 +19,8 @@ protected:
 public:
   void _draw() override;
 
-  void show_item(ItemId value, int amount, bool is_selected);
+  // A negative amount hides the count; marked tags what is worn or carried.
+  void show_item(ItemId value, int amount, bool is_selected, bool is_marked = false);
 
   bool get_framed() const { return framed; }
   void set_framed(bool value) { framed = value; }
@@ -29,6 +30,7 @@ private:
   godot::Ref<godot::Texture2D> icon;
   int count = 0;
   bool selected = false;
+  bool marked = false;
   bool framed = true;
   godot::Ref<godot::Tween> tween;
 };

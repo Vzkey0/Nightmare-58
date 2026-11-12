@@ -1541,6 +1541,57 @@ static void test_wearing_the_cap()
   assert(loaded.from_text("nightmare58 3\nlochas 4\nwear old_hat\n") && loaded.worn() == NO_ITEM);
 }
 
+static void test_keepsakes()
+{
+  PlayerProgress progress;
+  assert(!progress.carry(ItemCatalog::VINYL)); // Not owned yet.
+  progress.collect(ItemCatalog::PHOTO);
+  assert(!progress.carry(ItemCatalog::PHOTO)); // Only sold, never carried.
+  assert(!progress.carry(ItemCatalog::CAP));
+
+  progress.collect(ItemCatalog::VINYL);
+  progress.collect(ItemCatalog::CARD);
+  progress.collect(ItemCatalog::TILE);
+  const float breath = progress.stamina_regen_scale();
+  assert(progress.carry(ItemCatalog::VINYL) && progress.keepsake() == ItemCatalog::VINYL);
+  assert(progress.stamina_regen_scale() == breath * PlayerProgress::VINYL_BREATH);
+  assert(progress.throw_scale() == 1.f && progress.bounty(30) == 30);
+
+  assert(progress.carry(ItemCatalog::CARD) && progress.keepsake() == ItemCatalog::CARD); // One at a time.
+  assert(progress.throw_scale() == PlayerProgress::CARD_THROW && progress.stamina_regen_scale() == breath);
+  assert(progress.carry(ItemCatalog::TILE) && progress.bounty(30) == 33 && progress.bounty(50) == 55);
+
+  PlayerProgress loaded;
+  assert(loaded.from_text(progress.to_text()) && loaded.keepsake() == ItemCatalog::TILE);
+  assert(!loaded.from_text("nightmare58 3\ncarry domino_tile\n")); // Carried but not in the bag.
+  assert(!loaded.from_text("nightmare58 3\nitem family_photo 1 0\ncarry family_photo\n"));
+
+  assert(progress.sell(ItemCatalog::TILE, Zone::Avenue) && progress.keepsake() == NO_ITEM); // Sold away.
+  assert(progress.carry(ItemCatalog::CARD) && progress.carry(ItemCatalog::CARD) && progress.keepsake() == NO_ITEM);
+}
+
+static void test_new_consumables()
+{
+  PlayerProgress progress;
+  assert(progress.inventory().count(ItemCatalog::HOLY_WATER) == 0);
+  progress.rest(0);
+  assert(progress.inventory().count(ItemCatalog::HOLY_WATER) == 1);
+  assert(progress.quick_slots().holds(ItemCatalog::HOLY_WATER));
+  progress.rest(0);
+  assert(progress.inventory().count(ItemCatalog::HOLY_WATER) == 1); // One at a time from the priest.
+
+  bool sold = false;
+  bool hallaca_sold = false;
+  const Designar::DynArray<ItemId> stock = progress.shop_stock();
+  for (Designar::nat_t i = 0; i < stock.size(); ++i)
+  {
+    sold = sold || stock[i] == ItemCatalog::PAPELON;
+    hallaca_sold = hallaca_sold || stock[i] == ItemCatalog::HALLACA || stock[i] == ItemCatalog::HOLY_WATER;
+  }
+  assert(sold && !hallaca_sold);
+  assert(progress.collect(ItemCatalog::HALLACA) == 1 && progress.quick_slots().holds(ItemCatalog::HALLACA));
+}
+
 static void test_endless_lochas()
 {
   PlayerProgress progress;
@@ -1624,6 +1675,8 @@ int main()
   test_player_throw();
   test_rage();
   test_wearing_the_cap();
+  test_keepsakes();
+  test_new_consumables();
   test_endless_lochas();
   return 0;
 }

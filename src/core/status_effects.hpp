@@ -2,7 +2,8 @@
 
 #include <list.hpp>
 
-enum class Status { Burn, Chill };
+// Holy only coats the blade: it hurts the dead more and leaves nothing on them.
+enum class Status { Burn, Chill, Holy };
 
 // What a greased blade leaves on an enemy. Each burn keeps its own clock and they stack up to a
 // limit; a chill only refreshes, since being twice as slow would freeze the enemy in place.

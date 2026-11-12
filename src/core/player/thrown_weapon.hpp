@@ -14,8 +14,10 @@ public:
 
   enum class Phase { InHand, Out, Back };
 
-  void release()
+  // back_scale speeds up the way home, as the baseball card does.
+  void release(float back_scale = 1.f)
   {
+    back_speed = BACK_SPEED * back_scale;
     phase = Phase::Out;
     travelled = 0.f;
     flight_time = 0.f;
@@ -33,7 +35,7 @@ public:
         phase = Phase::Back;
       return length;
     }
-    return phase == Phase::Back ? BACK_SPEED * delta : 0.f;
+    return phase == Phase::Back ? back_speed * delta : 0.f;
   }
 
   // Hitting a wall on the way out sends it back early.
@@ -62,4 +64,5 @@ private:
   Phase phase = Phase::InHand;
   float travelled = 0.f;
   float flight_time = 0.f;
+  float back_speed = BACK_SPEED;
 };

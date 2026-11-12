@@ -81,6 +81,7 @@ public:
   bool sell(ItemId item);
   bool learn(int skill);
   bool wear(ItemId item);
+  bool carry(ItemId item);
 
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);
@@ -123,6 +124,8 @@ private:
   void update_rage(float delta);
   float blow_scale() const;
   void dealt(int damage);
+  int blow_on(const CombatTarget * target, float damage) const;
+  void coat_target(CombatTarget * target) const;
   void refresh_hud();
   void show_toast(const godot::String & text);
   void show_lochas(float value);
@@ -185,6 +188,7 @@ private:
   ThrownMachete * thrown = nullptr;
   godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
+  ItemSlot * keepsake_slot = nullptr;
   KeyButton * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
@@ -220,6 +224,8 @@ private:
   float regen_carry = 0.f; // Health comes in whole points; a slow rate adds up across ticks.
   float toast_time = 0.f;
   ItemId item_in_use = NO_ITEM;
+  float feast_time = 0.f; // Left of the hallaca's healing.
+  float sweet_time = 0.f; // Left of the papelón's quick breath.
 
   uint64_t lock_id = 0; // An id and not a pointer: a target may be freed while locked.
   float lock_hidden_time = 0.f;

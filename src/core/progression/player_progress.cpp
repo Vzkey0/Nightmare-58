@@ -6,7 +6,8 @@
 
 namespace
 {
-// 2 added frozen zones, and 3 the bachaquero, the machete tree and outfits. Older saves still load: missing lines keep their defaults.
+// 2 added frozen zones, and 3 the bachaquero, the machete tree and outfits. Keepsakes came after,
+// as one more optional line. Older saves still load: missing lines keep their defaults.
 constexpr int SAVE_VERSION = 3;
 constexpr const char * SAVE_HEADER = "nightmare58";
 constexpr int MAX_AMOUNT = 1000000000; // Anything above this comes from a damaged file.
@@ -73,6 +74,7 @@ Designar::DynArray<ItemId> PlayerProgress::shop_stock() const
 {
   Designar::DynArray<ItemId> stock;
   stock.append(ItemCatalog::CANDLE);
+  stock.append(ItemCatalog::PAPELON);
   if (has_skill(MacheteSkill::FIRE))
     stock.append(ItemCatalog::FIRE_GREASE);
   if (has_skill(MacheteSkill::ICE))
@@ -105,6 +107,8 @@ bool PlayerProgress::sell(ItemId item, Zone zone)
   if (ItemCatalog::instance()[item].kind != ItemKind::Collectible || !items.remove(item))
     return false;
   wallet += sell_price(item, zone);
+  if (carried == item && items.count(item) == 0)
+    carried = NO_ITEM;
   return true;
 }
 
@@ -130,6 +134,24 @@ bool PlayerProgress::wear(ItemId item)
     return false;
   outfit = outfit == item ? NO_ITEM : item;
   return true;
+}
+
+bool PlayerProgress::is_keepsake(ItemId item)
+{
+  return item == ItemCatalog::VINYL || item == ItemCatalog::CARD || item == ItemCatalog::TILE;
+}
+
+bool PlayerProgress::carry(ItemId item)
+{
+  if (!is_keepsake(item) || items.count(item) == 0)
+    return false;
+  carried = carried == item ? NO_ITEM : item;
+  return true;
+}
+
+float PlayerProgress::stamina_regen_scale() const
+{
+  return levels.stamina_regen_scale() * (carried == ItemCatalog::VINYL ? VINYL_BREATH : 1.f);
 }
 
 float PlayerProgress::machete_damage_scale() const
@@ -186,6 +208,9 @@ void PlayerProgress::rest(int chapel)
   ++days;
   last_chapel = chapel;
   refill_coffee();
+  // The priest keeps one holy water for whoever rests without any.
+  if (items.count(ItemCatalog::HOLY_WATER) == 0)
+    collect(ItemCatalog::HOLY_WATER);
 }
 
 void PlayerProgress::take_pickup(int id)
@@ -228,6 +253,8 @@ std::string PlayerProgress::to_text() const
   // After the items, so loading finds the outfit already in the bag.
   if (outfit != NO_ITEM)
     out << "wear " << catalog[outfit].key << '\n';
+  if (carried != NO_ITEM)
+    out << "carry " << catalog[carried].key << '\n';
 
   // Parents first, so loading can restore them in the same order.
   machete.visit([&out](const Skill & skill, int depth) {
@@ -320,6 +347,13 @@ bool PlayerProgress::from_text(const std::string & text)
       good = static_cast<bool>(in >> key);
       // Like an item, an outfit that left the catalog is dropped and the game still loads.
       if (good && !loaded.wear(catalog.find(key)) && catalog.find(key) != NO_ITEM)
+        good = false;
+    }
+    else if (word == "carry")
+    {
+      std::string key;
+      good = static_cast<bool>(in >> key);
+      if (good && !loaded.carry(catalog.find(key)) && catalog.find(key) != NO_ITEM)
         good = false;
     }
     else if (word == "skill")
