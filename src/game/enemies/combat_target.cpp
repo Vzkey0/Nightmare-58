@@ -1,8 +1,11 @@
 #include "combat_target.hpp"
 #include <game/ui/stat_bar.hpp>
+#include <game/ui/ui_palette.hpp>
 
 #include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/font.hpp>
 #include <godot_cpp/classes/label3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/method_tweener.hpp>
 #include <godot_cpp/classes/property_tweener.hpp>
 #include <godot_cpp/classes/tween.hpp>
@@ -16,7 +19,7 @@ namespace
 {
 const Vector3 UP(0, 1, 0);
 constexpr float BAR_ABOVE_AIM = 0.9f;
-const Color NUMBER_COLOR(1.f, 0.85f, 0.25f);
+const Color NUMBER_COLOR = UiPalette::JACKET_YELLOW;
 const Color BURN_COLOR(1.f, 0.42f, 0.1f);
 
 constexpr float BAR_SHAKE_PER_DAMAGE = 0.25f; // Pixels.
@@ -24,7 +27,9 @@ constexpr float BAR_SHAKE_FADE = 28.f;
 constexpr float NUMBER_RISE = 0.7f;
 constexpr float NUMBER_TIME = 0.75f;
 constexpr float BAR_TIME = 4.f;
-constexpr float PINNED_TOP = 44.f; // Pixels, leaving room for the boss's name above the bar.
+constexpr float PINNED_TOP = 52.f; // Pixels, leaving room for the boss's name above the bar.
+constexpr float PINNED_DROP = 90.f; // How far above the screen a boss's bar starts its entrance.
+constexpr float PINNED_ENTER_TIME = 0.5f;
 }
 
 void CombatTarget::ready_target()
@@ -53,9 +58,16 @@ void CombatTarget::update_health_bar(float delta)
   const Vector3 anchor = aim_point() + UP * BAR_ABOVE_AIM;
   bar_time = MAX(bar_time - delta, 0.f);
   const bool floating = (targeted || bar_time > 0.f) && camera != nullptr && !camera->is_position_behind(anchor);
-  health_bar->set_visible(pinned_bar ? fighting && !health.dead() : floating);
-  if (!health_bar->is_visible())
+  const bool show = pinned_bar ? fighting && !health.dead() : floating;
+  if (show && !health_bar->is_visible())
+    bar_enter = 1.f;
+  health_bar->set_visible(show);
+  if (!show)
     return;
+  // A boss's bar drops in from above the screen and lands with a small overshoot.
+  bar_enter = MAX(bar_enter - delta / PINNED_ENTER_TIME, 0.f);
+  const float drop = pinned_bar ? bar_enter * bar_enter * PINNED_DROP : 0.f;
+  health_bar->set_modulate(Color(1.f, 1.f, 1.f, 1.f - bar_enter * bar_enter));
 
   const float ratio = health.ratio();
   trail.update(ratio, delta);
@@ -64,7 +76,7 @@ void CombatTarget::update_health_bar(float delta)
   bar_shake = MAX(bar_shake - BAR_SHAKE_FADE * delta, 0.f);
   const Vector2 jitter(UtilityFunctions::randf_range(-bar_shake, bar_shake), UtilityFunctions::randf_range(-bar_shake, bar_shake));
   const Vector2 size = health_bar->get_size();
-  const Vector2 place = pinned_bar ? Vector2((get_viewport()->get_visible_rect().size.x - size.x) * 0.5f, PINNED_TOP)
+  const Vector2 place = pinned_bar ? Vector2((get_viewport()->get_visible_rect().size.x - size.x) * 0.5f, PINNED_TOP - drop)
                                    : camera->unproject_position(anchor) - size * 0.5f;
   health_bar->set_position(place + jitter);
 }
@@ -79,6 +91,8 @@ void CombatTarget::show_damage(int damage, const Color & color)
   number->set_font_size(52);
   number->set_outline_size(14);
   number->set_modulate(color);
+  number->set_outline_modulate(UiPalette::INK);
+  number->set_font(ResourceLoader::get_singleton()->load("res://fonts/Oswald.ttf"));
   const Vector3 start = UP * (aim_height + BAR_ABOVE_AIM) + Vector3(UtilityFunctions::randf_range(-0.3f, 0.3f), -0.35f, 0);
   number->set_position(start);
   number->set_scale(Vector3(1.8f, 1.8f, 1.8f));
@@ -87,7 +101,9 @@ void CombatTarget::show_damage(int damage, const Color & color)
   // Pops in big, jumps up and then fades, while the health bar settles behind it.
   Ref<Tween> tween = create_tween();
   tween->set_parallel(true);
-  tween->tween_property(number, NodePath("scale"), Vector3(1, 1, 1), 0.16);
+  tween->tween_property(number, NodePath("scale"), Vector3(1, 1, 1), 0.16)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
+  number->set_rotation(Vector3(0, 0, UtilityFunctions::randf_range(-0.25f, 0.25f)));
+  tween->tween_property(number, NodePath("rotation:z"), 0.f, 0.22f)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
   tween->tween_property(number, NodePath("position"), start + UP * NUMBER_RISE, NUMBER_TIME)
     ->set_trans(Tween::TRANS_CUBIC)
     ->set_ease(Tween::EASE_OUT);

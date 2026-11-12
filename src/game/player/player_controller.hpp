@@ -1,5 +1,6 @@
 #pragma once
 
+#include <godot_cpp/classes/tween.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
@@ -14,6 +15,8 @@
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
+
+#include <game/ui/key_button.hpp>
 
 #include <core/ai/attack_turns.hpp>
 #include <core/health.hpp>
@@ -122,6 +125,7 @@ private:
   void dealt(int damage);
   void refresh_hud();
   void show_toast(const godot::String & text);
+  void show_lochas(float value);
 
   CombatTarget * locked_target() const;
   float yaw_towards(const godot::Node3D * node) const;
@@ -168,6 +172,10 @@ private:
   godot::Ref<godot::StandardMaterial3D> rage_material;
   godot::Node2D * lock_marker = nullptr;
   godot::Label * lochas_label = nullptr;
+  godot::Label * level_label = nullptr;
+  godot::Ref<godot::Tween> lochas_tween;
+  float lochas_shown = 0.f;
+  int lochas_target = -1; // None yet: the first count is shown at once.
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
   godot::Node3D * cap = nullptr;
@@ -177,7 +185,7 @@ private:
   ThrownMachete * thrown = nullptr;
   godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
-  godot::Label * prompt_label = nullptr;
+  KeyButton * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
   Chapel * nearby_chapel = nullptr;

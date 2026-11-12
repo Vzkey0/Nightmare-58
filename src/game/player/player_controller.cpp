@@ -10,6 +10,7 @@
 #include <game/weapons/thrown_machete.hpp>
 #include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
+#include <game/ui/facet_plate.hpp>
 #include <game/world/save_file.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
@@ -25,6 +26,7 @@
 #include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/method_tweener.hpp>
 #include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -142,6 +144,7 @@ const Color RAGE_FILLING(0.62f, 0.14f, 0.08f);
 const Color RAGE_FULL(1.f, 0.3f, 0.08f);
 const Color RAGE_BURNING(1.f, 0.08f, 0.05f);
 constexpr float RAGE_PULSE = 7.f;
+constexpr float LOCHAS_COUNT_TIME = 0.6f;
 constexpr float RAGE_ALPHA = 0.28f;
 constexpr float RAGE_SHAKE = 0.8f;
 
@@ -205,6 +208,7 @@ void PlayerController::_ready()
   rage_bar = get_node<StatBar>("Hud/Panel/RageBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
   lochas_label = get_node<Label>("Hud/LochasLabel");
+  level_label = get_node<Label>("Hud/Panel/LevelLabel");
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
   cap = get_node<Node3D>("Model/armature_male/Skeleton3D/HeadItem/Cap");
@@ -230,7 +234,7 @@ void PlayerController::_ready()
   coat_material->set_grow_enabled(true);
   coat_material->set_grow(0.004f);
   item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
-  prompt_label = get_node<Label>("Hud/Prompt");
+  prompt_label = get_node<KeyButton>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
   menu->bind(this);
@@ -695,13 +699,13 @@ void PlayerController::pick_up(const String & item_key, int amount, int pickup_i
 void PlayerController::set_nearby_chapel(Chapel * chapel)
 {
   nearby_chapel = chapel;
-  prompt_label->set_text(chapel != nullptr ? "[E]  Capilla" : "");
+  prompt_label->set_text(chapel != nullptr ? "E  Capilla" : "");
 }
 
 void PlayerController::set_nearby_merchant(Merchant * merchant)
 {
   nearby_merchant = merchant;
-  prompt_label->set_text(merchant != nullptr ? "[E]  Bachaquero" : "");
+  prompt_label->set_text(merchant != nullptr ? "E  Bachaquero" : "");
 }
 
 void PlayerController::set_nearby_gate(ShortcutGate * gate)
@@ -710,7 +714,7 @@ void PlayerController::set_nearby_gate(ShortcutGate * gate)
   if (gate == nullptr)
     prompt_label->set_text("");
   else
-    prompt_label->set_text(gate->openable_by(this) ? String::utf8("[E]  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+    prompt_label->set_text(gate->openable_by(this) ? String::utf8("E  Abrir portón") : String::utf8("Cerrado por el otro lado"));
 }
 
 void PlayerController::remember(int id)
@@ -864,6 +868,8 @@ void PlayerController::read_item_input()
   }
   if (input->is_action_just_pressed(inventory_input))
     menu->open(MenuScreen::Inventory);
+  if (input->is_action_just_pressed(interact_input) && prompt_label->get_text().begins_with("E  "))
+    prompt_label->press();
   if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
     menu->open(MenuScreen::Chapel);
   else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
@@ -1178,10 +1184,34 @@ void PlayerController::update_hud(float delta)
 // Only on change: building these strings on each frame would reserve memory for nothing.
 void PlayerController::refresh_hud()
 {
-  lochas_label->set_text(save.endless() ? String::utf8("∞") : String::num_int64(save.lochas()));
+  if (save.endless())
+    lochas_label->set_text(String::utf8("∞"));
+  else if (lochas_target < 0)
+    show_lochas(lochas_target = save.lochas());
+  else if (save.lochas() != lochas_target)
+  {
+    // The count rolls to its new value, and the plaque jumps once to say it changed.
+    lochas_target = save.lochas();
+    if (lochas_tween.is_valid())
+      lochas_tween->kill();
+    lochas_tween = create_tween();
+    lochas_tween->tween_method(callable_mp(this, &PlayerController::show_lochas), lochas_shown, static_cast<float>(lochas_target), LOCHAS_COUNT_TIME)->set_trans(Tween::TRANS_CUBIC)->set_ease(Tween::EASE_OUT);
+    lochas_label->set_pivot_offset(lochas_label->get_size() * 0.5f);
+    Facet::pop(*lochas_label, 1.f);
+  }
+  int level = 1;
+  for (int stat = 0; stat < STAT_COUNT; ++stat)
+    level += save.stats().level(static_cast<Stat>(stat));
+  level_label->set_text(vformat("NV %d", level));
   cap->set_visible(save.worn() == ItemCatalog::CAP);
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
+}
+
+void PlayerController::show_lochas(float value)
+{
+  lochas_shown = value;
+  lochas_label->set_text(String::num_int64(static_cast<int64_t>(Math::round(value))));
 }
 
 void PlayerController::show_toast(const String & text)
