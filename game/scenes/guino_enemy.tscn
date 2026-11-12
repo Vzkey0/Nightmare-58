@@ -5,7 +5,7 @@
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_4.ogg" id="swing_4"]
-[ext_resource type="FontFile" path="res://fonts/Cinzel.ttf" id="cinzel"]
+[ext_resource type="FontFile" path="res://fonts/Oswald.ttf" id="oswald"]
 
 [sub_resource type="AudioStreamRandomizer" id="swing_sound"]
 random_pitch = 1.1
@@ -55,7 +55,7 @@ size = Vector3(0.18, 0.18, 0.18)
 colors = PackedColorArray(0.42, 0.38, 0.33, 0.9, 0.24, 0.22, 0.2, 0)
 
 [sub_resource type="FontVariation" id="title_font"]
-base_font = ExtResource("cinzel")
+base_font = ExtResource("oswald")
 variation_opentype = {
 2003265652: 600
 }
@@ -178,18 +178,30 @@ tip = 10.0
 
 [node name="Name" type="Label" parent="BarLayer/HealthBar"]
 layout_mode = 0
-offset_top = -32.0
-offset_right = 560.0
-offset_bottom = -4.0
-theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
+offset_left = 220.0
+offset_top = -40.0
+offset_right = 340.0
+offset_bottom = -10.0
+theme_override_colors/font_color = Color(0.97, 0.93, 0.83, 1)
 theme_override_fonts/font = SubResource("title_font")
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "Güino"
+uppercase = true
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="BarLayer/HealthBar/Name"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -10.0
+offset_top = -3.0
+offset_right = 10.0
+offset_bottom = 3.0
+mouse_filter = 2
+style = 4
 
 [node name="Swing" type="AudioStreamPlayer" parent="."]
 stream = SubResource("swing_sound")

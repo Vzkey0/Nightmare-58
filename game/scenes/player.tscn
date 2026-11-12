@@ -5,7 +5,8 @@
 [ext_resource type="PackedScene" path="res://models/props/return_candle.glb" id="candle_model"]
 [ext_resource type="Texture2D" path="res://ui/icons/lochas.png" id="lochas_icon"]
 [ext_resource type="Texture2D" path="res://ui/icons/chapel.png" id="chapel_icon"]
-[ext_resource type="FontFile" path="res://fonts/Cinzel.ttf" id="cinzel"]
+[ext_resource type="FontFile" path="res://fonts/Oswald.ttf" id="oswald"]
+[ext_resource type="Theme" path="res://ui/street_theme.tres" id="street_theme"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_1.ogg" id="swing_1"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
 [ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
@@ -128,7 +129,7 @@ radius = 0.3
 height = 1.75
 
 [sub_resource type="FontVariation" id="title_font"]
-base_font = ExtResource("cinzel")
+base_font = ExtResource("oswald")
 variation_opentype = {
 2003265652: 600
 }
@@ -432,14 +433,14 @@ start = 28.0
 
 [node name="MedallionOutline" type="Polygon2D" parent="Hud/Panel"]
 position = Vector2(96, -98)
-color = Color(0.01, 0.015, 0.03, 1)
+color = Color(0.15, 0.09, 0.07, 1)
 polygon = PackedVector2Array(0, -68, 68, 0, 0, 68, -68, 0)
 
 [node name="Medallion" type="Polygon2D" parent="Hud/Panel"]
 position = Vector2(96, -98)
 polygon = PackedVector2Array(0, -64, 64, 0, 0, 0, 64, 0, 0, 64, 0, 0, 0, 64, -64, 0, 0, 0, -64, 0, 0, -64, 0, 0, 0, -54, 54, 0, 0, 0, 54, 0, 0, 54, 0, 0, 0, 54, -54, 0, 0, 0, -54, 0, 0, -54, 0, 0)
 polygons = [PackedInt32Array(0, 1, 2), PackedInt32Array(3, 4, 5), PackedInt32Array(6, 7, 8), PackedInt32Array(9, 10, 11), PackedInt32Array(12, 13, 14), PackedInt32Array(15, 16, 17), PackedInt32Array(18, 19, 20), PackedInt32Array(21, 22, 23)]
-vertex_colors = PackedColorArray(0.45, 0.6, 0.85, 1, 0.45, 0.6, 0.85, 1, 0.45, 0.6, 0.85, 1, 0.18, 0.26, 0.4, 1, 0.18, 0.26, 0.4, 1, 0.18, 0.26, 0.4, 1, 0.3, 0.42, 0.62, 1, 0.3, 0.42, 0.62, 1, 0.3, 0.42, 0.62, 1, 0.7, 0.82, 1, 1, 0.7, 0.82, 1, 1, 0.7, 0.82, 1, 1, 0.07, 0.1, 0.18, 1, 0.07, 0.1, 0.18, 1, 0.07, 0.1, 0.18, 1, 0.035, 0.05, 0.095, 1, 0.035, 0.05, 0.095, 1, 0.035, 0.05, 0.095, 1, 0.05, 0.075, 0.13, 1, 0.05, 0.075, 0.13, 1, 0.05, 0.075, 0.13, 1, 0.1, 0.15, 0.25, 1, 0.1, 0.15, 0.25, 1, 0.1, 0.15, 0.25, 1)
+vertex_colors = PackedColorArray(0.95, 0.72, 0.3, 1, 0.95, 0.72, 0.3, 1, 0.95, 0.72, 0.3, 1, 0.55, 0.37, 0.13, 1, 0.55, 0.37, 0.13, 1, 0.55, 0.37, 0.13, 1, 0.76, 0.53, 0.2, 1, 0.76, 0.53, 0.2, 1, 0.76, 0.53, 0.2, 1, 1, 0.88, 0.55, 1, 1, 0.88, 0.55, 1, 1, 0.88, 0.55, 1, 0.31, 0.5, 0.47, 1, 0.31, 0.5, 0.47, 1, 0.31, 0.5, 0.47, 1, 0.2, 0.34, 0.33, 1, 0.2, 0.34, 0.33, 1, 0.2, 0.34, 0.33, 1, 0.25, 0.42, 0.4, 1, 0.25, 0.42, 0.4, 1, 0.25, 0.42, 0.4, 1, 0.38, 0.58, 0.55, 1, 0.38, 0.58, 0.55, 1, 0.38, 0.58, 0.55, 1)
 
 [node name="ItemSlot" type="ItemSlot" parent="Hud/Panel"]
 layout_mode = 0
@@ -450,10 +451,43 @@ offset_bottom = -52.0
 mouse_filter = 2
 framed = false
 
+[node name="KeepsakeSlot" type="ItemSlot" parent="Hud/Panel"]
+visible = false
+layout_mode = 0
+offset_left = 146.0
+offset_top = -194.0
+offset_right = 198.0
+offset_bottom = -142.0
+mouse_filter = 2
+framed = false
+
+[node name="LevelLabel" type="Label" parent="Hud/Panel"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = -186.0
+offset_right = 132.0
+offset_bottom = -158.0
+theme_override_fonts/font = SubResource("title_font")
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 22
+text = "NV 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Panel/LevelLabel"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -6.0
+offset_top = -3.0
+offset_right = 6.0
+offset_bottom = 3.0
+mouse_filter = 2
+style = 3
+
 [node name="LochasLabel" type="Label" parent="Hud"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = SubResource("title_font")
 anchors_preset = 3
 anchor_left = 1.0
@@ -464,13 +498,13 @@ offset_left = -132.0
 offset_top = -58.0
 offset_right = -36.0
 offset_bottom = -32.0
-theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
 theme_override_font_sizes/font_size = 18
 text = "0"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="Plate" type="MetalPlate" parent="Hud/LochasLabel"]
+[node name="Plate" type="FacetPlate" parent="Hud/LochasLabel"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -481,7 +515,7 @@ offset_top = -3.0
 offset_right = 10.0
 offset_bottom = 3.0
 mouse_filter = 2
-style = 1
+style = 3
 
 [node name="Icon" type="TextureRect" parent="Hud/LochasLabel"]
 layout_mode = 0
@@ -494,26 +528,20 @@ texture_filter = 4
 texture = ExtResource("lochas_icon")
 expand_mode = 1
 
-[node name="Prompt" type="Label" parent="Hud"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
+[node name="Prompt" type="KeyButton" parent="Hud"]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -200.0
-offset_top = -150.0
+offset_top = -158.0
 offset_right = 200.0
-offset_bottom = -110.0
-theme_override_font_sizes/font_size = 24
-horizontal_alignment = 1
+offset_bottom = -112.0
+theme = ExtResource("street_theme")
+align = 1
 
 [node name="Toast" type="Label" parent="Hud"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = SubResource("title_font")
 visible = false
 anchors_preset = 5
@@ -523,11 +551,11 @@ offset_left = -260.0
 offset_top = 60.0
 offset_right = 260.0
 offset_bottom = 104.0
-theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
 theme_override_font_sizes/font_size = 26
 horizontal_alignment = 1
 
-[node name="Plate" type="MetalPlate" parent="Hud/Toast"]
+[node name="Plate" type="FacetPlate" parent="Hud/Toast"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -538,7 +566,7 @@ offset_top = -4.0
 offset_right = 14.0
 offset_bottom = 4.0
 mouse_filter = 2
-style = 1
+style = 3
 
 [node name="DeathScreen" type="ColorRect" parent="Hud"]
 visible = false
@@ -564,6 +592,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Menu" type="GameMenu" parent="Hud"]
+theme = ExtResource("street_theme")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -578,32 +607,52 @@ mouse_filter = 2
 texture = SubResource("menu_shade")
 expand_mode = 1
 
+[node name="Board" type="SkillTreeView" parent="Hud/Menu"]
+visible = false
+layout_mode = 0
+mouse_filter = 2
+
 [node name="Sheet" type="Control" parent="Hud/Menu"]
 layout_mode = 0
 offset_right = 640.0
 offset_bottom = 1080.0
 mouse_filter = 2
 
-[node name="Metal" type="MetalPlate" parent="Hud/Menu/Sheet"]
+[node name="Plaster" type="FacetPlate" parent="Hud/Menu/Sheet"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 22.0
+offset_right = -14.0
+offset_bottom = -22.0
 mouse_filter = 2
 style = 0
+seed = 58
 
 [node name="Title" type="Label" parent="Hud/Menu/Sheet"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = SubResource("title_font")
+uppercase = true
+theme_type_variation = &"TitleLabel"
 layout_mode = 0
-offset_left = 36.0
-offset_top = 56.0
-offset_right = 604.0
-offset_bottom = 112.0
-theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
-theme_override_font_sizes/font_size = 38
+offset_left = 58.0
+offset_top = 50.0
+offset_right = 470.0
+offset_bottom = 116.0
+
+[node name="Header" type="FacetPlate" parent="Hud/Menu/Sheet/Title"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -22.0
+offset_top = -4.0
+offset_right = 22.0
+offset_bottom = 4.0
+mouse_filter = 2
+style = 4
+seed = 7
 
 [node name="TitleIcon" type="TextureRect" parent="Hud/Menu/Sheet"]
 layout_mode = 0
@@ -618,15 +667,16 @@ expand_mode = 1
 
 [node name="TabLeft" type="Label" parent="Hud/Menu/Sheet"]
 layout_mode = 0
-offset_left = 36.0
+offset_left = 84.0
 offset_top = 122.0
-offset_right = 232.0
+offset_right = 234.0
 offset_bottom = 162.0
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabLeft"]
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabLeft"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -643,13 +693,14 @@ style = 2
 layout_mode = 0
 offset_left = 240.0
 offset_top = 122.0
-offset_right = 428.0
+offset_right = 410.0
 offset_bottom = 162.0
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabMiddle"]
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabMiddle"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -664,15 +715,16 @@ style = 1
 
 [node name="TabRight" type="Label" parent="Hud/Menu/Sheet"]
 layout_mode = 0
-offset_left = 436.0
+offset_left = 416.0
 offset_top = 122.0
-offset_right = 604.0
+offset_right = 556.0
 offset_bottom = 162.0
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Plate" type="MetalPlate" parent="Hud/Menu/Sheet/TabRight"]
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabRight"]
 show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
@@ -685,6 +737,34 @@ offset_bottom = 0.0
 mouse_filter = 2
 style = 1
 
+[node name="TabPrev" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 120.0
+offset_right = 80.0
+offset_bottom = 164.0
+text = "Z  "
+
+[node name="TabNext" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 560.0
+offset_top = 120.0
+offset_right = 610.0
+offset_bottom = 164.0
+text = "C  "
+align = 2
+
+[node name="Subtitle" type="Label" parent="Hud/Menu/Sheet"]
+theme_type_variation = &"SignLabel"
+layout_mode = 0
+offset_left = 58.0
+offset_top = 124.0
+offset_right = 470.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 22
+vertical_alignment = 1
+
 [node name="Rule" type="ColorRect" parent="Hud/Menu/Sheet"]
 layout_mode = 0
 offset_left = 36.0
@@ -692,7 +772,22 @@ offset_top = 166.0
 offset_right = 604.0
 offset_bottom = 168.0
 mouse_filter = 2
-color = Color(0.18, 0.26, 0.4, 1)
+color = Color(0.7, 0.36, 0.23, 1)
+
+[node name="Stencil" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 150.0
+offset_top = 520.0
+offset_right = 600.0
+offset_bottom = 900.0
+rotation = -0.08
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.31, 0.5, 0.47, 0.16)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+theme_override_font_sizes/font_size = 300
+text = "+58"
+horizontal_alignment = 2
+vertical_alignment = 1
 
 [node name="Rows" type="VBoxContainer" parent="Hud/Menu/Sheet"]
 theme_override_constants/separation = 8
@@ -715,55 +810,37 @@ theme_override_constants/v_separation = 9
 columns = 5
 
 [node name="ItemName" type="Label" parent="Hud/Menu/Sheet"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = SubResource("title_font")
+theme_type_variation = &"SignLabel"
 layout_mode = 0
 offset_left = 36.0
 offset_top = 548.0
 offset_right = 604.0
 offset_bottom = 592.0
-theme_override_colors/font_color = Color(0.86, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 30
 
 [node name="Detail" type="Label" parent="Hud/Menu/Sheet"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
 layout_mode = 0
 offset_left = 36.0
 offset_top = 596.0
 offset_right = 604.0
 offset_bottom = 700.0
-theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
 theme_override_font_sizes/font_size = 24
 autowrap_mode = 2
 
-[node name="Hints" type="Label" parent="Hud/Menu/Sheet"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
+[node name="Hints" type="KeyButton" parent="Hud/Menu/Sheet"]
 layout_mode = 0
 offset_left = 36.0
-offset_top = 1006.0
+offset_top = 998.0
 offset_right = 400.0
 offset_bottom = 1044.0
-theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
-theme_override_font_sizes/font_size = 22
 
-[node name="HintBack" type="Label" parent="Hud/Menu/Sheet"]
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
+[node name="HintBack" type="KeyButton" parent="Hud/Menu/Sheet"]
 layout_mode = 0
 offset_left = 400.0
-offset_top = 1006.0
-offset_right = 604.0
+offset_top = 998.0
+offset_right = 586.0
 offset_bottom = 1044.0
-theme_override_colors/font_color = Color(0.58, 0.68, 0.82, 1)
-theme_override_font_sizes/font_size = 22
-horizontal_alignment = 2
+align = 2
 
 [node name="LockMarker" type="Polygon2D" parent="Hud"]
 visible = false
