@@ -123,9 +123,9 @@ void Metal::drop_shadow(CanvasItem & canvas, const Rect2 & area)
 
 void Metal::well(CanvasItem & canvas, const Rect2 & area)
 {
-  gradient(canvas, area, UiPalette::WELL_TOP, UiPalette::WELL_BOTTOM, false);
+  gradient(canvas, area, SteelPalette::WELL_TOP, SteelPalette::WELL_BOTTOM, false);
   gradient(canvas, Rect2(area.position, Vector2(area.size.x, area.size.y * 0.16f)), Color(0.f, 0.f, 0.f, 0.6f), CLEAR, false);
-  canvas.draw_rect(area, UiPalette::BORDER, false, 1.f);
+  canvas.draw_rect(area, SteelPalette::BORDER, false, 1.f);
   canvas.draw_line(area.position + Vector2(1.f, area.size.y + 1.f), area.position + area.size + Vector2(0.f, 1.f), Color(SHINE, 0.22f), 1.f);
 }
 
@@ -187,7 +187,7 @@ void MetalPlate::add_title_row(VBoxContainer * list, const String & text, bool i
 
   row->label = add_label(row, text, HORIZONTAL_ALIGNMENT_LEFT, 32);
   row->label->set_offset(SIDE_LEFT, TITLE_ROW_INDENT);
-  row->label->add_theme_color_override("font_shadow_color", UiPalette::TEXT_SHADOW);
+  row->label->add_theme_color_override("font_shadow_color", SteelPalette::TEXT_SHADOW);
   if (disabled)
     row->label->set_modulate(Color(1.f, 1.f, 1.f, 0.35f));
   row->selected = is_selected;
@@ -206,15 +206,15 @@ void MetalPlate::paint()
   if (title_row)
   {
     set_style(selected ? STYLE_LINE : STYLE_NONE);
-    label->add_theme_color_override("font_color", selected ? Color(1.f, 1.f, 1.f) : UiPalette::MUTED);
+    label->add_theme_color_override("font_color", selected ? Color(1.f, 1.f, 1.f) : SteelPalette::MUTED);
     return;
   }
 
   set_style(selected ? STYLE_BRIGHT : STYLE_PLATE);
   for (Label * side : {label, value_label})
   {
-    side->add_theme_color_override("font_color", selected ? UiPalette::ON_BRIGHT : UiPalette::HIGHLIGHT);
-    side->add_theme_color_override("font_shadow_color", selected ? Color(1.f, 1.f, 1.f, 0.3f) : UiPalette::TEXT_SHADOW);
+    side->add_theme_color_override("font_color", selected ? SteelPalette::ON_BRIGHT : SteelPalette::HIGHLIGHT);
+    side->add_theme_color_override("font_shadow_color", selected ? Color(1.f, 1.f, 1.f, 0.3f) : SteelPalette::TEXT_SHADOW);
   }
 }
 
@@ -254,7 +254,7 @@ void MetalPlate::_draw()
     return;
   if (style == STYLE_LINE)
   {
-    Metal::gradient(*this, Rect2(TITLE_ROW_INDENT - 12.f, area.size.y - 8.f, area.size.x - TITLE_ROW_INDENT + 12.f, 2.f), Color(1.f, 1.f, 1.f, 0.9f), Color(UiPalette::ICE, 0.2f), true);
+    Metal::gradient(*this, Rect2(TITLE_ROW_INDENT - 12.f, area.size.y - 8.f, area.size.x - TITLE_ROW_INDENT + 12.f, 2.f), Color(1.f, 1.f, 1.f, 0.9f), Color(SteelPalette::ICE, 0.2f), true);
     return;
   }
   if (style == STYLE_SHEET)

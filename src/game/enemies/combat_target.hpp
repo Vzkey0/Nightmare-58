@@ -45,5 +45,6 @@ private:
   StatBar * health_bar = nullptr;
   float bar_shake = 0.f;
   float bar_time = 0.f; // Left to show the bar after a hit.
+  float bar_enter = 0.f; // 1 as a bar appears, down to 0 once it has landed.
   bool targeted = false;
 };

@@ -10,6 +10,9 @@
 #include <game/enemies/guino_enemy.hpp>
 #include <game/enemies/rat_enemy.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/facet_plate.hpp>
+#include <game/ui/key_button.hpp>
+#include <game/ui/skill_tree_view.hpp>
 #include <game/ui/metal_plate.hpp>
 #include <game/ui/game_menu.hpp>
 #include <game/ui/item_slot.hpp>
@@ -44,6 +47,9 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(GameMenu);
     GDREGISTER_RUNTIME_CLASS(ItemSlot);
     GDREGISTER_RUNTIME_CLASS(MetalPlate);
+    GDREGISTER_RUNTIME_CLASS(FacetPlate);
+    GDREGISTER_RUNTIME_CLASS(KeyButton);
+    GDREGISTER_RUNTIME_CLASS(SkillTreeView);
     GDREGISTER_RUNTIME_CLASS(TitleScreen);
     GDREGISTER_RUNTIME_CLASS(Chapel);
     GDREGISTER_RUNTIME_CLASS(Merchant);

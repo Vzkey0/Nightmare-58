@@ -54,6 +54,30 @@ static void test_skill_tree()
   assert(!tree.is_unlocked(3));
 }
 
+static void test_skill_layout()
+{
+  // Machete: Filo -> II -> III, Grasa -> Fuego / Hielo, Técnica -> Lanzar / Arrechera.
+  const SkillTree tree = make_machete_tree();
+  const Designar::DynArray<SkillSlot> slots = tree.layout();
+  assert(slots.size() == MacheteSkill::COUNT);
+  assert(slots[0].id == MacheteSkill::MACHETE && slots[0].branch == -1 && slots[0].unlocked);
+
+  auto find = [&](int id) {
+    for (Designar::nat_t i = 0; i < slots.size(); ++i)
+      if (slots[i].id == id)
+        return slots[i];
+    assert(false);
+    return slots[0];
+  };
+  assert(find(MacheteSkill::EDGE_1).branch == 0 && find(MacheteSkill::EDGE_3).depth == 3);
+  assert(find(MacheteSkill::EDGE_3).parent == MacheteSkill::EDGE_2);
+  assert(find(MacheteSkill::FIRE).branch == 1 && find(MacheteSkill::FIRE).column == 0.f);
+  assert(find(MacheteSkill::ICE).column == 1.f);
+  assert(find(MacheteSkill::GREASE).column == 0.5f); // Centered over Fuego and Hielo.
+  assert(find(MacheteSkill::RAGE).branch == 2 && find(MacheteSkill::RAGE).cost == 160);
+  assert(!find(MacheteSkill::RAGE).unlocked);
+}
+
 static BehaviorTree::AttackQueue make_attacks(int id)
 {
   BehaviorTree::AttackQueue attacks;
@@ -934,6 +958,25 @@ static void test_raising_a_stat()
   assert(progress.stats().level(Stat::Power) == 2);
 }
 
+static void test_stat_branches()
+{
+  PlayerProgress progress;
+  progress.earn(10000);
+  assert(!progress.raise(Stat::Regeneration, Zone::Avenue)); // Needs the first level of Vida.
+  assert(progress.raise(Stat::Health, Zone::Avenue));
+  assert(progress.raise(Stat::Regeneration, Zone::Avenue));
+  assert(progress.stats().opened(Stat::Speed) == false && progress.stats().opened(Stat::Power));
+
+  // Hero, then per branch: lead I, its levels II..V and the follower I..V hanging from lead I.
+  const Designar::DynArray<SkillSlot> slots = PlayerStats::tree().layout();
+  assert(slots.size() == 1 + STAT_COUNT * PlayerStats::MAX_LEVEL);
+  assert(slots[1].id == PlayerStats::node(Stat::Health, 1) && slots[1].column == 0.5f);
+  assert(slots[2].id == PlayerStats::node(Stat::Health, 2) && slots[2].column == 0.f);
+  assert(slots[6].id == PlayerStats::node(Stat::Regeneration, 1) && slots[6].parent == slots[1].id && slots[6].column == 1.f);
+  assert(slots[11].branch == 1 && PlayerStats::stat_of(slots[11].id) == Stat::Stamina);
+  assert(PlayerStats::level_of(PlayerStats::node(Stat::Power, 4)) == 4);
+}
+
 static void test_exchange_rate()
 {
   assert(exchange_rate(0) == 100);
@@ -1050,7 +1093,7 @@ static void test_save_round_trip()
 {
   PlayerProgress saved;
   saved.earn(500);
-  saved.raise(Stat::Regeneration, Zone::Avenue);
+  saved.raise(Stat::Power, Zone::Avenue);
   saved.collect(ItemCatalog::COFFEE);
   saved.collect(ItemCatalog::CANDLE, 2);
   saved.collect(ItemCatalog::instance().find("family_photo"));
@@ -1066,7 +1109,7 @@ static void test_save_round_trip()
   assert(loaded.day() == 1);
   assert(loaded.chapel() == 2);
   assert(loaded.coffee_capacity() == PlayerProgress::START_COFFEE + 1);
-  assert(loaded.stats().level(Stat::Regeneration) == 1);
+  assert(loaded.stats().level(Stat::Power) == 1);
   assert(loaded.inventory().count(ItemCatalog::COFFEE) == PlayerProgress::START_COFFEE + 1);
   assert(loaded.inventory().count(ItemCatalog::CANDLE) == 2);
   assert(loaded.inventory().order(ItemCatalog::CANDLE) == saved.inventory().order(ItemCatalog::CANDLE));
@@ -1525,6 +1568,7 @@ int main()
   assert(classify_distance(5.f, 3.f, 8.f) == DistanceRange::Medium);
   assert(classify_distance(9.f, 3.f, 8.f) == DistanceRange::Far);
   test_skill_tree();
+  test_skill_layout();
   test_behavior_tree_priorities();
   test_behavior_tree_rotation();
   test_behavior_tree_empty_queues();
@@ -1558,6 +1602,7 @@ int main()
   test_loot_table();
   test_player_stats();
   test_raising_a_stat();
+  test_stat_branches();
   test_exchange_rate();
   test_inflation_by_zone();
   test_coffee_capacity();
