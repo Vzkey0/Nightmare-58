@@ -59,6 +59,13 @@ implementarse.
 - **Medición:** No aplica
 - **Conclusión:** `MTreeNode` refleja la jerarquía real, admite cualquier cantidad de
   hijos y es de DeSiGNAR. Con pocas habilidades, buscar en `O(n)` es suficiente
+- **Uso en la interfaz:** las pantallas del machete y de estadísticas dibujan el árbol tal como
+  está en memoria. `SkillTree::layout` recorre el `MTreeNode` en preorden (por cada hijo,
+  `get_first_child` y luego `get_right_sibling`) y devuelve un `DynArray<SkillSlot>` con la
+  profundidad, la rama, el padre y el estado de cada habilidad. `SkillTreeView` saca de ahí
+  la posición de cada medalla, en profundidad y columna, y la línea hacia su padre. Si se
+  agrega una habilidad al árbol, aparece en pantalla sin tocar la interfaz. Recorrer el árbol
+  es `O(n)` y solo se hace al abrir el menú o al aprender una habilidad
 
 ## J-002: Árbol de comportamiento con `MTreeNode`
 
