@@ -1,0 +1,44 @@
+[gd_resource type="Theme" load_steps=5 format=3]
+
+[ext_resource type="FontFile" path="res://fonts/Inter.ttf" id="inter"]
+[ext_resource type="FontFile" path="res://fonts/Oswald.ttf" id="oswald"]
+
+[sub_resource type="FontVariation" id="sign_heavy"]
+base_font = ExtResource("oswald")
+variation_opentype = {
+2003265652: 650
+}
+spacing_glyph = 1
+
+[sub_resource type="FontVariation" id="sign_medium"]
+base_font = ExtResource("oswald")
+variation_opentype = {
+2003265652: 500
+}
+
+[resource]
+default_font = ExtResource("inter")
+default_font_size = 24
+Label/colors/font_color = Color(0.15, 0.09, 0.07, 1)
+Label/colors/font_shadow_color = Color(0, 0, 0, 0)
+Label/font_sizes/font_size = 24
+TitleLabel/base_type = &"Label"
+TitleLabel/colors/font_color = Color(0.97, 0.93, 0.83, 1)
+TitleLabel/colors/font_shadow_color = Color(0.1, 0.06, 0.05, 0.85)
+TitleLabel/constants/shadow_offset_x = 3
+TitleLabel/constants/shadow_offset_y = 3
+TitleLabel/constants/shadow_outline_size = 0
+TitleLabel/font_sizes/font_size = 44
+TitleLabel/fonts/font = SubResource("sign_heavy")
+SignLabel/base_type = &"Label"
+SignLabel/font_sizes/font_size = 28
+SignLabel/fonts/font = SubResource("sign_medium")
+HudLabel/base_type = &"Label"
+HudLabel/colors/font_color = Color(0.97, 0.93, 0.83, 1)
+HudLabel/colors/font_shadow_color = Color(0.1, 0.06, 0.05, 0.85)
+HudLabel/constants/shadow_offset_x = 2
+HudLabel/constants/shadow_offset_y = 2
+HudLabel/constants/shadow_outline_size = 0
+HintLabel/base_type = &"Label"
+HintLabel/colors/font_color = Color(0.97, 0.93, 0.83, 1)
+HintLabel/font_sizes/font_size = 22

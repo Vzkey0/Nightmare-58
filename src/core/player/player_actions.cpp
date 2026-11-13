@@ -1,28 +1,99 @@
 #include <core/player/player_actions.hpp>
 
+#include <algorithm>
+
 const ActionTiming & PlayerActions::timing(PlayerAction action)
 {
-  static constexpr ActionTiming DODGE{0.8f, 0.53f, 0.6f};
-  static constexpr ActionTiming ATTACK{1.f, 0.63f, 0.73f, 0.33f, 0.57f, 20};
-  static constexpr ActionTiming JUMP{0.33f, 0.12f, 0.33f};
+  static constexpr ActionTiming NONE{0.f, 0.f, 0.f};
+  static constexpr ActionTiming DODGE{0.77f, 0.5f, 0.57f, 0.f, 0.f, 0, 0.f, 0.47f, 20.f};
+  static constexpr ActionTiming ATTACK{0.8f, 0.45f, 0.55f, 0.17f, 0.37f, 20, 0.37f, 0.f, 14.f};
+  static constexpr ActionTiming ATTACK_2{0.87f, 0.5f, 0.6f, 0.12f, 0.36f, 22, 0.36f, 0.f, 14.f};
+  static constexpr ActionTiming ATTACK_3{1.33f, 0.85f, 0.95f, 0.4f, 0.52f, 30, 0.55f, 0.47f, 22.f};
+  static constexpr ActionTiming ROLL_ATTACK{0.8f, 0.5f, 0.6f, 0.17f, 0.33f, 24, 0.33f, 0.f, 16.f};
+  static constexpr ActionTiming RUN_ATTACK{1.f, 0.62f, 0.72f, 0.15f, 0.37f, 26, 0.4f, 0.f, 20.f};
+  static constexpr ActionTiming HEAVY_ATTACK{1.2f, 0.85f, 0.95f, 0.37f, 0.55f, 42, 0.6f, 0.53f, 30.f};
+  static constexpr ActionTiming JUMP{0.33f, 0.12f, 0.33f, 0.f, 0.f, 0, 0.f, 0.f, 10.f};
   // Past its duration on purpose: the clip must end before another air attack restarts it.
-  static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f, 0.23f, 0.43f, 30};
+  static constexpr ActionTiming AIR_ATTACK{0.7f, 0.75f, 0.7f, 0.23f, 0.43f, 30, 0.f, 0.f, 16.f};
+  static constexpr ActionTiming HURT{0.5f, 0.35f, 0.45f};
+  // A commitment: a blow during the first half loses the item, as in the souls games.
+  static constexpr ActionTiming USE_ITEM{0.9f, 0.9f, 0.9f, 0.f, 0.f, 0, 0.5f, 0.45f};
+  // Only revive() ends it.
+  static constexpr ActionTiming DEAD{1e9f, 1e9f, 1e9f};
+  // Its ground_hit is the release: the thrown weapon does the hitting, so the window stays empty.
+  static constexpr ActionTiming THROW{0.7f, 0.55f, 0.6f, 0.f, 0.f, 0, 0.4f, 0.3f, 18.f};
+  static constexpr ActionTiming CATCH{0.4f, 0.25f, 0.25f};
 
   switch (action)
   {
+    case PlayerAction::HeavyAttack:
+      return HEAVY_ATTACK;
+    case PlayerAction::Hurt:
+      return HURT;
+    case PlayerAction::Dead:
+      return DEAD;
     case PlayerAction::Attack:
       return ATTACK;
+    case PlayerAction::Attack2:
+      return ATTACK_2;
+    case PlayerAction::Attack3:
+      return ATTACK_3;
+    case PlayerAction::RollAttack:
+      return ROLL_ATTACK;
+    case PlayerAction::RunAttack:
+      return RUN_ATTACK;
     case PlayerAction::Jump:
       return JUMP;
     case PlayerAction::AirAttack:
       return AIR_ATTACK;
-    default:
+    case PlayerAction::Dodge:
       return DODGE;
+    case PlayerAction::UseItem:
+      return USE_ITEM;
+    case PlayerAction::Throw:
+      return THROW;
+    case PlayerAction::Catch:
+      return CATCH;
+    default:
+      return NONE;
   }
+}
+
+float PlayerActions::step_scale(float gap, float clip_step)
+{
+  return std::clamp(gap / clip_step, MIN_STEP_SCALE, MAX_STEP_SCALE);
+}
+
+PlayerActions::PlayerActions()
+{
+  combo.append(PlayerAction::Attack);
+  combo.append(PlayerAction::Attack2);
+  combo.append(PlayerAction::Attack3);
+}
+
+PlayerAction PlayerActions::next_attack() const
+{
+  bool found = false;
+  for (const PlayerAction step : combo)
+  {
+    if (found)
+      return step;
+    found = step == last_step;
+  }
+  return combo.get_first();
+}
+
+float PlayerActions::interrupt_time(PlayerAction pressed) const
+{
+  const ActionTiming & current_timing = timing(action);
+  const bool dodge_early = pressed == PlayerAction::Dodge && current_timing.dodge_cancel > 0.f;
+  return dodge_early ? current_timing.dodge_cancel : current_timing.next_action;
 }
 
 void PlayerActions::press(PlayerAction pressed)
 {
+  if (pressed == PlayerAction::Dodge)
+    buffer.clear();
   if (buffer.is_full())
     buffer.get();
   buffer.put(Press{pressed, clock});
@@ -41,6 +112,31 @@ void PlayerActions::update_dodge_button(bool held, float delta)
   button_held = held;
 }
 
+void PlayerActions::interrupt(PlayerAction forced)
+{
+  buffer.clear();
+  action = forced;
+  last_step = PlayerAction::None;
+  action_time = 0.f;
+}
+
+void PlayerActions::revive()
+{
+  interrupt(PlayerAction::None);
+  stamina.restore();
+  weapon_out = false;
+}
+
+bool PlayerActions::catch_weapon()
+{
+  weapon_out = false;
+  if (action != PlayerAction::None)
+    return false;
+  action = PlayerAction::Catch;
+  action_time = 0.f;
+  return true;
+}
+
 bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
 {
   clock += delta;
@@ -48,14 +144,35 @@ bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
 
   while (!buffer.is_empty() && clock - buffer.front().time > BUFFER_TIME)
     buffer.get();
+  while (!buffer.is_empty() && weapon_out && needs_weapon(buffer.front().action))
+    buffer.get();
 
   const bool free = action == PlayerAction::None;
-  if (!buffer.is_empty() && (free || action_time >= timing(action).next_action) &&
+  const bool draining = free && wants_to_move && grounded && sprinting() && held_time >= TAP_TIME;
+  if (draining)
+    stamina.spend(SPRINT_COST * delta);
+  stamina.update(delta, free && !draining);
+
+  if (!buffer.is_empty() && stamina.can_act() && (free || action_time >= interrupt_time(buffer.front().action)) &&
       (grounded || buffer.front().action == PlayerAction::Attack))
   {
     const PlayerAction next = buffer.get().action;
-    action = next == PlayerAction::Attack && !grounded ? PlayerAction::AirAttack : next;
+    if (next != PlayerAction::Attack)
+    {
+      if (next != PlayerAction::Dodge)
+        last_step = PlayerAction::None;
+      action = next;
+    }
+    else if (!grounded)
+      action = PlayerAction::AirAttack;
+    else if (action == PlayerAction::Dodge)
+      action = PlayerAction::RollAttack;
+    else if (free && wants_to_move && sprinting() && held_time >= TAP_TIME)
+      action = PlayerAction::RunAttack;
+    else
+      action = last_step = next_attack();
     action_time = 0.f;
+    stamina.spend(timing(action).stamina_cost);
     return true;
   }
 
@@ -64,7 +181,10 @@ bool PlayerActions::update(float delta, bool wants_to_move, bool grounded)
     const ActionTiming & current_timing = timing(action);
     if (action_time >= current_timing.duration ||
         (wants_to_move && action_time >= current_timing.move_cancel))
+    {
       action = PlayerAction::None;
+      last_step = PlayerAction::None;
+    }
   }
   return false;
 }

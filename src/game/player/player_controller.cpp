@@ -1,0 +1,1446 @@
+#include "player_controller.hpp"
+#include <game/enemies/combat_target.hpp>
+#include <game/ui/game_menu.hpp>
+#include <game/ui/stat_bar.hpp>
+#include <game/weapons/weapon_trail.hpp>
+#include <game/world/chapel.hpp>
+#include <game/world/lost_lochas.hpp>
+#include <game/world/merchant.hpp>
+#include <game/world/shortcut_gate.hpp>
+#include <game/weapons/thrown_machete.hpp>
+#include <game/ui/game_settings.hpp>
+#include <game/ui/item_slot.hpp>
+#include <game/ui/facet_plate.hpp>
+#include <game/world/save_file.hpp>
+
+#include <godot_cpp/classes/animation_library.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/input.hpp>
+#include <godot_cpp/classes/input_event_mouse_motion.hpp>
+#include <godot_cpp/classes/physics_direct_space_state3d.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/physics_ray_query_parameters3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/scene_tree_timer.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/method_tweener.hpp>
+#include <godot_cpp/classes/world3d.hpp>
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/core/math.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
+
+using namespace godot;
+
+namespace
+{
+const Vector3 UP(0, 1, 0);
+const Vector3 MODEL_FORWARD(0, 0, 1);
+const Vector3 MODEL_RIGHT(1, 0, 0);
+constexpr float PI = static_cast<float>(Math::PI);
+
+constexpr float GRAVITY = 18.f;
+constexpr float JUMP_SPEED = 6.3f; // About 1.1 m high.
+constexpr float AIR_CONTROL = 6.f;
+constexpr float COYOTE_TIME = 0.1f;
+constexpr float LAND_TIME = 0.4f;
+constexpr float SPRINT_SPEED = 6.8f; // Must match the sprint clip in animate_protagonist.py.
+constexpr float WALK_SPEED = 1.9f;   // Same, for the walk clip.
+constexpr float ACCELERATION = 20.f;
+constexpr float DECELERATION = 26.f;
+constexpr float RUN_THRESHOLD = 0.4f;
+constexpr float MIN_STRIDE_SPEED = 0.55f;
+constexpr float MAX_WALK_STRIDE = 1.7f; // A half push walks faster than the clip's own speed.
+constexpr float MIN_PUSH = 0.1f;
+constexpr float FULL_PUSH = 0.7f;   // Below this, a stick walks instead of running.
+constexpr float BRAKE_SPEED = 0.6f; // Share of the run speed that needs a stop or a turn clip.
+constexpr float REVERSE_DOT = -0.3f;
+constexpr float ITEM_WALK_SPEED = 1.f; // A slow shuffle while drinking or using any item.
+constexpr float WALK_SLIDE_ANGLE = 0.26f; // Godot's default.
+constexpr float ATTACK_SLIDE_ANGLE = 1.2f; // An attack's step stops at a target instead of rounding it.
+
+constexpr float TURN_RATE = 11.f;
+constexpr float ACTION_TURN_RATE = 34.f;
+constexpr float ACTION_TURN_TIME = 0.12f;
+constexpr float LEAN_PER_TURN = 0.05f;
+constexpr float TILT_PER_ACCELERATION = 0.012f;
+constexpr float MAX_LEAN = 0.14f;
+constexpr float LEAN_RATE = 9.f;
+
+constexpr float BLEND_TO_RUN = 0.15f;
+constexpr float BLEND_TO_IDLE = 0.24f;
+constexpr float BLEND_TO_DODGE = 0.05f;
+constexpr float BLEND_TO_ATTACK = 0.09f;
+constexpr float BLEND_TO_FALL = 0.25f;
+constexpr float BLEND_TO_LAND = 0.05f;
+constexpr float BLEND_TO_FLOURISH = 0.07f;
+
+constexpr float RUN_START_TIME = 0.33f;
+constexpr float RUN_STOP_TIME = 0.5f;
+constexpr float RUN_TURN_TIME = 0.43f;
+
+constexpr float MAGNET_RANGE = 4.5f;
+constexpr float MAGNET_COS = 0.25f;  // About 75 degrees to each side of the input.
+constexpr float STRIKE_REACH = 1.1f; // How far from a target a blow should end its step.
+
+constexpr float CAMERA_HEIGHT = 1.5f;
+constexpr float CAMERA_FOLLOW = 11.f;
+constexpr float CAMERA_STICK_SPEED = 2.8f;
+constexpr float CAMERA_MIN_PITCH = -1.05f;
+constexpr float CAMERA_MAX_PITCH = 0.6f;
+
+constexpr float HITSTOP_PER_DAMAGE = 0.0027f;
+constexpr float HITSTOP_TIME_SCALE = 0.02f; // Not 0: the shake divides by it to stay in real time.
+constexpr float SHAKE_PER_DAMAGE = 0.03f;
+constexpr float SHAKE_SIZE = 0.13f;
+constexpr float SHAKE_FADE = 3.5f;
+constexpr float SLAM_SHAKE = 0.7f;
+constexpr float KICK_FOV = 6.f;
+constexpr float KICK_FADE = 5.f;
+
+constexpr float BLADE_HALF = 0.475f; // Half of the Hitbox capsule in player.tscn.
+constexpr float WHIRL_START = 0.12f; // The third blow's overhead spin, before its hit window.
+
+constexpr int HEAVY_DAMAGE = 24; // From here on, a blow uses the heavy swing sound.
+
+constexpr float HURT_PUSH = 4.f;
+constexpr float RESPAWN_TIME = 3.f;
+constexpr float DEATH_FADE = 0.6f;
+
+constexpr int COFFEE_HEAL = 45;
+constexpr float HALLACA_TIME = 20.f;
+constexpr float HALLACA_REGEN = 3.f; // Health per second after the full heal.
+constexpr float PAPELON_TIME = 30.f;
+constexpr float PAPELON_BREATH = 1.5f;
+constexpr float HOLY_DAMAGE = 1.25f; // Against the "unholy" group: skeletons and the legends.
+constexpr float TOAST_TIME = 2.5f;
+
+constexpr float LOCK_SPEED = 2.2f; // Must match LOCK_SPEED in animate_protagonist.py.
+constexpr float LOCK_RANGE = 12.f;
+constexpr float LOCK_BREAK_RANGE = 16.f;
+constexpr float LOCK_VIEW_ANGLE = 1.05f;
+constexpr float LOCK_HIDDEN_TIME = 1.f;
+constexpr float LOCK_CAMERA_FOLLOW = 9.f;
+constexpr float LOCK_CAMERA_PITCH = -0.2f; // Over the shoulder, so the player stays in view.
+constexpr float LOCK_MIN_CAMERA_GAP = 0.8f; // Closer than this, the direction spins too fast.
+constexpr float LOCK_PITCH_MIN_GAP = 4.f;   // Up close, the camera would stare at the floor.
+constexpr float LOCK_FLICK = 140.f; // Pixels.
+constexpr float LOCK_FLICK_FADE = 8.f;
+constexpr float LOCK_STICK_FLICK = 0.75f;
+constexpr float LOCK_STICK_REST = 0.3f;
+constexpr uint32_t LEVEL_MASK = 1;
+
+constexpr float HUD_BASE_HEIGHT = 1080.f; // The HUD's sizes in player.tscn are for this height.
+const Color HEALTH_HIGH(0.12f, 0.9f, 0.34f);
+const Color HEALTH_MID(1.f, 0.74f, 0.12f);
+const Color HEALTH_LOW(1.f, 0.46f, 0.08f);
+const Color HEALTH_CRITICAL(0.9f, 0.1f, 0.15f);
+const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
+const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
+const Color FIRE_COAT(1.f, 0.38f, 0.05f);
+const Color ICE_COAT(0.45f, 0.85f, 1.f);
+const Color HOLY_COAT(1.f, 0.92f, 0.62f);
+constexpr float COAT_ALPHA = 0.55f;
+constexpr float COAT_GLOW = 2.2f;
+constexpr float COAT_PULSE = 9.f;     // Radians per second.
+constexpr float COAT_WARNING = 0.1f;  // Of the minute left: the coat starts to flicker.
+const Color RAGE_FILLING(0.62f, 0.14f, 0.08f);
+const Color RAGE_FULL(1.f, 0.3f, 0.08f);
+const Color RAGE_BURNING(1.f, 0.08f, 0.05f);
+constexpr float RAGE_PULSE = 7.f;
+constexpr float LOCHAS_COUNT_TIME = 0.6f;
+constexpr float RAGE_ALPHA = 0.28f;
+constexpr float RAGE_SHAKE = 0.8f;
+
+constexpr float STEP_VOLUME_WALK = -13.f;
+constexpr float STEP_VOLUME_RUN = -7.f;
+constexpr float STEP_VOLUME_SPRINT = -3.f;
+
+float damp(float rate, float delta)
+{
+  return 1.f - Math::exp(-rate * delta);
+}
+
+const Color & health_color(float ratio)
+{
+  if (ratio > 0.6f)
+    return HEALTH_HIGH;
+  if (ratio > 0.35f)
+    return HEALTH_MID;
+  return ratio > 0.15f ? HEALTH_LOW : HEALTH_CRITICAL;
+}
+}
+
+void PlayerController::_bind_methods()
+{
+  ClassDB::bind_method(D_METHOD("get_run_speed"), &PlayerController::get_run_speed);
+  ClassDB::bind_method(D_METHOD("set_run_speed", "value"), &PlayerController::set_run_speed);
+  ClassDB::bind_method(D_METHOD("get_mouse_sensitivity"), &PlayerController::get_mouse_sensitivity);
+  ClassDB::bind_method(D_METHOD("set_mouse_sensitivity", "value"), &PlayerController::set_mouse_sensitivity);
+  ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "run_speed"), "set_run_speed", "get_run_speed");
+  ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "mouse_sensitivity"), "set_mouse_sensitivity", "get_mouse_sensitivity");
+}
+
+void PlayerController::_enter_tree()
+{
+  add_to_group("player");
+  SaveFile::read(save);
+}
+
+void PlayerController::_ready()
+{
+  spawn_point = get_global_position();
+  model = get_node<Node3D>("Model");
+  camera_pivot = get_node<Node3D>("CameraPivot");
+  camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
+  animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
+  hitbox = get_node<ShapeCast3D>("Model/armature_male/Skeleton3D/WeaponBone/Hitbox");
+  trail = get_node<WeaponTrail>("WeaponTrail");
+  dust = get_node<CPUParticles3D>("Dust");
+  swing_sound = get_node<AudioStreamPlayer>("Sounds/Swing");
+  heavy_swing_sound = get_node<AudioStreamPlayer>("Sounds/HeavySwing");
+  hit_sound = get_node<AudioStreamPlayer>("Sounds/Hit");
+  slam_sound = get_node<AudioStreamPlayer>("Sounds/Slam");
+  roll_sound = get_node<AudioStreamPlayer>("Sounds/Roll");
+  roll_land_sound = get_node<AudioStreamPlayer>("Sounds/RollLand");
+  step_sound = get_node<AudioStreamPlayer>("Sounds/Step");
+  GameSettings::load();
+  hud_panel = get_node<Control>("Hud/Panel");
+  death_screen = get_node<Control>("Hud/DeathScreen");
+  health_bar = get_node<StatBar>("Hud/Panel/HealthBar");
+  stamina_bar = get_node<StatBar>("Hud/Panel/StaminaBar");
+  rage_bar = get_node<StatBar>("Hud/Panel/RageBar");
+  lock_marker = get_node<Node2D>("Hud/LockMarker");
+  lochas_label = get_node<Label>("Hud/LochasLabel");
+  level_label = get_node<Label>("Hud/Panel/LevelLabel");
+  cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
+  candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
+  cap = get_node<Node3D>("Model/armature_male/Skeleton3D/HeadItem/Cap");
+  machete = Object::cast_to<MeshInstance3D>(model->find_child("machete", true, false));
+  weapon_bone = get_node<Node3D>("Model/armature_male/Skeleton3D/WeaponBone");
+  body_mesh = Object::cast_to<MeshInstance3D>(model->find_child("protagonist_male", true, false));
+  // ponytail: a red glow over the whole body stands in for the Arrechera until it gets its own art.
+  rage_material.instantiate();
+  rage_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+  rage_material->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+  rage_material->set_feature(BaseMaterial3D::FEATURE_EMISSION, true);
+  rage_material->set_emission(RAGE_BURNING);
+  // The mesh is skinned at the weapon bone's rest: undoing that rest places it in the bone's frame.
+  Skeleton3D * skeleton = get_node<Skeleton3D>("Model/armature_male/Skeleton3D");
+  machete_from_bone = skeleton->get_bone_global_rest(skeleton->find_bone("weapon")).affine_inverse() * machete->get_transform();
+  // The cap is laid out in the body's axes (up and forward); this undoes the head bone's own turn.
+  cap->set_basis(skeleton->get_bone_global_rest(skeleton->find_bone("head")).basis.inverse());
+  // ponytail: a glowing overlay stands in for the grease until it gets its own art.
+  coat_material.instantiate();
+  coat_material->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+  coat_material->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+  coat_material->set_feature(BaseMaterial3D::FEATURE_EMISSION, true);
+  coat_material->set_grow_enabled(true);
+  coat_material->set_grow(0.004f);
+  item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
+  keepsake_slot = get_node<ItemSlot>("Hud/Panel/KeepsakeSlot");
+  prompt_label = get_node<KeyButton>("Hud/Prompt");
+  toast_label = get_node<Label>("Hud/Toast");
+  menu = get_node<GameMenu>("Hud/Menu");
+  menu->bind(this);
+  base_fov = camera->get_fov();
+
+  // The scene places the player with a rotation; it moves to the model and the camera.
+  facing_yaw = target_yaw = get_rotation().y;
+  camera_yaw = facing_yaw + PI;
+  set_rotation(Vector3());
+  model->set_rotation(Vector3(0, facing_yaw, 0));
+  camera_focus = get_global_position() + UP * CAMERA_HEIGHT;
+
+  // Declared as the root motion track only so the bone stays out of the mixed pose.
+  const NodePath root_path("armature_male/Skeleton3D:root");
+  animator->set_root_motion_track(root_path);
+  dodge_animation = animator->get_animation(dodge_clip[0]);
+  dodge_root_track = dodge_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  for (int step = 0; step < ATTACK_CLIPS; ++step)
+  {
+    attack_animation[step] = animator->get_animation(attack_clip[step]);
+    attack_root_track[step] = attack_animation[step]->find_track(root_path, Animation::TYPE_POSITION_3D);
+  }
+  roll_attack_animation = animator->get_animation(attack_roll_clip);
+  roll_attack_root_track = roll_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  run_attack_animation = animator->get_animation(attack_run_clip);
+  run_attack_root_track = run_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+  heavy_attack_animation = animator->get_animation(attack_heavy_clip);
+  heavy_attack_root_track = heavy_attack_animation->find_track(root_path, Animation::TYPE_POSITION_3D);
+
+  Ref<AnimationLibrary> clips = animator->get_animation_library("");
+  clips->add_animation(dodge_clip[1], dodge_animation);
+
+  play(idle_clip, 0.f);
+  Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_CAPTURED);
+
+  apply_stats();
+  health.restore();
+  place_at_saved_chapel();
+  refresh_hud();
+  // Deferred: the scene is still adding its children, and refuses a new one.
+  callable_mp(this, &PlayerController::drop_lochas).call_deferred();
+}
+
+void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
+{
+  Input * input = Input::get_singleton();
+  const bool captured = input->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED;
+
+  if (event->is_action_pressed("pause"))
+  {
+    menu->open(MenuScreen::Pause);
+    return;
+  }
+
+  const InputEventMouseMotion * motion = Object::cast_to<InputEventMouseMotion>(*event);
+  if (motion == nullptr || !captured)
+    return;
+  if (locked_target() != nullptr)
+  {
+    lock_flick += motion->get_relative().x;
+    return;
+  }
+  const float sensitivity = mouse_sensitivity * GameSettings::mouse_scale();
+  camera_yaw -= motion->get_relative().x * sensitivity;
+  camera_pitch -= motion->get_relative().y * sensitivity;
+}
+
+void PlayerController::_process(double delta)
+{
+  update_camera(static_cast<float>(delta));
+  update_hud(static_cast<float>(delta));
+}
+
+void PlayerController::_physics_process(double delta_time)
+{
+  const float delta = static_cast<float>(delta_time);
+  Input * input = Input::get_singleton();
+
+  // The world keeps going behind a menu, as in the souls games; only the player stops.
+  const bool free_hands = !menu->holds_input();
+  const Vector2 stick = free_hands ? input->get_vector(move_left, move_right, move_forward, move_back) : Vector2();
+  const Vector3 wish = Vector3(stick.x, 0, stick.y).rotated(UP, camera_yaw);
+  const bool wants_to_move = wish.length_squared() > 0.01f;
+
+  // A short grace period, so a small step down does not count as falling.
+  const bool on_floor = is_on_floor();
+  const bool landed = on_floor && air_time >= COYOTE_TIME;
+  air_time = on_floor ? 0.f : air_time + delta;
+  const bool grounded = air_time < COYOTE_TIME;
+
+  actions.update_dodge_button(free_hands && input->is_action_pressed(dodge_input), delta);
+  if (free_hands)
+  {
+    if (input->is_action_just_pressed(jump_input))
+      actions.press(PlayerAction::Jump);
+    if (input->is_action_just_pressed(attack_input))
+      actions.press(PlayerAction::Attack);
+    if (input->is_action_just_pressed(heavy_attack_input))
+      actions.press(PlayerAction::HeavyAttack);
+    read_item_input();
+  }
+
+  update_lock(delta);
+  turns.update(delta);
+  update_progress(delta);
+  update_coat(delta);
+  update_rage(delta);
+
+  // A higher attack rate runs the swing's own clock faster, so its timing keeps the same shape.
+  const bool swinging = actions.stepping_attack() || actions.current() == PlayerAction::AirAttack;
+  const float action_delta = swinging ? delta * save.stats().attack_rate() : delta;
+
+  const bool started = actions.update(action_delta, wants_to_move, grounded);
+  if (started)
+    start_action(wish);
+
+  if (actions.hitting())
+    hit_targets();
+  update_weapon_effects(action_delta);
+  if (actions.current() == PlayerAction::UseItem && actions.hit_ground(delta))
+    use_item();
+  if (actions.current() == PlayerAction::Throw && actions.hit_ground(delta))
+    launch_machete();
+
+  const PlayerAction action = actions.current();
+  const bool attacking = actions.stepping_attack();
+  if (action != PlayerAction::UseItem)
+  {
+    cup->set_visible(false);
+    candle->set_visible(false);
+  }
+  const bool stunned = action == PlayerAction::Hurt || action == PlayerAction::Dead;
+  const CombatTarget * locked = locked_target();
+  const bool strafing = locked != nullptr && !actions.sprinting();
+
+  if (action == PlayerAction::Dead)
+  {
+    respawn_time -= delta;
+    if (respawn_time <= 0.f)
+      respawn();
+  }
+
+  if (landed)
+    step_sound->play();
+  if (landed && !started && action == PlayerAction::None && !wants_to_move)
+  {
+    land_time = LAND_TIME;
+    play(land_clip, BLEND_TO_LAND);
+    animator->set_speed_scale(1.f);
+  }
+
+  Vector3 velocity = get_velocity();
+  velocity.y = 0.f;
+
+  if (action == PlayerAction::Dodge || attacking)
+    velocity = Vector3(root_motion_step(action_delta)).rotated(UP, facing_yaw) * step_scale / delta;
+  else if (action == PlayerAction::UseItem)
+  {
+    // ponytail: the drink clip's legs stand still, so the feet slide; an upper-body layer would fix it.
+    velocity = velocity.move_toward(wish * ITEM_WALK_SPEED, (wants_to_move ? ACCELERATION : DECELERATION) * delta);
+    if (locked != nullptr)
+      target_yaw = yaw_towards(locked); // Backing off with a coffee keeps the eyes on the enemy.
+    else if (wants_to_move)
+      target_yaw = Math::atan2(wish.x, wish.z);
+  }
+  else if ((action == PlayerAction::AirAttack && grounded) || stunned || action == PlayerAction::Throw ||
+           action == PlayerAction::Catch)
+    velocity = velocity.move_toward(Vector3(), DECELERATION * delta);
+  else
+  {
+    const float scale = save.stats().speed_scale();
+    const float top_speed = actions.sprinting() ? SPRINT_SPEED * scale : (strafing ? LOCK_SPEED : run_speed * scale);
+    if (air_time < COYOTE_TIME && action != PlayerAction::Jump)
+      velocity = velocity.move_toward(wish * top_speed, (wants_to_move ? ACCELERATION : DECELERATION) * delta);
+    else
+      // Keeps a sprint's momentum through the jump instead of braking to run speed.
+      velocity = velocity.move_toward(wish * MAX(velocity.length(), run_speed), AIR_CONTROL * delta);
+    if (wants_to_move && action != PlayerAction::AirAttack)
+      target_yaw = Math::atan2(wish.x, wish.z);
+    if (strafing && action != PlayerAction::AirAttack)
+      target_yaw = yaw_towards(locked);
+    if (action == PlayerAction::None)
+    {
+      const bool reversing = wants_to_move && velocity.dot(wish) < REVERSE_DOT * velocity.length() * wish.length();
+      update_locomotion_clip(velocity.length(), grounded, wish.length(), reversing, strafing ? strafe_clip_for(velocity) : StringName(), delta);
+    }
+  }
+
+  const float speed = velocity.length();
+  vertical_speed = on_floor && vertical_speed <= 0.f ? 0.f : vertical_speed - GRAVITY * delta;
+  velocity.y = vertical_speed;
+  set_velocity(velocity);
+  set_wall_min_slide_angle(attacking ? ATTACK_SLIDE_ANGLE : WALK_SLIDE_ANGLE);
+  move_and_slide();
+
+  turn_model(delta, speed);
+}
+
+void PlayerController::start_action(const Vector3 & wish)
+{
+  if (wish.length_squared() > 0.01f)
+    target_yaw = Math::atan2(wish.x, wish.z);
+
+  land_time = 0.f;
+  flourish_time = 0.f;
+  step_scale = 1.f;
+  animator->set_speed_scale(1.f);
+  current_clip = StringName(); // An action always starts its clip over, even the one running.
+  chain = 1 - chain;
+  hitbox->clear_exceptions();
+
+  switch (actions.current())
+  {
+    case PlayerAction::Dodge:
+      play(dodge_clip[chain], BLEND_TO_DODGE);
+      motion_animation = dodge_animation;
+      motion_track = dodge_root_track;
+      kick_dust(get_global_position());
+      roll_sound->play();
+      break;
+    case PlayerAction::Attack:
+    case PlayerAction::Attack2:
+    case PlayerAction::Attack3:
+      play(attack_clip[actions.combo_step()], BLEND_TO_ATTACK);
+      motion_animation = attack_animation[actions.combo_step()];
+      motion_track = attack_root_track[actions.combo_step()];
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::RollAttack:
+      play(attack_roll_clip, BLEND_TO_ATTACK);
+      motion_animation = roll_attack_animation;
+      motion_track = roll_attack_root_track;
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::RunAttack:
+      play(attack_run_clip, BLEND_TO_ATTACK);
+      motion_animation = run_attack_animation;
+      motion_track = run_attack_root_track;
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::HeavyAttack:
+      play(attack_heavy_clip, BLEND_TO_ATTACK);
+      motion_animation = heavy_attack_animation;
+      motion_track = heavy_attack_root_track;
+      bend_towards_target(wish);
+      break;
+    case PlayerAction::UseItem:
+      item_in_use = save.quick_slots().current();
+      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
+        play(grease_clip, BLEND_TO_DODGE);
+      else
+        play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
+      cup->set_visible(item_in_use == ItemCatalog::COFFEE);
+      candle->set_visible(item_in_use == ItemCatalog::CANDLE);
+      save.inventory().remove(item_in_use);
+      refresh_hud();
+      return;
+    case PlayerAction::Throw:
+      play(throw_clip, BLEND_TO_ATTACK);
+      if (locked_target() != nullptr)
+        target_yaw = yaw_towards(locked_target());
+      break;
+    case PlayerAction::Jump:
+      vertical_speed = JUMP_SPEED;
+      air_time = COYOTE_TIME;
+      play(jump_clip, BLEND_TO_DODGE);
+      break;
+    default:
+      play(attack_air_clip, BLEND_TO_ATTACK);
+      break;
+  }
+
+  if (actions.stepping_attack() || actions.current() == PlayerAction::AirAttack)
+    animator->set_speed_scale(save.stats().attack_rate());
+}
+
+void PlayerController::bend_towards_target(const Vector3 & wish)
+{
+  // A locked target wins over the direction pushed and over anyone closer: that blow is aimed at it.
+  const CombatTarget * locked = locked_target();
+  Vector3 closest;
+  float distance = MAGNET_RANGE;
+  if (locked != nullptr)
+  {
+    target_yaw = yaw_towards(locked);
+    closest = (locked->get_global_position() - get_global_position()).slide(UP);
+    distance = closest.length();
+    if (distance >= MAGNET_RANGE)
+      return;
+  }
+  else
+  {
+    const Vector3 heading = wish.length_squared() > 0.01f ? wish.normalized() : MODEL_FORWARD.rotated(UP, facing_yaw);
+    const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+    for (int i = 0; i < targets.size(); ++i)
+    {
+      const Vector3 offset = (Object::cast_to<Node3D>(targets[i])->get_global_position() - get_global_position()).slide(UP);
+      const float length = offset.length();
+      if (length < distance && offset.dot(heading) > MAGNET_COS * length)
+      {
+        closest = offset;
+        distance = length;
+      }
+    }
+    if (distance == MAGNET_RANGE)
+      return;
+  }
+
+  target_yaw = Math::atan2(closest.x, closest.z);
+  const float clip_step = motion_animation->position_track_interpolate(motion_track, motion_animation->get_length()).length();
+  step_scale = PlayerActions::step_scale(distance - STRIKE_REACH, clip_step);
+}
+
+void PlayerController::hit_targets()
+{
+  // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
+  hitbox->force_shapecast_update();
+  const float blow = PlayerActions::timing(actions.current()).damage * blow_scale();
+  for (int i = 0; i < hitbox->get_collision_count(); ++i)
+  {
+    CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
+    if (target != nullptr)
+    {
+      const int damage = blow_on(target, blow);
+      target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
+      coat_target(target);
+      dealt(damage);
+      feel_hit(damage);
+      hit_sound->play();
+    }
+    // Skipped until the next action, so one swing hits a target once.
+    hitbox->add_exception_rid(hitbox->get_collider_rid(i));
+  }
+}
+
+void PlayerController::update_weapon_effects(float delta)
+{
+  const PlayerAction action = actions.current();
+  const Transform3D blade = hitbox->get_global_transform();
+  const Vector3 tip = blade.xform(Vector3(0, BLADE_HALF, 0));
+  const bool whirling = action == PlayerAction::Attack3 && actions.elapsed() >= WHIRL_START &&
+                        actions.elapsed() < PlayerActions::timing(action).hit_end;
+  if (whirling || actions.hitting())
+    trail->add_sample(blade.origin, tip);
+
+  const ActionTiming & timing = PlayerActions::timing(action);
+  const float time = actions.elapsed();
+  if (time >= timing.hit_start && time - delta < timing.hit_start && timing.hit_end > timing.hit_start)
+    (timing.damage >= HEAVY_DAMAGE ? heavy_swing_sound : swing_sound)->play();
+  if (action == PlayerAction::Attack3 && time >= WHIRL_START && time - delta < WHIRL_START)
+    heavy_swing_sound->play();
+
+  if (!actions.hit_ground(delta) || action == PlayerAction::UseItem || action == PlayerAction::Throw)
+    return;
+  if (action == PlayerAction::Dodge)
+  {
+    kick_dust(get_global_position());
+    roll_land_sound->play();
+    return;
+  }
+  kick_dust(Vector3(tip.x, get_global_position().y, tip.z));
+  slam_sound->play();
+  camera_shake = MIN(camera_shake + SLAM_SHAKE, 1.f);
+  camera_kick = 1.f;
+}
+
+void PlayerController::kick_dust(const Vector3 & where)
+{
+  dust->set_global_position(where);
+  dust->restart();
+}
+
+void PlayerController::feel_hit(int damage)
+{
+  camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE, 1.f);
+
+  Engine::get_singleton()->set_time_scale(HITSTOP_TIME_SCALE);
+  Ref<SceneTreeTimer> timer = get_tree()->create_timer(damage * HITSTOP_PER_DAMAGE, true, false, true);
+  timer->connect("timeout", callable_mp(this, &PlayerController::end_hitstop));
+}
+
+void PlayerController::end_hitstop()
+{
+  Engine::get_singleton()->set_time_scale(1.0);
+}
+
+void PlayerController::take_hit(int raw_damage, const Vector3 & attacker)
+{
+  if (actions.invulnerable())
+    return;
+  const int damage = Math::round(raw_damage * rage.damage_taken_scale());
+  if (save.has_skill(MacheteSkill::RAGE))
+    rage.take(damage);
+
+  const Vector3 away = (get_global_position() - attacker).slide(UP).normalized();
+  target_yaw = Math::atan2(-away.x, -away.z);
+  set_velocity(away * HURT_PUSH);
+  land_time = 0.f;
+  flourish_time = 0.f;
+  animator->set_speed_scale(1.f);
+  feel_hit(damage);
+  hit_sound->play();
+
+  health.damage(damage);
+  if (health.dead())
+  {
+    actions.die();
+    release_lock();
+    respawn_time = RESPAWN_TIME;
+    coat.clear();
+    rage.reset();
+    feast_time = 0.f;
+    sweet_time = 0.f;
+    drop_thrown_machete();
+    play(death_clip, BLEND_TO_DODGE);
+    clear_dropped_lochas();
+    const Vector3 where = get_global_position();
+    save.die(where.x, where.y, where.z);
+    SaveFile::write(save);
+    refresh_hud();
+    return;
+  }
+  actions.hurt();
+  play(hurt_clip, BLEND_TO_DODGE);
+}
+
+void PlayerController::respawn()
+{
+  set_global_position(spawn_point);
+  set_velocity(Vector3());
+  health.restore();
+  actions.revive();
+  ++respawns;
+  play(idle_clip, BLEND_TO_IDLE);
+  save.refill_coffee();
+  SaveFile::write(save);
+  drop_lochas(); // Only now: at the place of death it would hand them straight back.
+  refresh_hud();
+}
+
+void PlayerController::earn(int lochas)
+{
+  save.earn(save.bounty(lochas));
+  SaveFile::write(save);
+  refresh_hud();
+}
+
+void PlayerController::pick_up(const String & item_key, int amount, int pickup_id)
+{
+  const ItemId item = ItemCatalog::instance().find(item_key.utf8().get_data());
+  if (item == NO_ITEM)
+  {
+    UtilityFunctions::push_warning("A pickup names an unknown item: ", item_key);
+    return;
+  }
+  const int kept = save.collect(item, amount);
+  save.take_pickup(pickup_id);
+  SaveFile::write(save);
+  refresh_hud();
+  const String name = String::utf8(ItemCatalog::instance()[item].name);
+  show_toast(kept > 0 ? vformat("%s  x%d", name, kept) : vformat(String::utf8("%s al máximo"), name));
+}
+
+void PlayerController::set_nearby_chapel(Chapel * chapel)
+{
+  nearby_chapel = chapel;
+  prompt_label->set_text(chapel != nullptr ? "E  Capilla" : "");
+}
+
+void PlayerController::set_nearby_merchant(Merchant * merchant)
+{
+  nearby_merchant = merchant;
+  prompt_label->set_text(merchant != nullptr ? "E  Bachaquero" : "");
+}
+
+void PlayerController::set_nearby_gate(ShortcutGate * gate)
+{
+  nearby_gate = gate;
+  if (gate == nullptr)
+    prompt_label->set_text("");
+  else
+    prompt_label->set_text(gate->openable_by(this) ? String::utf8("E  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+}
+
+void PlayerController::remember(int id)
+{
+  save.take_pickup(id);
+  SaveFile::write(save);
+}
+
+Zone PlayerController::merchant_zone() const
+{
+  return nearby_merchant != nullptr ? nearby_merchant->zone_kind() : Zone::Avenue;
+}
+
+bool PlayerController::buy(ItemId item)
+{
+  if (!save.buy(item, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::learn(int skill)
+{
+  if (!save.learn(skill, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::wear(ItemId item)
+{
+  if (!save.wear(item))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::carry(ItemId item)
+{
+  if (!save.carry(item))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::sell(ItemId item)
+{
+  if (!save.sell(item, merchant_zone()))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+void PlayerController::rest()
+{
+  save.rest(nearby_chapel->get_chapel_id());
+  drop_thrown_machete(); // revive() below puts the machete back in the hand.
+  spawn_point = nearby_chapel->respawn_point();
+  health.restore();
+  actions.revive();
+  ++respawns;
+  SaveFile::write(save);
+  refresh_hud();
+}
+
+void PlayerController::recover_lochas()
+{
+  clear_dropped_lochas();
+  const int recovered = save.recover();
+  SaveFile::write(save);
+  refresh_hud();
+  show_toast(vformat("%d lochas recuperadas", recovered));
+}
+
+bool PlayerController::raise_stat(Stat stat)
+{
+  if (!save.raise(stat, chapel_zone()))
+    return false;
+  apply_stats();
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+Zone PlayerController::chapel_zone() const
+{
+  return nearby_chapel != nullptr ? nearby_chapel->zone_kind() : Zone::Avenue;
+}
+
+void PlayerController::freeze_inflation(Zone zone)
+{
+  save.freeze_inflation(zone);
+  SaveFile::write(save);
+}
+
+void PlayerController::apply_stats()
+{
+  health.set_maximum(save.stats().max_health());
+}
+
+void PlayerController::place_at_saved_chapel()
+{
+  const TypedArray<Node> chapels = get_tree()->get_nodes_in_group("chapels");
+  for (int i = 0; i < chapels.size(); ++i)
+  {
+    const Chapel * chapel = Object::cast_to<Chapel>(chapels[i]);
+    if (chapel->get_chapel_id() != save.chapel())
+      continue;
+    spawn_point = chapel->respawn_point();
+    set_global_position(spawn_point);
+    camera_focus = spawn_point + UP * CAMERA_HEIGHT;
+    return;
+  }
+}
+
+void PlayerController::drop_lochas()
+{
+  if (!save.has_death_mark())
+    return;
+
+  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/lost_lochas.tscn");
+  dropped_lochas = Object::cast_to<LostLochas>(scene->instantiate());
+  const DeathMark & mark = save.death_mark();
+  get_parent()->add_child(dropped_lochas);
+  dropped_lochas->set_global_position(Vector3(mark.x, mark.y, mark.z));
+}
+
+void PlayerController::clear_dropped_lochas()
+{
+  if (dropped_lochas == nullptr)
+    return;
+  dropped_lochas->queue_free();
+  dropped_lochas = nullptr;
+}
+
+void PlayerController::read_item_input()
+{
+  Input * input = Input::get_singleton();
+  const bool alive = !health.dead();
+
+  if (input->is_action_just_pressed(next_item_input))
+  {
+    save.quick_slots().next(save.inventory());
+    refresh_hud();
+  }
+  if (input->is_action_just_pressed(throw_input) && save.has_skill(MacheteSkill::THROW) && !actions.weapon_away())
+    actions.press(PlayerAction::Throw);
+  if (input->is_action_just_pressed(rage_input) && save.has_skill(MacheteSkill::RAGE) && alive && rage.activate())
+  {
+    show_toast(String::utf8("¡Arrechera!"));
+    camera_shake = MIN(camera_shake + RAGE_SHAKE, 1.f);
+    camera_kick = 1.f;
+    slam_sound->play();
+  }
+  if (input->is_action_just_pressed(inventory_input))
+    menu->open(MenuScreen::Inventory);
+  if (input->is_action_just_pressed(interact_input) && prompt_label->get_text().begins_with("E  "))
+    prompt_label->press();
+  if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
+    menu->open(MenuScreen::Chapel);
+  else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
+    menu->open(MenuScreen::Shop);
+  else if (input->is_action_just_pressed(interact_input) && nearby_gate != nullptr && alive)
+    nearby_gate->open(*this);
+
+  const ItemId item = save.quick_slots().current();
+  if (input->is_action_just_pressed(use_item_input) && item != NO_ITEM && save.inventory().count(item) > 0)
+    actions.press(PlayerAction::UseItem);
+}
+
+void PlayerController::use_item()
+{
+  if (item_in_use == ItemCatalog::COFFEE)
+    health.heal(COFFEE_HEAL);
+  else if (item_in_use == ItemCatalog::CANDLE)
+  {
+    set_global_position(spawn_point);
+    set_velocity(Vector3());
+    release_lock();
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
+  {
+    const Status kind = item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn
+                      : item_in_use == ItemCatalog::ICE_GREASE ? Status::Chill : Status::Holy;
+    coat.apply(kind); // Replaces whatever coat was on: one at a time.
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::HALLACA)
+  {
+    health.restore();
+    feast_time = HALLACA_TIME;
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::PAPELON)
+  {
+    actions.refill_stamina();
+    sweet_time = PAPELON_TIME;
+    SaveFile::write(save);
+  }
+  item_in_use = NO_ITEM;
+}
+
+void PlayerController::launch_machete()
+{
+  // At the locked target's chest, or straight ahead at the height of the hand.
+  const CombatTarget * locked = locked_target();
+  const Vector3 from = weapon_bone->get_global_position();
+  const Vector3 direction = locked != nullptr ? locked->aim_point() - from
+                                              : MODEL_FORWARD.rotated(UP, facing_yaw);
+  thrown = memnew(ThrownMachete);
+  get_parent()->add_child(thrown);
+  thrown->launch(this, machete, machete_from_bone, hitbox, weapon_bone, direction);
+  machete->set_visible(false);
+  actions.release_weapon();
+  heavy_swing_sound->play();
+}
+
+void PlayerController::throw_hit(CombatTarget * target, const Vector3 & point)
+{
+  const int damage = blow_on(target, ThrownWeapon::DAMAGE * blow_scale() * save.throw_scale());
+  target->take_hit(damage, get_global_position(), point);
+  coat_target(target);
+  dealt(damage);
+  // No hitstop: the blow lands away from the player, who is not the one feeling it.
+  camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE * 0.5f, 1.f);
+  hit_sound->play();
+}
+
+void PlayerController::catch_machete()
+{
+  thrown = nullptr;
+  machete->set_visible(true);
+  if (!actions.catch_weapon())
+    return;
+  current_clip = StringName();
+  play(catch_clip, BLEND_TO_DODGE);
+  animator->set_speed_scale(1.f);
+  swing_sound->play();
+}
+
+// On death the machete is simply back in the hand: the flight would outlive the player.
+void PlayerController::drop_thrown_machete()
+{
+  if (thrown != nullptr)
+    thrown->queue_free();
+  thrown = nullptr;
+  machete->set_visible(true);
+}
+
+// Every bonus a blow carries, from the chapel, the bachaquero and the Arrechera.
+float PlayerController::blow_scale() const
+{
+  return save.stats().damage_scale() * save.machete_damage_scale() * save.outfit_damage_scale() * rage.damage_dealt_scale();
+}
+
+int PlayerController::blow_on(const CombatTarget * target, float damage) const
+{
+  const bool blessed = coat.active() && coat.kind() == Status::Holy && target->is_in_group("unholy");
+  return Math::round(blessed ? damage * HOLY_DAMAGE : damage);
+}
+
+void PlayerController::coat_target(CombatTarget * target) const
+{
+  if (coat.active() && coat.kind() != Status::Holy)
+    target->apply_status(coat.kind());
+}
+
+void PlayerController::dealt(int damage)
+{
+  if (save.has_skill(MacheteSkill::RAGE))
+    rage.deal(damage);
+}
+
+void PlayerController::update_rage(float delta)
+{
+  rage.update(delta);
+  if (body_mesh == nullptr)
+    return;
+  if (!rage.active())
+  {
+    body_mesh->set_material_overlay(Ref<Material>());
+    return;
+  }
+  const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+  const float pulse = 0.6f + 0.4f * Math::sin(clock * RAGE_PULSE);
+  rage_material->set_albedo(Color(RAGE_BURNING.r, RAGE_BURNING.g, RAGE_BURNING.b, RAGE_ALPHA * pulse));
+  rage_material->set_emission_energy_multiplier(1.5f * pulse);
+  body_mesh->set_material_overlay(rage_material);
+}
+
+void PlayerController::update_coat(float delta)
+{
+  coat.update(delta);
+  if (machete == nullptr)
+    return;
+  if (!coat.active())
+  {
+    machete->set_material_overlay(Ref<Material>());
+    return;
+  }
+  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : coat.kind() == Status::Chill ? ICE_COAT : HOLY_COAT;
+  // A slow pulse while it lasts, and a flicker in its last seconds.
+  const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+  const float pulse = 0.75f + 0.25f * Math::sin(clock * COAT_PULSE);
+  const bool fading = coat.ratio() < COAT_WARNING;
+  const float shown = fading && Math::sin(clock * COAT_PULSE * 3.f) < 0.f ? 0.25f : 1.f;
+  coat_material->set_albedo(Color(color.r, color.g, color.b, COAT_ALPHA * pulse * shown));
+  coat_material->set_emission(color);
+  coat_material->set_emission_energy_multiplier(COAT_GLOW * pulse);
+  machete->set_material_overlay(coat_material);
+}
+
+void PlayerController::update_progress(float delta)
+{
+  if (health.dead())
+    return;
+
+  feast_time = MAX(feast_time - delta, 0.f);
+  sweet_time = MAX(sweet_time - delta, 0.f);
+  actions.set_stamina_regen(save.stamina_regen_scale() * (sweet_time > 0.f ? PAPELON_BREATH : 1.f));
+
+  regen_carry += (save.stats().regen_per_second() + (feast_time > 0.f ? HALLACA_REGEN : 0.f)) * delta;
+  const int whole = static_cast<int>(regen_carry);
+  if (whole > 0)
+  {
+    regen_carry -= whole;
+    health.heal(whole);
+  }
+}
+
+CombatTarget * PlayerController::locked_target() const
+{
+  return Object::cast_to<CombatTarget>(ObjectDB::get_instance(lock_id));
+}
+
+float PlayerController::yaw_towards(const Node3D * node) const
+{
+  const Vector3 offset = node->get_global_position() - get_global_position();
+  return Math::atan2(offset.x, offset.z);
+}
+
+bool PlayerController::sees(const CombatTarget * target) const
+{
+  const Vector3 from = get_global_position() + UP * CAMERA_HEIGHT;
+  const Vector3 to = target->aim_point();
+  const Dictionary hit = get_world_3d()->get_direct_space_state()->intersect_ray(PhysicsRayQueryParameters3D::create(from, to, LEVEL_MASK));
+  return hit.is_empty() || static_cast<uint64_t>(hit["collider_id"]) == target->get_instance_id();
+}
+
+float PlayerController::view_side(const CombatTarget * target) const
+{
+  const Vector3 offset = (target->get_global_position() - camera_focus).slide(UP);
+  return Math::wrapf(Math::atan2(-offset.x, -offset.z) - camera_yaw, -PI, PI);
+}
+
+void PlayerController::gather_lock_candidates()
+{
+  lock_candidates.clear();
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  for (int i = 0; i < targets.size(); ++i)
+  {
+    const CombatTarget * target = Object::cast_to<CombatTarget>(targets[i]);
+    if (target == nullptr || target->is_down())
+      continue;
+    const float distance = target->get_global_position().distance_to(camera_focus);
+    const float side = view_side(target);
+    if (distance < LOCK_RANGE && Math::abs(side) < LOCK_VIEW_ANGLE)
+      lock_candidates.add(LockCandidate{i, distance, side});
+  }
+  lock_candidates.sort();
+}
+
+void PlayerController::lock_nearest()
+{
+  gather_lock_candidates();
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  for (int i = 0; i < lock_candidates.size(); ++i)
+  {
+    CombatTarget * target = Object::cast_to<CombatTarget>(targets[lock_candidates[i].id]);
+    if (sees(target))
+    {
+      lock_onto(target);
+      return;
+    }
+  }
+}
+
+void PlayerController::lock_onto(CombatTarget * target)
+{
+  release_lock();
+  lock_id = target->get_instance_id();
+  target->set_targeted(true);
+}
+
+void PlayerController::switch_lock(int direction)
+{
+  gather_lock_candidates();
+  const int next = lock_candidates.next_to(view_side(locked_target()), direction);
+  if (next == LockOnList::NONE)
+    return;
+  const TypedArray<Node> targets = get_tree()->get_nodes_in_group("targets");
+  CombatTarget * target = Object::cast_to<CombatTarget>(targets[next]);
+  if (sees(target))
+    lock_onto(target);
+}
+
+void PlayerController::release_lock()
+{
+  CombatTarget * target = locked_target();
+  if (target != nullptr)
+    target->set_targeted(false);
+  lock_id = 0;
+  lock_hidden_time = 0.f;
+  lock_flick = 0.f;
+}
+
+void PlayerController::update_lock(float delta)
+{
+  Input * input = Input::get_singleton();
+  if (input->is_action_just_pressed(lock_input) && actions.current() != PlayerAction::Dead)
+  {
+    if (locked_target() != nullptr)
+      release_lock();
+    else
+      lock_nearest();
+  }
+
+  const CombatTarget * target = locked_target();
+  if (target == nullptr)
+    return;
+
+  lock_hidden_time = sees(target) ? 0.f : lock_hidden_time + delta;
+  if (target->is_down() || lock_hidden_time > LOCK_HIDDEN_TIME ||
+      target->get_global_position().distance_to(get_global_position()) > LOCK_BREAK_RANGE)
+  {
+    release_lock();
+    return;
+  }
+
+  const float stick = input->get_axis(camera_left, camera_right);
+  const bool stick_flicked = stick_centered && Math::abs(stick) > LOCK_STICK_FLICK;
+  stick_centered = Math::abs(stick) < LOCK_STICK_REST || (stick_centered && !stick_flicked);
+  lock_flick = Math::lerp(lock_flick, 0.f, damp(LOCK_FLICK_FADE, delta));
+  if (stick_flicked || Math::abs(lock_flick) > LOCK_FLICK)
+  {
+    const float push = stick_flicked ? stick : lock_flick;
+    lock_flick = 0.f;
+    switch_lock(push > 0.f ? -1 : 1);
+  }
+}
+
+void PlayerController::update_hud(float delta)
+{
+  const float scale = get_viewport()->get_visible_rect().size.y / HUD_BASE_HEIGHT;
+  hud_panel->set_scale(Vector2(scale, scale));
+
+  const bool dead = health.dead();
+  death_screen->set_visible(dead);
+  if (dead)
+  {
+    const float appear = MIN((RESPAWN_TIME - respawn_time) / DEATH_FADE, 1.f);
+    death_screen->set_modulate(Color(1.f, 1.f, 1.f, appear * MIN(respawn_time / DEATH_FADE, 1.f)));
+  }
+
+  health_trail.update(health.ratio(), delta);
+  health_bar->set_values(health.ratio(), health_trail.value());
+  health_bar->set_fill_color(health_color(health.ratio()));
+  stamina_bar->set_values(actions.stamina_ratio(), 0.f);
+  stamina_bar->set_fill_color(actions.winded() ? STAMINA_WINDED : STAMINA_READY);
+  // Shown once learned. Full, it throbs to say it is ready; burning, it glows as it drains.
+  rage_bar->set_visible(save.has_skill(MacheteSkill::RAGE));
+  if (rage_bar->is_visible())
+  {
+    const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
+    const float throb = 0.5f + 0.5f * Math::sin(clock * RAGE_PULSE);
+    rage_bar->set_values(rage.ratio(), 0.f);
+    if (rage.active())
+      rage_bar->set_fill_color(RAGE_BURNING.lerp(Color(1, 1, 1), 0.25f * throb));
+    else
+      rage_bar->set_fill_color(rage.full() ? RAGE_FULL.lerp(Color(1, 0.9f, 0.5f), throb) : RAGE_FILLING);
+  }
+
+  prompt_label->set_visible(!menu->is_open());
+  lochas_label->set_visible(!menu->is_open());
+  if (toast_time > 0.f)
+  {
+    toast_time -= delta;
+    toast_label->set_visible(toast_time > 0.f);
+  }
+
+  const CombatTarget * target = locked_target();
+  const Vector3 aim = target != nullptr ? target->aim_point() : Vector3();
+  lock_marker->set_visible(target != nullptr && !camera->is_position_behind(aim));
+  if (lock_marker->is_visible())
+    lock_marker->set_position(camera->unproject_position(aim));
+}
+
+// Only on change: building these strings on each frame would reserve memory for nothing.
+void PlayerController::refresh_hud()
+{
+  if (save.endless())
+    lochas_label->set_text(String::utf8("∞"));
+  else if (lochas_target < 0)
+    show_lochas(lochas_target = save.lochas());
+  else if (save.lochas() != lochas_target)
+  {
+    // The count rolls to its new value, and the plaque jumps once to say it changed.
+    lochas_target = save.lochas();
+    if (lochas_tween.is_valid())
+      lochas_tween->kill();
+    lochas_tween = create_tween();
+    lochas_tween->tween_method(callable_mp(this, &PlayerController::show_lochas), lochas_shown, static_cast<float>(lochas_target), LOCHAS_COUNT_TIME)->set_trans(Tween::TRANS_CUBIC)->set_ease(Tween::EASE_OUT);
+    lochas_label->set_pivot_offset(lochas_label->get_size() * 0.5f);
+    Facet::pop(*lochas_label, 1.f);
+  }
+  int level = 1;
+  for (int stat = 0; stat < STAT_COUNT; ++stat)
+    level += save.stats().level(static_cast<Stat>(stat));
+  level_label->set_text(vformat("NV %d", level));
+  cap->set_visible(save.worn() == ItemCatalog::CAP);
+  const ItemId item = save.quick_slots().current();
+  item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
+  keepsake_slot->set_visible(save.keepsake() != NO_ITEM);
+  keepsake_slot->show_item(save.keepsake(), -1, false);
+}
+
+void PlayerController::show_lochas(float value)
+{
+  lochas_shown = value;
+  lochas_label->set_text(String::num_int64(static_cast<int64_t>(Math::round(value))));
+}
+
+void PlayerController::show_toast(const String & text)
+{
+  toast_label->set_text(text);
+  toast_label->set_visible(true);
+  toast_time = TOAST_TIME;
+}
+
+Vector3 PlayerController::root_motion_step(float delta) const
+{
+  // Reading the curve on each tick instead of the mixer's per-render-frame delta: a tick
+  // holds two or three render frames, and that uneven share made the dodge shake.
+  // Steps ahead of the clock, so the action already moves on the tick it starts.
+  const float now = actions.elapsed();
+  return motion_animation->position_track_interpolate(motion_track, now + delta) -
+         motion_animation->position_track_interpolate(motion_track, now);
+}
+
+void PlayerController::start_flourish(const StringName & clip, float time)
+{
+  play(clip, BLEND_TO_FLOURISH);
+  animator->set_speed_scale(1.f);
+  flourish_time = time;
+}
+
+void PlayerController::update_locomotion_clip(float speed, bool grounded, float push, bool reversing, const StringName & strafe, float delta)
+{
+  if (!grounded)
+  {
+    flourish_time = 0.f;
+    play(fall_clip, BLEND_TO_FALL);
+    animator->set_speed_scale(1.f);
+    return;
+  }
+
+  const bool moving = push > MIN_PUSH;
+  land_time = MAX(land_time - delta, 0.f);
+  if (land_time > 0.f && !moving)
+    return;
+
+  const bool strafing = !strafe.is_empty();
+  const bool striding = is_stride(current_clip);
+  const bool fast = speed > run_speed * BRAKE_SPEED;
+  // Pushing against a wall stays idle, or the start would replay on every failed step.
+  if (moving && push >= FULL_PUSH && current_clip == idle_clip && !is_on_wall() && !strafing)
+    start_flourish(run_start_clip, RUN_START_TIME);
+  else if (!moving && fast && (striding || current_clip == run_start_clip))
+  {
+    start_flourish(run_stop_clip, RUN_STOP_TIME);
+    kick_dust(get_global_position());
+    step_sound->play();
+  }
+  else if (reversing && fast && striding)
+  {
+    start_flourish(run_turn_clip, RUN_TURN_TIME);
+    kick_dust(get_global_position());
+    step_sound->play();
+  }
+
+  flourish_time = MAX(flourish_time - delta, 0.f);
+  const bool changed_mind = (current_clip == run_stop_clip && moving) || (current_clip == run_start_clip && !moving);
+  if (flourish_time > 0.f && !changed_mind)
+    return;
+  flourish_time = 0.f;
+
+  const bool running = speed > RUN_THRESHOLD;
+  const bool sprinting = !strafing && speed > (run_speed + SPRINT_SPEED) * 0.5f;
+  const bool walking = strafing || (moving ? push < FULL_PUSH : speed < (run_speed + WALK_SPEED) * 0.5f);
+  const StringName & stride = strafing ? strafe : (sprinting ? sprint_clip : (walking ? walk_clip : run_clip));
+  const StringName & clip = !running ? idle_clip : stride;
+  const float clip_speed = sprinting ? SPRINT_SPEED : (clip == walk_clip ? WALK_SPEED : (strafing ? LOCK_SPEED : run_speed));
+
+  // The stride clips share a phase, so the feet stay in step when one blends into another.
+  const bool keep_phase = striding && is_stride(clip) && clip != current_clip;
+  const double phase = keep_phase ? animator->get_current_animation_position() / animator->get_current_animation_length() : 0.0;
+  play(clip, running ? BLEND_TO_RUN : BLEND_TO_IDLE);
+  if (keep_phase)
+    animator->seek(phase * animator->get_current_animation_length());
+
+  // A slower stride under a light stick push keeps the feet in step with the ground.
+  animator->set_speed_scale(running ? CLAMP(speed / clip_speed, MIN_STRIDE_SPEED, walking ? MAX_WALK_STRIDE : save.stats().speed_scale()) : 1.f);
+
+  if (!is_stride(clip))
+    return;
+  // Each foot lands at the start of its half of the clip.
+  const int half = static_cast<int>(animator->get_current_animation_position() / animator->get_current_animation_length() * 2.0);
+  if (half != stride_half)
+  {
+    stride_half = half;
+    step_sound->set_volume_db(sprinting ? STEP_VOLUME_SPRINT : (walking ? STEP_VOLUME_WALK : STEP_VOLUME_RUN));
+    step_sound->play();
+  }
+}
+
+const StringName & PlayerController::strafe_clip_for(const Vector3 & velocity) const
+{
+  // ponytail: picks the main one of four directions, so a diagonal slides a little. An
+  // AnimationTree would blend them, if that ever shows.
+  const Vector3 local = velocity.rotated(UP, -facing_yaw);
+  if (Math::abs(local.z) >= Math::abs(local.x))
+    return local.z >= 0.f ? walk_clip : walk_back_clip;
+  return local.x > 0.f ? strafe_left_clip : strafe_right_clip;
+}
+
+bool PlayerController::is_stride(const StringName & clip) const
+{
+  return clip == walk_clip || clip == run_clip || clip == sprint_clip || clip == walk_back_clip ||
+         clip == strafe_left_clip || clip == strafe_right_clip;
+}
+
+void PlayerController::play(const StringName & clip, float blend)
+{
+  if (clip != current_clip)
+  {
+    animator->play(clip, blend);
+    animator->seek(0.0); // play() alone resumes a clip that is already running.
+    current_clip = clip;
+  }
+}
+
+void PlayerController::turn_model(float delta, float speed)
+{
+  const PlayerAction action = actions.current();
+  const bool acting = action != PlayerAction::None && action != PlayerAction::Jump;
+  // A heavy blow keeps tracking its locked target through the windup, so a step aside does not dodge it.
+  const CombatTarget * locked = locked_target();
+  const bool tracking = action == PlayerAction::HeavyAttack && locked != nullptr &&
+                        actions.elapsed() < PlayerActions::timing(action).hit_start;
+  if (tracking)
+    target_yaw = yaw_towards(locked);
+  // An item is used on the move, so the body keeps turning at walking pace.
+  const bool using_item = action == PlayerAction::UseItem;
+  const bool committed = acting && !tracking && !using_item && actions.elapsed() > ACTION_TURN_TIME;
+  const float rate = acting && !using_item ? ACTION_TURN_RATE : TURN_RATE;
+
+  const float previous = facing_yaw;
+  if (!committed)
+    facing_yaw = Math::lerp_angle(facing_yaw, target_yaw, damp(rate, delta));
+  const float turn = Math::wrapf(facing_yaw - previous, -PI, PI) / delta;
+
+  // Leaning into turns and speed changes sells the weight without extra clips.
+  const float wanted_lean = acting ? 0.f : -turn * LEAN_PER_TURN * MIN(speed / run_speed, 1.f);
+  const float wanted_tilt = acting ? 0.f : (speed - previous_speed) / delta * TILT_PER_ACCELERATION;
+  lean = Math::lerp(lean, CLAMP(wanted_lean, -MAX_LEAN, MAX_LEAN), damp(LEAN_RATE, delta));
+  tilt = Math::lerp(tilt, CLAMP(wanted_tilt, -MAX_LEAN, MAX_LEAN), damp(LEAN_RATE, delta));
+  previous_speed = speed;
+
+  model->set_basis(Basis(UP, facing_yaw) * Basis(MODEL_FORWARD, lean) * Basis(MODEL_RIGHT, tilt));
+}
+
+void PlayerController::update_camera(float delta)
+{
+  const CombatTarget * locked = locked_target();
+  if (locked == nullptr)
+  {
+    const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);
+    camera_yaw -= look.x * CAMERA_STICK_SPEED * delta;
+    camera_pitch -= look.y * CAMERA_STICK_SPEED * delta;
+  }
+  camera_pitch = CLAMP(camera_pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
+
+  const Vector3 focus = get_global_transform_interpolated().origin + UP * CAMERA_HEIGHT;
+  camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
+  if (locked != nullptr)
+  {
+    const Vector3 offset = locked->aim_point() - camera_focus;
+    const float gap = offset.slide(UP).length();
+    if (gap > LOCK_MIN_CAMERA_GAP)
+      camera_yaw = Math::lerp_angle(camera_yaw, Math::atan2(-offset.x, -offset.z), damp(LOCK_CAMERA_FOLLOW, delta));
+    camera_pitch = Math::lerp(camera_pitch, Math::atan2(offset.y, MAX(gap, LOCK_PITCH_MIN_GAP)) + LOCK_CAMERA_PITCH, damp(LOCK_CAMERA_FOLLOW, delta));
+  }
+  camera_pivot->set_global_position(camera_focus);
+  camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
+
+  // In real time: the shake has to keep going through a hitstop.
+  const float real_delta = delta / static_cast<float>(Engine::get_singleton()->get_time_scale());
+  camera_shake = MAX(camera_shake - SHAKE_FADE * real_delta, 0.f);
+  camera_kick = MAX(camera_kick - KICK_FADE * real_delta, 0.f);
+  camera->set_fov(base_fov - camera_kick * camera_kick * KICK_FOV);
+  const float reach = camera_shake * camera_shake * SHAKE_SIZE;
+  camera->set_h_offset(UtilityFunctions::randf_range(-reach, reach));
+  camera->set_v_offset(UtilityFunctions::randf_range(-reach, reach));
+}

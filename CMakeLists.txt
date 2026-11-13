@@ -21,8 +21,14 @@ set(GODOTCPP_API_VERSION "4.7" CACHE STRING "" FORCE)
 add_subdirectory(extern/godot-cpp)
 
 add_library(nightmare58_core STATIC
+  src/core/progression/inflation.cpp
+  src/core/progression/inventory.cpp
+  src/core/progression/item_catalog.cpp
+  src/core/progression/machete_skills.cpp
+  src/core/progression/player_progress.cpp
   src/core/progression/skill_tree.cpp
   src/core/ai/behavior_tree.cpp
+  src/core/ai/enemy_actions.cpp
   src/core/player/player_actions.cpp)
 target_include_directories(nightmare58_core PUBLIC src)
 target_link_libraries(nightmare58_core PUBLIC Designar::Designar)
@@ -38,14 +44,43 @@ target_link_libraries(behavior_tree_benchmark PRIVATE Designar::Designar)
 add_executable(input_buffer_benchmark benchmarks/input_buffer_benchmark.cpp)
 target_link_libraries(input_buffer_benchmark PRIVATE Designar::Designar)
 
+add_executable(enemy_ai_benchmark benchmarks/enemy_ai_benchmark.cpp)
+target_link_libraries(enemy_ai_benchmark PRIVATE nightmare58_core)
+
+add_executable(progression_benchmark benchmarks/progression_benchmark.cpp)
+target_link_libraries(progression_benchmark PRIVATE nightmare58_core)
+
 add_executable(Nightmare58 src/main.cpp)
 target_link_libraries(Nightmare58 PRIVATE Designar::Designar)
 
 add_library(nightmare58_ext SHARED
-  src/game/designar_check.cpp
-  src/game/player_controller.cpp
+  src/game/enemies/combat_target.cpp
+  src/game/debug/designar_check.cpp
+  src/game/player/player_controller.cpp
   src/game/register_types.cpp
-  src/game/training_dummy.cpp)
+  src/game/enemies/dog_enemy.cpp
+  src/game/enemies/guino_enemy.cpp
+  src/game/enemies/melee_enemy.cpp
+  src/game/enemies/rat_enemy.cpp
+  src/game/enemies/skeleton_enemy.cpp
+  src/game/ui/facet_plate.cpp
+  src/game/ui/key_button.cpp
+  src/game/ui/skill_tree_view.cpp
+  src/game/ui/game_menu.cpp
+  src/game/ui/ui_sounds.cpp
+  src/game/ui/game_settings.cpp
+  src/game/ui/title_screen.cpp
+  src/game/ui/item_slot.cpp
+  src/game/ui/stat_bar.cpp
+  src/game/enemies/training_dummy.cpp
+  src/game/weapons/weapon_trail.cpp
+  src/game/world/chapel.cpp
+  src/game/world/merchant.cpp
+  src/game/world/shortcut_gate.cpp
+  src/game/weapons/thrown_machete.cpp
+  src/game/world/loot_pickup.cpp
+  src/game/world/lost_lochas.cpp
+  src/game/world/save_file.cpp)
 target_include_directories(nightmare58_ext PRIVATE src)
 target_link_libraries(nightmare58_ext PRIVATE godot-cpp nightmare58_core)
 get_target_property(GODOT_SUFFIX godot-cpp GODOTCPP_SUFFIX)

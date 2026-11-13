@@ -4,3 +4,4 @@
 *.png binary
 *.wav binary
 *.ogg binary
+art/** linguist-vendored

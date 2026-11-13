@@ -26,7 +26,35 @@ SkillTree::SkillTree(int root_id)
 
 SkillTree::~SkillTree()
 {
-  Node::destroy_tree(root);
+  if (root != nullptr)
+    Node::destroy_tree(root);
+}
+
+SkillTree & SkillTree::operator=(SkillTree && other) noexcept
+{
+  if (this != &other)
+  {
+    if (root != nullptr)
+      Node::destroy_tree(root);
+    root = other.root;
+    other.root = nullptr;
+  }
+  return *this;
+}
+
+int SkillTree::cost(int id) const
+{
+  const Node * node = find(root, id);
+  return node == nullptr ? -1 : node->get_key().cost;
+}
+
+bool SkillTree::restore(int id)
+{
+  Node * node = find(root, id);
+  if (node == nullptr || node == root || !node->get_parent()->get_key().unlocked)
+    return false;
+  node->get_key().unlocked = true;
+  return true;
 }
 
 bool SkillTree::add(int parent_id, int id, int cost)
@@ -64,4 +92,37 @@ bool SkillTree::unlock(int id, int & points)
   skill.unlocked = true;
   points -= skill.cost;
   return true;
+}
+
+// Leaves take the next free column; a parent goes midway between its first and last child.
+static float place(const Node * node, int depth, int branch, int parent, float & next_leaf, Designar::DynArray<SkillSlot> & slots)
+{
+  const Skill & skill = node->get_key();
+  const Designar::nat_t index = slots.size();
+  slots.append(SkillSlot{skill.id, parent, branch, depth, 0.f, skill.cost, skill.unlocked});
+  float first = -1.f;
+  float last = -1.f;
+  for (const Node * child = node->get_first_child(); child != nullptr; child = child->get_right_sibling())
+  {
+    last = place(child, depth + 1, branch, skill.id, next_leaf, slots);
+    if (first < 0.f)
+      first = last;
+  }
+  const float column = first < 0.f ? next_leaf++ : (first + last) * 0.5f;
+  slots[index].column = column;
+  return column;
+}
+
+Designar::DynArray<SkillSlot> SkillTree::layout() const
+{
+  Designar::DynArray<SkillSlot> slots;
+  const Skill & top = root->get_key();
+  slots.append(SkillSlot{top.id, -1, -1, 0, 0.f, top.cost, top.unlocked});
+  int branch = 0;
+  for (const Node * child = root->get_first_child(); child != nullptr; child = child->get_right_sibling())
+  {
+    float next_leaf = 0.f;
+    place(child, 1, branch++, top.id, next_leaf, slots);
+  }
+  return slots;
 }

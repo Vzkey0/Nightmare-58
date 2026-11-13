@@ -168,11 +168,20 @@ docs/          PDD, convenciones y justificaciones.
 - Toda lógica nueva de `src/core/` lleva pruebas en `tests/`.
 - Las clases nuevas de `src/game/` se agregan a `CMakeLists.txt` y a
   `src/game/register_types.cpp`.
+- Los archivos de una misma sección van juntos en una subcarpeta con nombre en
+  inglés y en minúscula. Cuando una sección crece o aparece una nueva, se crea su
+  subcarpeta en vez de dejar los archivos sueltos.
+- `src/game/` se divide en `enemies/`, `player/`, `weapons/`, `ui/`, `world/` y `debug/`.
+  Solo `register_types.cpp` queda en la raíz.
 - Los `.cpp` nuevos de `src/core/` se agregan a `nightmare58_core` en `CMakeLists.txt`.
 - Una clase normal se separa en `.hpp` y `.cpp`. Las plantillas (`template`) y las
   funciones `inline` cortas quedan en el `.hpp`.
 
 ## 8. Estilo de código
+
+**El juego va solo en C++.** No se usa GDScript para la lógica. Python se permite
+únicamente en los scripts de arte de `art/`, que corren en Blender y no forman parte
+del juego.
 
 **Todo el código va en inglés, siempre:** carpetas, archivos, clases, funciones,
 variables, comentarios y nombres de escenas y recursos. La documentación de `docs/`,

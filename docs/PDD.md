@@ -4,9 +4,11 @@ Estado: borrador. Las decisiones sin cerrar están en [Decisiones pendientes](#1
 
 ## 1. Visión
 
-Souls-like 3D low poly ambientado en una Venezuela distópica, 2015-2018. El
-protagonista recorre un país golpeado por apagones, escasez e hiperinflación y
-se enfrenta a leyendas urbanas venezolanas.
+Souls-like 3D low poly ambientado en una Venezuela distópica, 2015-2018. Un
+emigrante vuelve a buscar a su madre y recorre un país golpeado por apagones,
+escasez, hiperinflación y un terremoto que dejó las ciudades vacías, donde la pérdida
+de la alegría despertó a las leyendas urbanas venezolanas. La historia completa está
+en [lore.md](lore.md).
 
 El nombre viene del +58, el código telefónico de Venezuela.
 
@@ -25,22 +27,46 @@ que hace funcionar el juego, no un añadido.
 
 **Entra (versión a entregar):**
 
-- Una zona jugable con refugio
-- Dos tipos de enemigos comunes
-- Un jefe completo: El Silbón
-- Combate, inventario, árbol de habilidades y moneda con inflación
+- Capítulo 1 pulido: apertura, avenida, selva y llano
+- Siete tipos de enemigos con cuatro comportamientos, y minijefes
+- Un jefe completo: El Silbón, en el llano
+- Combate, loot, inventario, árbol de habilidades y moneda con inflación
 - Modo de depuración del árbol de decisiones
 
-**Queda fuera, salvo que sobre tiempo:** más jefes (La Sayona, Juan Machete,
-El Carretón), finales múltiples, árbol de diálogo, Florentino y el Diablo.
+La entrega de la materia es solo el capítulo 1. El juego no termina ahí: el proyecto
+continúa después con los capítulos siguientes.
+
+**Duración:** unos 25 minutos hasta El Silbón, y unos 7 de pelea si no se muere.
+
+| Zona | Tiempo | Enemigos | Cierre |
+|---|---|---|---|
+| Avenida | 12 min | Esqueleto, rata gigante, perro | Minijefe: perro enorme, y capilla |
+| Selva | 10 min | Perro, bruja, oso | Minijefe: oso grande |
+| Llano | 3 min + 7 de pelea | Casi ninguno | El Silbón, en tres fases |
+
+**Queda fuera de esta entrega, salvo que sobre tiempo:** más jefes (La Sayona y otras
+leyendas), árbol de diálogo, doble machete, Florentino y el Diablo. El final es único:
+no hay finales múltiples.
 
 ## 4. Mecánicas
 
 ### Combate
 
-Ataque ligero y pesado, esquiva, *parry* y fijado de objetivo, con barra de
-resistencia. Los botones presionados durante una animación se guardan y se
-ejecutan al terminar.
+Ataque ligero y pesado, esquiva y fijado de objetivo, con barra de resistencia. Los botones presionados durante una animación se guardan y se
+ejecutan al terminar. El arma principal es el machete.
+
+### Enemigos
+
+| Comportamiento | Enemigos | Esqueleto de animación |
+|---|---|---|
+| Cuerpo a cuerpo | Esqueleto | Humano |
+| Jauría: rápidos y por los lados | Perro, perro esquelético, rata gigante | Cuadrúpedo |
+| A distancia: mantiene lejanía | Bruja | Humano |
+| Pesado: lento, golpes fuertes | Oso, demonio | Cuadrúpedo y humano |
+
+El perro esquelético y el demonio solo salen durante los apagones. Un enemigo muerto
+sigue muerto hasta que el jugador descanse o muera. El diseño de cada enemigo se
+define al momento de hacerlo.
 
 ### Decisiones de enemigos
 
@@ -61,17 +87,119 @@ miente al jugador sobre la misma distancia que usa el árbol.
 
 ### Economía y progreso
 
-- **Bolívares:** se obtienen al matar y pierden valor con los días de juego.
-- **Muerte:** se dejan los bolívares donde se cayó; un fantasma repite tus últimos pasos.
-- **Refugios:** capillas de carretera y altares de María Lionza. María Lionza sube el nivel.
-- **Curación:** malta o guayoyo, en cantidad limitada.
-- **Bachaquero:** mercader cuyos precios suben cada vez que mueres.
-- **Pacto de Juan Machete:** rama maldita de habilidades, muy fuerte, que reduce la vida máxima.
+- **Lochas:** se obtienen al matar. Cada descanso en una capilla cuenta como un día y
+  les quita valor; vencer a un jefe o a un minijefe frena la inflación en esa zona.
+- **Inflación:** los precios se fijan en lochas del día 0 y se pagan con la tasa del
+  día, que sube por escalones, como devaluaciones anunciadas: ×1,10 el día 1, ×1,20 el
+  3, ×1,35 el 5, ×1,55 el 8, ×1,80 el 12, ×2,20 el 17 y ×2,80 el día 24, donde se queda. Lo que sueltan los
+  enemigos no sube, así que guardar lochas sale caro. Afecta a subir de nivel y a la
+  tienda. Cada zona congela su tasa en el día en que cae su jefe. La capilla muestra
+  la tasa y avisa cuando la locha pierde valor.
+- **Botín por enemigo:** cada enemigo suelta una cantidad fija, pero los que llegan
+  después en el recorrido sueltan más, para que la inflación no ahogue al jugador. El
+  esqueleto da 30; la rata y el perro, unas 50. Se ajusta jugando.
+- **Escala de precios:** la avenida tiene 11 esqueletos, así que una pasada completa da
+  330 lochas, más unas 500 si se venden sus coleccionables. Los precios se miden contra
+  eso: una pasada alcanza para una mejora de segundo nivel del machete o un par de
+  niveles de capilla, y el árbol completo pide unas tres pasadas. Subir de nivel cuesta
+  50 más 25 por cada nivel ya subido. La vela cuesta 30, cada grasa 25 y la gorra 120.
+- **Perfil de pruebas:** la ranura 6 puede guardar una partida con lochas sin fin
+  (`endless 1` en el archivo): los precios se muestran y se cobran, pero la cartera no
+  baja y morir no deja lochas. El HUD muestra ∞. Sirve para probar la tienda.
+- **Muerte:** se dejan las lochas donde se cayó, y hay que volver por ellas. Si se muere
+  otra vez antes de recuperarlas, se pierden.
+- **Capillas:** son los puntos de control. Permiten descansar y subir de nivel.
+- **Curación:** café, en cantidad limitada. Se recarga en las capillas.
+- **Bachaquero:** mercader que cambia lochas por objetos que no se devalúan. Sus
+  precios suben cada vez que mueres: un 5 % por muerte, hasta un 50 % más. Cobra con la
+  tasa de su zona y compra coleccionables a su valor por la tasa del día, sin recargo.
+  Está a la salida de la primera capilla y se abre con E.
+
+### Estadísticas
+
+Se suben en la capilla, con cinco niveles cada una, y se pagan con lochas. Los valores
+son iniciales y se ajustan jugando.
+
+| Mejora | Por nivel |
+|---|---|
+| Vida máxima | +10 % |
+| Recuperación de stamina | +10 % |
+| Regeneración de vida | +0,5 de vida por segundo |
+| Velocidad al correr | +4 % |
+| Cadencia de ataque | +5 % |
+| Poder de ataque | +8 % |
+
+### Machete
+
+Se mejora con el bachaquero, sobre el árbol de habilidades:
+
+```
+Machete
+├─ Filo → Filo II → Filo III
+├─ Grasa → Fuego / Hielo
+└─ Técnica → Lanzar machete / Modo Arrechera
+```
+
+Cada rama se compra en la tienda del bachaquero, con sus precios: cobra la inflación y el
+recargo por muertes. Un hijo pide a su padre. Costos base, en lochas del día 0:
+
+| Mejora | Costo | Efecto |
+|---|---|---|
+| Filo, Filo II, Filo III | 60, 120, 200 | +15 % de daño del machete por nivel |
+| Grasa | 40 | Abre las grasas |
+| Fuego, Hielo | 80 cada una | El bachaquero vende esa grasa |
+| Técnica | 60 | Abre las técnicas |
+| Lanzar machete | 120 | Tecla G |
+| Modo Arrechera | 160 | Tecla V con la barra llena |
+
+- **Grasas:** duran 60 s. El fuego quema con el tiempo y el hielo frena al enemigo.
+  Se compran al bachaquero tras aprender su rama y se usan como el café, desde el objeto
+  rápido. Cada golpe con fuego agrega una quemadura de 4 s que hace 2 de daño cada medio
+  segundo, hasta tres a la vez. El hielo frena al enemigo a la mitad durante 3 s. La
+  hoja brilla del color de la grasa y parpadea en sus últimos segundos.
+- **Lanzar machete:** va y vuelve; mientras tanto no se puede atacar. Sale con G hacia el
+  enemigo fijado o hacia el frente, gira plano, recorre 9 m o hasta chocar con una pared y
+  vuelve a la mano esté donde esté. Golpea con la malla completa del arma a la ida y a la
+  vuelta, una vez por tramo, con 18 de daño más las mejoras y la grasa. Esquivar sigue
+  permitido; si vuelve en medio de otra acción, solo regresa a la mano sin animación.
+- **Modo Arrechera:** el modo ira. Su barra se llena al pelear; al activarla se pega
+  más fuerte unos 12 s, pero también se recibe más daño. La barra roja aparece bajo la
+  stamina al aprender la rama. Se llena con el daño hecho (0,8 por punto) y más rápido
+  con el recibido (1,2 por punto); llena, late, y con V se suelta: ×1,4 al daño que se
+  hace y ×1,3 al que se recibe mientras se vacía. El cuerpo brilla en rojo, la cámara
+  sacude y aparece "¡Arrechera!". Morir la vacía.
+
+### Objetos
+
+| Tipo | Objetos |
+|---|---|
+| Atuendos | Uniforme militar (más defensa), uniforme de Bolívar (más ataque), gorra (más fuerza) |
+| Consumibles | Café, grasas, vela de retorno, hallaca, papelón con limón, agua bendita |
+| Coleccionables | Vinilo de gaita, cromo de béisbol, ficha de dominó, foto familiar |
+
+- **Atuendos:** se ven puestos en el personaje. Se empieza por la gorra, porque los
+  uniformes hay que modelarlos sobre el cuerpo. La gorra se compra una sola vez al
+  bachaquero, se pone y se quita con E en la pestaña Equipo del inventario, y da un 10 %
+  más de daño. Se lleva un atuendo a la vez y queda guardado en la partida.
+- **Coleccionables:** no se devalúan y el bachaquero los paga mejor con la inflación.
+  Guardarlos es una decisión económica real.
+- **Recuerdos:** se lleva un coleccionable a la vez como recuerdo, con E en la pestaña Coleccionables.
+  Sigue valiendo lo mismo y se puede vender; al vender el último se deja de llevar. El vinilo da un
+  15 % más de recuperación de stamina; el cromo, un 30 % más de daño al machete lanzado, que además
+  vuelve un 30 % más rápido; la ficha, un 10 % más de lochas por enemigo. La foto familiar solo se vende.
+- **Hallaca:** solo se encuentra (una en la cocina de la casa partida). Cura toda la vida y da 3 de
+  vida por segundo durante 20 s.
+- **Papelón con limón:** lo vende el bachaquero por 20. Llena la stamina y la recupera un 50 % más
+  rápido durante 30 s.
+- **Agua bendita:** el padre da una al descansar en una capilla si no se tiene ninguna. Se unta como
+  una grasa y la reemplaza: 60 s con +25 % de daño a los esqueletos y las leyendas (el grupo `unholy`).
+- **Vela de retorno:** devuelve a la última capilla. Con 25 minutos de juego no hace
+  falta otro teletransporte.
 
 ### Apagones
 
 Se va la luz en la zona y los enemigos cambian de rama del árbol: más agresivos
-o guiados por el sonido.
+o guiados por el sonido. Además salen enemigos especiales.
 
 ## 5. Estructuras de datos
 
@@ -83,21 +211,27 @@ Todas salen de DeSiGNAR. No se usan contenedores de la STL para esto.
 | Rotación de ataques | Cola | `queue.hpp` |
 | Habilidades y zonas | Árbol n-ario | `mtreenode.hpp` |
 | Combos, estados alterados | Listas | `list.hpp` |
-| Objeto rápido (cíclico) | Lista recorrida en círculo | `list.hpp` |
-| Fantasma, persecución por rastro | Lista de posiciones | `list.hpp` |
+| Objeto rápido (cíclico) | Cola fija | `queue.hpp` |
+| Persecución por rastro | Lista de posiciones | `list.hpp` |
+| Objetos recogidos | Conjunto de bits | `bitset.hpp` |
 | Búfer de inputs | Cola | `queue.hpp` |
-| Menús anidados | Pila | `stack.hpp` |
+| Menús anidados | Pila fija | `stack.hpp` |
 | Elección de ataque del jefe | Heap | `heap.hpp` |
-| Base de objetos por ID | Tabla hash | `chainedhash.hpp` |
+| Base de objetos por ID | Tabla hash y arreglo | `map.hpp`, `array.hpp` |
 | Bestiario con autocompletado | Trie | `trie.hpp` |
 | Lock-on por distancia | `insertion_sort` | `sort.hpp` |
 | Inventario | `merge_sort` | `sort.hpp` |
 | Récords por jefe | `quicksort` | `sort.hpp` |
-| Botín, nivel, fase, tasa de cambio | `binary_search` | `sort.hpp` |
+| Botín | Pesos acumulados y recorrido lineal | `array.hpp` |
+| Nivel, fase, tasa de cambio | `binary_search` | `sort.hpp` |
 
-`insertion_sort` encaja en el lock-on porque la lista casi no cambia entre frames.
-`merge_sort` se usa en el inventario si conserva el orden previo: **hay que
-comprobar que la versión de DeSiGNAR sea estable.**
+`insertion_sort` encaja en el lock-on porque hay pocos objetivos a la vez, y ordenarlos
+permite comprobar la línea de vista empezando por el más cercano.
+`merge_sort` se usa en el inventario porque conserva el orden previo: una prueba
+comprueba que la versión de DeSiGNAR es estable.
+
+Las fichas J-010 y J-013 explican por qué el botín y el objeto rápido cambiaron
+respecto de la propuesta inicial.
 
 DeSiGNAR no trae árbol de comportamiento: el grupo programa sus nodos y su
 lógica de decisión, pero los guarda en estructuras de DeSiGNAR.
@@ -162,16 +296,26 @@ Flujo: `main` ← `development` ← `feature/*`.
 | 0. Integración | Nodo C++ en Godot que usa una lista de DeSiGNAR | Corre en Linux y Windows |
 | 1. Núcleo | Árbol de comportamiento y economía con pruebas | Las pruebas pasan en terminal |
 | 2. Jugador | Movimiento, combate, búfer de inputs | Se pelea contra un muñeco |
-| 3. El Silbón | Jefe con árbol y visor de depuración | Se le puede ganar y perder |
-| 4. Sistemas | Inventario, habilidades, moneda, muerte | Se guardan y cambian la partida |
-| 5. Contenido | Zona, dos enemigos, apagones, audio | Se juega de principio a fin |
-| 6. Cierre | Exportaciones, documento técnico, exposición | Ejecutables en cada plataforma |
+| 3. Cierre del esqueleto | Prueba real, ajustes, malla de navegación | Se pelea bien y rodean carros |
+| 4. Base de progreso | Objetos, inventario, loot, lochas, muerte, capillas, guardado | Mueres, recuperas lo tuyo y la partida se guarda |
+| 5. Machete y bachaquero | Tienda, inflación, árbol, grasas, lanzar, Arrechera, atuendos | Una mejora cambia cómo peleas |
+| 6. Apertura | Cinemática, tutorial, edificio, padre | Se juega desde el carro hasta la capilla |
+| 7. Avenida completa | Rata, perro, minijefe, apagones, catedral | La zona dura 12 minutos |
+| 8. Selva | Escenario, bruja, oso, minijefe, pistas | Se llega hasta el llano |
+| 9. El Silbón | Llano, jefe, silbido, visor de depuración | Se le puede ganar y perder |
+| 10. Cierre | Pulido, exportaciones, documento técnico, exposición | Ejecutables en cada plataforma |
+
+El modelado y la programación se trabajan por separado: los sistemas se hacen con
+bloques provisionales y el arte llega en su propia tarea.
 
 Las fechas se asignan cuando esté el calendario de la materia.
 
 ## 10. Decisiones pendientes
 
-1. **Integrantes y fechas de entrega.**
+1. **Integrantes y fecha exacta de entrega.** Quedan más de dos meses.
+2. **Nombre del amigo que maneja el carro.** El del protagonista lo elige el jugador
+   en el menú de inicio.
+3. **Modelo de la protagonista:** queda fuera del juego.
 
 Decidido: todas las estructuras de datos salen de DeSiGNAR, con Godot 4
 (GDExtension) como motor y CMake para compilar.

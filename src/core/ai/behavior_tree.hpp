@@ -7,8 +7,8 @@
 #include <core/distance.hpp>
 
 enum class BehaviorNodeType { Selector, Sequence, Condition, Action };
-enum class BehaviorCondition { LowHealth, Near, Medium, Far };
-enum class BehaviorAction { None, Fury, Melee, Ranged, Approach, Charge };
+enum class BehaviorCondition { LowHealth, Near, Medium, Far, Unaware, LostSight, CanAttack, ChargeReady };
+enum class BehaviorAction { None, Fury, Melee, Ranged, Approach, Charge, Watch, Investigate, Circle };
 
 struct BehaviorNode
 {
@@ -21,6 +21,10 @@ struct EnemyContext
 {
   float health_ratio;
   DistanceRange range;
+  bool aware = true;
+  bool sees_player = true;
+  bool can_attack = true; // Rested, and with a free turn among the enemies around the player.
+  bool charge_ready = true;
 };
 
 struct Decision
@@ -33,12 +37,17 @@ class BehaviorTree
 {
 public:
   static constexpr int NO_ATTACK = -1;
+  static constexpr float FURY_HEALTH_RATIO = 0.3f;
 
   using AttackQueue = Designar::DynQueue<Attack>;
 
   BehaviorTree(const AttackQueue & fury, const AttackQueue & melee,
                const AttackQueue & ranged, const AttackQueue & charge);
   ~BehaviorTree();
+
+  // Melee from close, a charge from the middle, and circling while it waits for a turn. Below
+  // FURY_HEALTH_RATIO the fury attacks take the place of the melee ones, if it has any.
+  static BehaviorTree skeleton(const AttackQueue & fury, const AttackQueue & melee, const AttackQueue & charge);
 
   BehaviorTree(const BehaviorTree &) = delete;
   BehaviorTree & operator=(const BehaviorTree &) = delete;
@@ -51,6 +60,9 @@ public:
 
 private:
   using Node = Designar::MTreeNode<BehaviorNode>;
+
+  BehaviorTree(Node * root, const AttackQueue & fury, const AttackQueue & melee,
+               const AttackQueue & ranged, const AttackQueue & charge);
 
   bool evaluate(const Node * node, const EnemyContext & context, Decision & decision) const;
   const AttackQueue * queue_for(BehaviorAction action) const;

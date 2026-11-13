@@ -1,17 +1,172 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=46 format=3]
 
 [ext_resource type="PackedScene" path="res://models/characters/protagonist_male.glb" id="1_model"]
+[ext_resource type="PackedScene" path="res://models/props/coffee.glb" id="cup_model"]
+[ext_resource type="PackedScene" path="res://models/props/return_candle.glb" id="candle_model"]
+[ext_resource type="Texture2D" path="res://ui/icons/lochas.png" id="lochas_icon"]
+[ext_resource type="Texture2D" path="res://ui/icons/chapel.png" id="chapel_icon"]
+[ext_resource type="FontFile" path="res://fonts/Oswald.ttf" id="oswald"]
+[ext_resource type="Theme" path="res://ui/street_theme.tres" id="street_theme"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_1.ogg" id="swing_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_2.ogg" id="swing_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_3.ogg" id="swing_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_4.ogg" id="swing_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_5.ogg" id="swing_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_6.ogg" id="swing_6"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_1.ogg" id="swing_heavy_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_2.ogg" id="swing_heavy_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_3.ogg" id="swing_heavy_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/swing_heavy_4.ogg" id="swing_heavy_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_1.ogg" id="hit_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_2.ogg" id="hit_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_3.ogg" id="hit_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_4.ogg" id="hit_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/hit_5.ogg" id="hit_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_1.ogg" id="slam_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_2.ogg" id="slam_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/slam_3.ogg" id="slam_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_1.ogg" id="roll_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_2.ogg" id="roll_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_3.ogg" id="roll_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_1.ogg" id="roll_land_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_2.ogg" id="roll_land_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/roll_land_3.ogg" id="roll_land_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_1.ogg" id="step_1"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_2.ogg" id="step_2"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_3.ogg" id="step_3"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_4.ogg" id="step_4"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_5.ogg" id="step_5"]
+[ext_resource type="AudioStreamOggVorbis" path="res://audio/player/step_6.ogg" id="step_6"]
+
+[sub_resource type="AudioStreamRandomizer" id="swing_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 6
+stream_0/stream = ExtResource("swing_1")
+stream_1/stream = ExtResource("swing_2")
+stream_2/stream = ExtResource("swing_3")
+stream_3/stream = ExtResource("swing_4")
+stream_4/stream = ExtResource("swing_5")
+stream_5/stream = ExtResource("swing_6")
+
+[sub_resource type="AudioStreamRandomizer" id="heavy_swing_sound"]
+random_pitch = 1.08
+random_volume_offset_db = 1.5
+streams_count = 4
+stream_0/stream = ExtResource("swing_heavy_1")
+stream_1/stream = ExtResource("swing_heavy_2")
+stream_2/stream = ExtResource("swing_heavy_3")
+stream_3/stream = ExtResource("swing_heavy_4")
+
+[sub_resource type="AudioStreamRandomizer" id="hit_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 5
+stream_0/stream = ExtResource("hit_1")
+stream_1/stream = ExtResource("hit_2")
+stream_2/stream = ExtResource("hit_3")
+stream_3/stream = ExtResource("hit_4")
+stream_4/stream = ExtResource("hit_5")
+
+[sub_resource type="AudioStreamRandomizer" id="slam_sound"]
+random_pitch = 1.08
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("slam_1")
+stream_1/stream = ExtResource("slam_2")
+stream_2/stream = ExtResource("slam_3")
+
+[sub_resource type="AudioStreamRandomizer" id="roll_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("roll_1")
+stream_1/stream = ExtResource("roll_2")
+stream_2/stream = ExtResource("roll_3")
+
+[sub_resource type="AudioStreamRandomizer" id="roll_land_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("roll_land_1")
+stream_1/stream = ExtResource("roll_land_2")
+stream_2/stream = ExtResource("roll_land_3")
+
+[sub_resource type="AudioStreamRandomizer" id="step_sound"]
+random_pitch = 1.1
+random_volume_offset_db = 1.5
+streams_count = 6
+stream_0/stream = ExtResource("step_1")
+stream_1/stream = ExtResource("step_2")
+stream_2/stream = ExtResource("step_3")
+stream_3/stream = ExtResource("step_4")
+stream_4/stream = ExtResource("step_5")
+stream_5/stream = ExtResource("step_6")
+
+[sub_resource type="StandardMaterial3D" id="trail_material"]
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+albedo_color = Color(1, 0.86, 0.62, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="dust_material"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[sub_resource type="BoxMesh" id="dust_mesh"]
+material = SubResource("dust_material")
+size = Vector3(0.13, 0.13, 0.13)
+
+[sub_resource type="Gradient" id="dust_fade"]
+colors = PackedColorArray(0.62, 0.59, 0.53, 0.55, 0.62, 0.59, 0.53, 0)
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.3
 height = 1.75
 
-[sub_resource type="CapsuleShape3D" id="stick_shape"]
-radius = 0.06
-height = 1.6
+[sub_resource type="FontVariation" id="title_font"]
+base_font = ExtResource("oswald")
+variation_opentype = {
+2003265652: 600
+}
+
+[sub_resource type="Gradient" id="menu_shade_colors"]
+offsets = PackedFloat32Array(0.35, 0.62, 1)
+colors = PackedColorArray(0, 0, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0.3)
+
+[sub_resource type="GradientTexture2D" id="menu_shade"]
+gradient = SubResource("menu_shade_colors")
+width = 256
+height = 4
+fill_to = Vector2(1, 0)
+
+[sub_resource type="CapsuleShape3D" id="blade_shape"]
+radius = 0.09
+height = 0.95
+
+[sub_resource type="StandardMaterial3D" id="cap_cloth"]
+albedo_color = Color(0.62, 0.08, 0.1, 1)
+roughness = 0.9
+
+[sub_resource type="SphereMesh" id="cap_crown"]
+material = SubResource("cap_cloth")
+radius = 0.14
+height = 0.13
+radial_segments = 12
+rings = 4
+is_hemisphere = true
+
+[sub_resource type="BoxMesh" id="cap_brim"]
+material = SubResource("cap_cloth")
+size = Vector3(0.2, 0.014, 0.13)
 
 [node name="Player" type="PlayerController"]
 collision_layer = 2
+collision_mask = 9
 
 [node name="Body" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
@@ -19,15 +174,714 @@ shape = SubResource("body_shape")
 
 [node name="Model" parent="." instance=ExtResource("1_model")]
 
+[node name="ClothSprings" type="SpringBoneSimulator3D" parent="Model/armature_male/Skeleton3D"]
+setting_count = 12
+settings/0/root_bone_name = "jacket_front_1_l"
+settings/0/end_bone_name = "jacket_front_3_l"
+settings/0/extend_end_bone = true
+settings/0/center_from = 1
+settings/0/center_node = NodePath("../../..")
+settings/0/end_bone/direction = 2
+settings/0/end_bone/length = 0.16
+settings/0/radius/value = 0.02
+settings/0/stiffness/value = 3
+settings/0/drag/value = 0.55
+settings/1/root_bone_name = "jacket_front_1_r"
+settings/1/end_bone_name = "jacket_front_3_r"
+settings/1/extend_end_bone = true
+settings/1/center_from = 1
+settings/1/center_node = NodePath("../../..")
+settings/1/end_bone/direction = 2
+settings/1/end_bone/length = 0.16
+settings/1/radius/value = 0.02
+settings/1/stiffness/value = 3
+settings/1/drag/value = 0.55
+settings/2/root_bone_name = "jacket_side_1_l"
+settings/2/end_bone_name = "jacket_side_3_l"
+settings/2/extend_end_bone = true
+settings/2/center_from = 1
+settings/2/center_node = NodePath("../../..")
+settings/2/end_bone/direction = 2
+settings/2/end_bone/length = 0.16
+settings/2/radius/value = 0.02
+settings/2/stiffness/value = 3
+settings/2/drag/value = 0.55
+settings/3/root_bone_name = "jacket_side_1_r"
+settings/3/end_bone_name = "jacket_side_3_r"
+settings/3/extend_end_bone = true
+settings/3/center_from = 1
+settings/3/center_node = NodePath("../../..")
+settings/3/end_bone/direction = 2
+settings/3/end_bone/length = 0.16
+settings/3/radius/value = 0.02
+settings/3/stiffness/value = 3
+settings/3/drag/value = 0.55
+settings/4/root_bone_name = "jacket_back_1_l"
+settings/4/end_bone_name = "jacket_back_3_l"
+settings/4/extend_end_bone = true
+settings/4/center_from = 1
+settings/4/center_node = NodePath("../../..")
+settings/4/end_bone/direction = 2
+settings/4/end_bone/length = 0.16
+settings/4/radius/value = 0.02
+settings/4/stiffness/value = 3
+settings/4/drag/value = 0.55
+settings/5/root_bone_name = "jacket_back_1_r"
+settings/5/end_bone_name = "jacket_back_3_r"
+settings/5/extend_end_bone = true
+settings/5/center_from = 1
+settings/5/center_node = NodePath("../../..")
+settings/5/end_bone/direction = 2
+settings/5/end_bone/length = 0.16
+settings/5/radius/value = 0.02
+settings/5/stiffness/value = 3
+settings/5/drag/value = 0.55
+settings/6/root_bone_name = "hair_front_1_l"
+settings/6/end_bone_name = "hair_front_2_l"
+settings/6/extend_end_bone = true
+settings/6/center_from = 1
+settings/6/center_node = NodePath("../../..")
+settings/6/end_bone/direction = 2
+settings/6/end_bone/length = 0.05
+settings/6/radius/value = 0.006
+settings/6/stiffness/value = 6
+settings/6/drag/value = 0.5
+settings/7/root_bone_name = "hair_front_1_r"
+settings/7/end_bone_name = "hair_front_2_r"
+settings/7/extend_end_bone = true
+settings/7/center_from = 1
+settings/7/center_node = NodePath("../../..")
+settings/7/end_bone/direction = 2
+settings/7/end_bone/length = 0.05
+settings/7/radius/value = 0.006
+settings/7/stiffness/value = 6
+settings/7/drag/value = 0.5
+settings/8/root_bone_name = "hair_side_1_l"
+settings/8/end_bone_name = "hair_side_2_l"
+settings/8/extend_end_bone = true
+settings/8/center_from = 1
+settings/8/center_node = NodePath("../../..")
+settings/8/end_bone/direction = 2
+settings/8/end_bone/length = 0.05
+settings/8/radius/value = 0.006
+settings/8/stiffness/value = 6
+settings/8/drag/value = 0.5
+settings/9/root_bone_name = "hair_side_1_r"
+settings/9/end_bone_name = "hair_side_2_r"
+settings/9/extend_end_bone = true
+settings/9/center_from = 1
+settings/9/center_node = NodePath("../../..")
+settings/9/end_bone/direction = 2
+settings/9/end_bone/length = 0.05
+settings/9/radius/value = 0.006
+settings/9/stiffness/value = 6
+settings/9/drag/value = 0.5
+settings/10/root_bone_name = "hair_back_1_l"
+settings/10/end_bone_name = "hair_back_2_l"
+settings/10/extend_end_bone = true
+settings/10/center_from = 1
+settings/10/center_node = NodePath("../../..")
+settings/10/end_bone/direction = 2
+settings/10/end_bone/length = 0.05
+settings/10/radius/value = 0.006
+settings/10/stiffness/value = 6
+settings/10/drag/value = 0.5
+settings/11/root_bone_name = "hair_back_1_r"
+settings/11/end_bone_name = "hair_back_2_r"
+settings/11/extend_end_bone = true
+settings/11/center_from = 1
+settings/11/center_node = NodePath("../../..")
+settings/11/end_bone/direction = 2
+settings/11/end_bone/length = 0.05
+settings/11/radius/value = 0.006
+settings/11/stiffness/value = 6
+settings/11/drag/value = 0.5
+
+[node name="WaistCollision" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "hips"
+position_offset = Vector3(0, 0.07, 0)
+radius = 0.09
+height = 0.5
+
+[node name="ThighLeft" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "upper_leg_l"
+position_offset = Vector3(0, 0.2, 0)
+radius = 0.125
+height = 0.62
+
+[node name="ThighRight" type="SpringBoneCollisionCapsule3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "upper_leg_r"
+position_offset = Vector3(0, 0.2, 0)
+radius = 0.125
+height = 0.62
+
+[node name="HeadCollision" type="SpringBoneCollisionSphere3D" parent="Model/armature_male/Skeleton3D/ClothSprings"]
+bone_name = "head"
+position_offset = Vector3(0, 0.11, 0)
+radius = 0.1
+
 [node name="WeaponBone" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
 bone_name = "weapon"
 
+[node name="HandItem" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
+bone_name = "hand_l"
+
+[node name="Cup" parent="Model/armature_male/Skeleton3D/HandItem" instance=ExtResource("cup_model")]
+visible = false
+transform = Transform3D(0.949, 0.316, 0, 0, 0, 1, 0.316, -0.949, 0, -0.038, 0.085, -0.013)
+
+[node name="Candle" parent="Model/armature_male/Skeleton3D/HandItem" instance=ExtResource("candle_model")]
+visible = false
+transform = Transform3D(0.949, 0.316, 0, 0, 0, 1, 0.316, -0.949, 0, -0.013, 0.085, -0.057)
+
+[node name="HeadItem" type="BoneAttachment3D" parent="Model/armature_male/Skeleton3D"]
+bone_name = "head"
+
+[node name="Cap" type="Node3D" parent="Model/armature_male/Skeleton3D/HeadItem"]
+visible = false
+
+[node name="Crown" type="MeshInstance3D" parent="Model/armature_male/Skeleton3D/HeadItem/Cap"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.01)
+mesh = SubResource("cap_crown")
+
+[node name="Brim" type="MeshInstance3D" parent="Model/armature_male/Skeleton3D/HeadItem/Cap"]
+transform = Transform3D(1, 0, 0, 0, 0.985, -0.174, 0, 0.174, 0.985, 0, 0.2, 0.15)
+mesh = SubResource("cap_brim")
+
 [node name="Hitbox" type="ShapeCast3D" parent="Model/armature_male/Skeleton3D/WeaponBone"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
 enabled = false
-shape = SubResource("stick_shape")
+shape = SubResource("blade_shape")
 target_position = Vector3(0, 0, 0)
 collision_mask = 4
+
+[node name="WeaponTrail" type="WeaponTrail" parent="."]
+top_level = true
+physics_interpolation_mode = 2
+material_override = SubResource("trail_material")
+cast_shadow = 0
+extra_cull_margin = 4.0
+
+[node name="Dust" type="CPUParticles3D" parent="."]
+top_level = true
+physics_interpolation_mode = 2
+emitting = false
+amount = 16
+lifetime = 0.55
+one_shot = true
+explosiveness = 0.95
+local_coords = false
+mesh = SubResource("dust_mesh")
+emission_shape = 1
+emission_sphere_radius = 0.2
+direction = Vector3(0, 1, 0)
+spread = 80.0
+gravity = Vector3(0, -0.6, 0)
+initial_velocity_min = 0.5
+initial_velocity_max = 1.9
+damping_min = 2.5
+damping_max = 3.5
+color_ramp = SubResource("dust_fade")
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="Control" parent="Hud"]
+layout_mode = 3
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="MedallionShadow" type="Polygon2D" parent="Hud/Panel"]
+position = Vector2(102, -92)
+color = Color(0, 0, 0, 0.24)
+polygon = PackedVector2Array(0, -74, 74, 0, 0, 74, -74, 0, 0, -71, 71, 0, 0, 71, -71, 0, 0, -68, 68, 0, 0, 68, -68, 0)
+polygons = [PackedInt32Array(0, 1, 2, 3), PackedInt32Array(4, 5, 6, 7), PackedInt32Array(8, 9, 10, 11)]
+
+[node name="HealthBar" type="StatBar" parent="Hud/Panel"]
+layout_mode = 0
+offset_left = 112.0
+offset_top = -128.0
+offset_right = 592.0
+offset_bottom = -94.0
+mouse_filter = 2
+tip = 16.0
+start = 32.0
+
+[node name="StaminaBar" type="StatBar" parent="Hud/Panel"]
+layout_mode = 0
+offset_left = 112.0
+offset_top = -90.0
+offset_right = 432.0
+offset_bottom = -70.0
+mouse_filter = 2
+fill_color = Color(0.08, 0.78, 0.96, 1)
+tip = 10.0
+start = 30.0
+
+[node name="RageBar" type="StatBar" parent="Hud/Panel"]
+visible = false
+layout_mode = 0
+offset_left = 112.0
+offset_top = -66.0
+offset_right = 352.0
+offset_bottom = -52.0
+mouse_filter = 2
+fill_color = Color(0.8, 0.16, 0.08, 1)
+tip = 8.0
+start = 28.0
+
+[node name="MedallionOutline" type="Polygon2D" parent="Hud/Panel"]
+position = Vector2(96, -98)
+color = Color(0.15, 0.09, 0.07, 1)
+polygon = PackedVector2Array(0, -68, 68, 0, 0, 68, -68, 0)
+
+[node name="Medallion" type="Polygon2D" parent="Hud/Panel"]
+position = Vector2(96, -98)
+polygon = PackedVector2Array(0, -64, 64, 0, 0, 0, 64, 0, 0, 64, 0, 0, 0, 64, -64, 0, 0, 0, -64, 0, 0, -64, 0, 0, 0, -54, 54, 0, 0, 0, 54, 0, 0, 54, 0, 0, 0, 54, -54, 0, 0, 0, -54, 0, 0, -54, 0, 0)
+polygons = [PackedInt32Array(0, 1, 2), PackedInt32Array(3, 4, 5), PackedInt32Array(6, 7, 8), PackedInt32Array(9, 10, 11), PackedInt32Array(12, 13, 14), PackedInt32Array(15, 16, 17), PackedInt32Array(18, 19, 20), PackedInt32Array(21, 22, 23)]
+vertex_colors = PackedColorArray(0.95, 0.72, 0.3, 1, 0.95, 0.72, 0.3, 1, 0.95, 0.72, 0.3, 1, 0.55, 0.37, 0.13, 1, 0.55, 0.37, 0.13, 1, 0.55, 0.37, 0.13, 1, 0.76, 0.53, 0.2, 1, 0.76, 0.53, 0.2, 1, 0.76, 0.53, 0.2, 1, 1, 0.88, 0.55, 1, 1, 0.88, 0.55, 1, 1, 0.88, 0.55, 1, 0.31, 0.5, 0.47, 1, 0.31, 0.5, 0.47, 1, 0.31, 0.5, 0.47, 1, 0.2, 0.34, 0.33, 1, 0.2, 0.34, 0.33, 1, 0.2, 0.34, 0.33, 1, 0.25, 0.42, 0.4, 1, 0.25, 0.42, 0.4, 1, 0.25, 0.42, 0.4, 1, 0.38, 0.58, 0.55, 1, 0.38, 0.58, 0.55, 1, 0.38, 0.58, 0.55, 1)
+
+[node name="ItemSlot" type="ItemSlot" parent="Hud/Panel"]
+layout_mode = 0
+offset_left = 50.0
+offset_top = -144.0
+offset_right = 142.0
+offset_bottom = -52.0
+mouse_filter = 2
+framed = false
+
+[node name="KeepsakeSlot" type="ItemSlot" parent="Hud/Panel"]
+visible = false
+layout_mode = 0
+offset_left = 146.0
+offset_top = -194.0
+offset_right = 198.0
+offset_bottom = -142.0
+mouse_filter = 2
+framed = false
+
+[node name="LevelLabel" type="Label" parent="Hud/Panel"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = -186.0
+offset_right = 132.0
+offset_bottom = -158.0
+theme_override_fonts/font = SubResource("title_font")
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 22
+text = "NV 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Panel/LevelLabel"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -6.0
+offset_top = -3.0
+offset_right = 6.0
+offset_bottom = 3.0
+mouse_filter = 2
+style = 3
+
+[node name="LochasLabel" type="Label" parent="Hud"]
+theme_override_fonts/font = SubResource("title_font")
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -132.0
+offset_top = -58.0
+offset_right = -36.0
+offset_bottom = -32.0
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 18
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/LochasLabel"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -8.0
+offset_top = -3.0
+offset_right = 10.0
+offset_bottom = 3.0
+mouse_filter = 2
+style = 3
+
+[node name="Icon" type="TextureRect" parent="Hud/LochasLabel"]
+layout_mode = 0
+offset_left = -7.0
+offset_top = -4.0
+offset_right = 27.0
+offset_bottom = 30.0
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("lochas_icon")
+expand_mode = 1
+
+[node name="Prompt" type="KeyButton" parent="Hud"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -158.0
+offset_right = 200.0
+offset_bottom = -112.0
+theme = ExtResource("street_theme")
+align = 1
+
+[node name="Toast" type="Label" parent="Hud"]
+theme_override_fonts/font = SubResource("title_font")
+visible = false
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -260.0
+offset_top = 60.0
+offset_right = 260.0
+offset_bottom = 104.0
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Toast"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -14.0
+offset_top = -4.0
+offset_right = 14.0
+offset_bottom = 4.0
+mouse_filter = 2
+style = 3
+
+[node name="DeathScreen" type="ColorRect" parent="Hud"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.03, 0.01, 0.01, 0.82)
+
+[node name="Text" type="Label" parent="Hud/DeathScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_colors/font_color = Color(0.72, 0.14, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_fonts/font = SubResource("title_font")
+theme_override_font_sizes/font_size = 96
+text = "MORISTE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Menu" type="GameMenu" parent="Hud"]
+theme = ExtResource("street_theme")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Shade" type="TextureRect" parent="Hud/Menu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = SubResource("menu_shade")
+expand_mode = 1
+
+[node name="Board" type="SkillTreeView" parent="Hud/Menu"]
+visible = false
+layout_mode = 0
+mouse_filter = 2
+
+[node name="Sheet" type="Control" parent="Hud/Menu"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 1080.0
+mouse_filter = 2
+
+[node name="Plaster" type="FacetPlate" parent="Hud/Menu/Sheet"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 22.0
+offset_right = -14.0
+offset_bottom = -22.0
+mouse_filter = 2
+style = 0
+seed = 58
+
+[node name="Title" type="Label" parent="Hud/Menu/Sheet"]
+uppercase = true
+theme_type_variation = &"TitleLabel"
+layout_mode = 0
+offset_left = 58.0
+offset_top = 50.0
+offset_right = 470.0
+offset_bottom = 116.0
+
+[node name="Header" type="FacetPlate" parent="Hud/Menu/Sheet/Title"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -22.0
+offset_top = -4.0
+offset_right = 22.0
+offset_bottom = 4.0
+mouse_filter = 2
+style = 4
+seed = 7
+
+[node name="TitleIcon" type="TextureRect" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 16.0
+offset_right = 604.0
+offset_bottom = 120.0
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("chapel_icon")
+expand_mode = 1
+
+[node name="TabLeft" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 84.0
+offset_top = 122.0
+offset_right = 234.0
+offset_bottom = 162.0
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabLeft"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+style = 2
+
+[node name="TabMiddle" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 122.0
+offset_right = 410.0
+offset_bottom = 162.0
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabMiddle"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+style = 1
+
+[node name="TabRight" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 416.0
+offset_top = 122.0
+offset_right = 556.0
+offset_bottom = 162.0
+theme_override_font_sizes/font_size = 20
+theme_type_variation = &"SignLabel"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Plate" type="FacetPlate" parent="Hud/Menu/Sheet/TabRight"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+style = 1
+
+[node name="TabPrev" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 120.0
+offset_right = 80.0
+offset_bottom = 164.0
+text = "Z  "
+
+[node name="TabNext" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 560.0
+offset_top = 120.0
+offset_right = 610.0
+offset_bottom = 164.0
+text = "C  "
+align = 2
+
+[node name="Subtitle" type="Label" parent="Hud/Menu/Sheet"]
+theme_type_variation = &"SignLabel"
+layout_mode = 0
+offset_left = 58.0
+offset_top = 124.0
+offset_right = 470.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.15, 0.09, 0.07, 1)
+theme_override_font_sizes/font_size = 22
+vertical_alignment = 1
+
+[node name="Rule" type="ColorRect" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 36.0
+offset_top = 166.0
+offset_right = 604.0
+offset_bottom = 168.0
+mouse_filter = 2
+color = Color(0.7, 0.36, 0.23, 1)
+
+[node name="Stencil" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 150.0
+offset_top = 520.0
+offset_right = 600.0
+offset_bottom = 900.0
+rotation = -0.08
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.31, 0.5, 0.47, 0.16)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+theme_override_font_sizes/font_size = 300
+text = "+58"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Rows" type="VBoxContainer" parent="Hud/Menu/Sheet"]
+theme_override_constants/separation = 8
+layout_mode = 0
+offset_left = 36.0
+offset_top = 188.0
+offset_right = 604.0
+offset_bottom = 520.0
+mouse_filter = 2
+
+[node name="Grid" type="GridContainer" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 36.0
+offset_top = 188.0
+offset_right = 604.0
+offset_bottom = 520.0
+mouse_filter = 2
+theme_override_constants/h_separation = 9
+theme_override_constants/v_separation = 9
+columns = 5
+
+[node name="ItemName" type="Label" parent="Hud/Menu/Sheet"]
+theme_type_variation = &"SignLabel"
+layout_mode = 0
+offset_left = 36.0
+offset_top = 548.0
+offset_right = 604.0
+offset_bottom = 592.0
+theme_override_font_sizes/font_size = 30
+
+[node name="Detail" type="Label" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 36.0
+offset_top = 596.0
+offset_right = 604.0
+offset_bottom = 700.0
+theme_override_font_sizes/font_size = 24
+autowrap_mode = 2
+
+[node name="Hints" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 36.0
+offset_top = 998.0
+offset_right = 400.0
+offset_bottom = 1044.0
+
+[node name="HintBack" type="KeyButton" parent="Hud/Menu/Sheet"]
+layout_mode = 0
+offset_left = 400.0
+offset_top = 998.0
+offset_right = 586.0
+offset_bottom = 1044.0
+align = 2
+
+[node name="LockMarker" type="Polygon2D" parent="Hud"]
+visible = false
+color = Color(0.86, 0.92, 1, 1)
+polygon = PackedVector2Array(0, -17, 17, 0, 0, 17, -17, 0, 0, -12, -12, 0, 0, 12, 12, 0)
+polygons = [PackedInt32Array(0, 1, 7, 4), PackedInt32Array(1, 2, 6, 7), PackedInt32Array(2, 3, 5, 6), PackedInt32Array(3, 0, 4, 5)]
+
+[node name="Dot" type="Polygon2D" parent="Hud/LockMarker"]
+color = Color(0.86, 0.92, 1, 1)
+polygon = PackedVector2Array(0, -5, 5, 0, 0, 5, -5, 0)
+
+[node name="Sounds" type="Node" parent="."]
+
+[node name="Swing" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("swing_sound")
+volume_db = -5.0
+max_polyphony = 2
+
+[node name="HeavySwing" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("heavy_swing_sound")
+max_polyphony = 2
+
+[node name="Hit" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("hit_sound")
+max_polyphony = 3
+
+[node name="Slam" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("slam_sound")
+
+[node name="Roll" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("roll_sound")
+volume_db = -6.0
+
+[node name="RollLand" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("roll_land_sound")
+volume_db = -10.0
+
+[node name="Step" type="AudioStreamPlayer" parent="Sounds"]
+stream = SubResource("step_sound")
+volume_db = -7.0
+max_polyphony = 3
 
 [node name="CameraPivot" type="Node3D" parent="."]
 top_level = true
