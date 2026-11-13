@@ -1,5 +1,6 @@
 #include "title_screen.hpp"
-#include "metal_plate.hpp"
+#include "facet_plate.hpp"
+#include "key_button.hpp"
 #include "game_settings.hpp"
 #include "ui_sounds.hpp"
 #include <game/world/save_file.hpp>
@@ -7,6 +8,8 @@
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
+#include <godot_cpp/classes/property_tweener.hpp>
+#include <godot_cpp/classes/tween.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -21,8 +24,15 @@ const char * const GAME_SCENE = "res://scenes/avenue.tscn";
 const Vector2 STAGE_SIZE(1920.f, 1080.f);
 constexpr int NO_ROW = -1;
 constexpr float FADE_TIME = 2.2f;
-constexpr float STAGE_RIGHT = 1920.f;
-constexpr float PLATES_RIGHT = 1860.f;
+constexpr float HINT_HEIGHT = 46.f;
+const char * const HINT_GAP = "      ";
+// The sheet comes in from the right once the street has faded up, as the chapel's does.
+const Vector2 SHEET_ENTRY(520.f, 120.f);
+constexpr float SHEET_ENTRY_TILT = 0.16f;
+constexpr float SHEET_REST_TILT = -0.022f;
+constexpr float SHEET_DELAY = 0.5f;
+constexpr float SHEET_IN_TIME = 0.5f;
+constexpr float DISABLED_ALPHA = 0.4f;
 
 // A close-up with the hero left of center, leaving the right of the frame to the menu.
 const Vector3 CAMERA_START(-0.5f, 1.5f, 32.15f);
@@ -41,11 +51,12 @@ void TitleScreen::_ready()
 {
   GameSettings::load();
   stage = get_node<Control>("Stage");
-  rows = get_node<VBoxContainer>("Stage/Rows");
-  heading = get_node<Label>("Stage/Heading");
-  hints = get_node<Label>("Stage/Hints");
-  name_box = get_node<Control>("Stage/NameBox");
-  name_field = get_node<LineEdit>("Stage/NameBox/Field");
+  sheet = get_node<Control>("Stage/Sheet");
+  rows = get_node<VBoxContainer>("Stage/Sheet/Rows");
+  heading = get_node<Label>("Stage/Sheet/Heading");
+  hints = get_node<HBoxContainer>("Stage/Sheet/Hints");
+  name_box = get_node<Control>("Stage/Sheet/NameBox");
+  name_field = get_node<LineEdit>("Stage/Sheet/NameBox/Field");
   fade = get_node<ColorRect>("Fade");
   camera = get_node<Camera3D>("../../Camera");
 
@@ -57,6 +68,60 @@ void TitleScreen::_ready()
   menu.open(MenuScreen::Title);
   place_stage();
   refresh();
+  slide_sheet_in();
+}
+
+void TitleScreen::slide_sheet_in()
+{
+  const Vector2 rest = sheet->get_position();
+  sheet->set_position(rest + SHEET_ENTRY);
+  sheet->set_rotation(SHEET_ENTRY_TILT);
+  sheet->set_modulate(Color(1.f, 1.f, 1.f, 0.f));
+  Ref<Tween> tween = create_tween()->set_parallel();
+  tween->tween_property(sheet, "position", rest, SHEET_IN_TIME)->set_delay(SHEET_DELAY)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
+  tween->tween_property(sheet, "rotation", SHEET_REST_TILT, SHEET_IN_TIME)->set_delay(SHEET_DELAY)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
+  tween->tween_property(sheet, "modulate:a", 1.f, SHEET_IN_TIME * 0.4f)->set_delay(SHEET_DELAY);
+}
+
+void TitleScreen::set_hints(const String & value)
+{
+  for (int i = hints->get_child_count() - 1; i >= 0; --i)
+  {
+    Node * hint = hints->get_child(i);
+    hints->remove_child(hint);
+    hint->queue_free();
+  }
+  const PackedStringArray keys = value.split(HINT_GAP, false);
+  for (const String & key : keys)
+  {
+    KeyButton * hint = memnew(KeyButton);
+    hints->add_child(hint);
+    hint->set_text(key.strip_edges());
+    hint->set_custom_minimum_size(Vector2(hint->plate_rect().size.x, HINT_HEIGHT));
+  }
+}
+
+// A plaque does what its key does, and goes down as the key would.
+bool TitleScreen::click_hint(const Vector2 & at)
+{
+  for (int i = 0; i < hints->get_child_count(); ++i)
+  {
+    KeyButton * hint = Object::cast_to<KeyButton>(hints->get_child(i));
+    if (hint == nullptr || !hint->get_global_transform().xform(hint->plate_rect()).has_point(at))
+      continue;
+    hint->press();
+    const String key = hint->get_text().get_slice("  ", 0);
+    if (key == "Esc")
+      go_back();
+    else if (key == "R")
+      delete_slot();
+    else if (key == "Enter")
+      on_name_submitted(name_field->get_text());
+    else if (key == "E")
+      accept();
+    return true;
+  }
+  return false;
 }
 
 void TitleScreen::count_saved_games()
@@ -110,11 +175,11 @@ int TitleScreen::row_count() const
 void TitleScreen::move_cursor(int step)
 {
   const int from = menu.cursor();
-  MetalPlate::select_row(rows, menu.cursor(), false);
+  FacetPlate::select_row(rows, menu.cursor(), false);
   menu.move_cursor(step, row_count());
   if (menu.screen() == MenuScreen::Title && menu.cursor() == ROW_CONTINUE && !any_saved)
     menu.move_cursor(step, row_count());
-  MetalPlate::select_row(rows, menu.cursor(), true);
+  FacetPlate::select_row(rows, menu.cursor(), true);
   if (menu.cursor() != from)
     UiSounds::play(this, "Move");
 }
@@ -122,7 +187,7 @@ void TitleScreen::move_cursor(int step)
 void TitleScreen::adjust_option(int direction)
 {
   UiSounds::play(this, GameSettings::step(menu.cursor(), direction) ? "Adjust" : "Deny");
-  MetalPlate::set_row_value(rows, menu.cursor(), GameSettings::row_value(menu.cursor()));
+  FacetPlate::set_row_value(rows, menu.cursor(), GameSettings::row_value(menu.cursor()));
 }
 
 void TitleScreen::_unhandled_input(const Ref<InputEvent> & event)
@@ -166,12 +231,16 @@ bool TitleScreen::handle_mouse(const Ref<InputEvent> & event)
   const bool dead_row = menu.screen() == MenuScreen::Title && row == ROW_CONTINUE && !any_saved;
   if (row != NO_ROW && row != menu.cursor() && !dead_row)
     move_cursor(row - menu.cursor());
+  // A hand over anything that answers a click; the plaques set their own.
+  Input::get_singleton()->set_default_cursor_shape(row != NO_ROW && !dead_row ? Input::CURSOR_POINTING_HAND : Input::CURSOR_ARROW);
 
   const InputEventMouseButton * button = Object::cast_to<InputEventMouseButton>(*event);
   if (button == nullptr || !button->is_pressed())
     return true;
   if (button->get_button_index() == MOUSE_BUTTON_RIGHT)
     go_back();
+  else if (button->get_button_index() == MOUSE_BUTTON_LEFT && click_hint(mouse->get_position()))
+    return true;
   else if (button->get_button_index() == MOUSE_BUTTON_LEFT && row != NO_ROW && !dead_row)
   {
     if (menu.screen() != MenuScreen::Options)
@@ -320,6 +389,7 @@ void TitleScreen::start_game()
 // Deferred: changing now takes this node out of the tree while it still handles the key.
 void TitleScreen::enter_game()
 {
+  Input::get_singleton()->set_default_cursor_shape(Input::CURSOR_ARROW);
   get_tree()->call_deferred("change_scene_to_file", GAME_SCENE);
 }
 
@@ -332,7 +402,6 @@ void TitleScreen::refresh()
     row->queue_free();
   }
 
-  rows->set_offset(SIDE_RIGHT, menu.screen() == MenuScreen::Title ? STAGE_RIGHT : PLATES_RIGHT);
   const bool naming = menu.screen() == MenuScreen::Name;
   name_box->set_visible(naming);
   if (naming)
@@ -352,39 +421,43 @@ void TitleScreen::show_main()
   if (!any_saved && menu.cursor() == ROW_CONTINUE)
     menu.move_cursor(1, MAIN_ROWS);
 
-  heading->set_text(String());
-  hints->set_text(String());
+  heading->set_text(text("Menú"));
+  set_hints("E  elegir");
   const char * const names[MAIN_ROWS] = {"Continuar", "Nueva partida", "Cargar partida", "Opciones", "Salir"};
   for (int row = 0; row < MAIN_ROWS; ++row)
-    MetalPlate::add_title_row(rows, text(names[row]), menu.cursor() == row, row == ROW_CONTINUE && !any_saved);
+  {
+    FacetPlate::add_row(rows, text(names[row]), menu.cursor() == row);
+    if (row == ROW_CONTINUE && !any_saved)
+      Object::cast_to<CanvasItem>(rows->get_child(row))->set_modulate(Color(1.f, 1.f, 1.f, DISABLED_ALPHA));
+  }
 }
 
 void TitleScreen::show_slots()
 {
   heading->set_text(loading ? "Cargar partida" : "Nueva partida");
-  hints->set_text("E  elegir      R  borrar      Esc  volver");
+  set_hints("E  elegir      R  borrar      Esc  volver");
   for (int slot = 0; slot < SaveFile::SLOTS; ++slot)
   {
     PlayerProgress game;
     const bool found = SaveFile::read_slot(slot, game);
     const String name = found ? String::utf8(game.player_name().c_str()) : text("Vacía");
     const String detail = found ? vformat(text("Día %d  ·  %d lochas"), game.day(), game.lochas()) : String();
-    MetalPlate::add_row(rows, vformat("%d   %s", slot + 1, name), menu.cursor() == slot, detail);
+    FacetPlate::add_row(rows, vformat("%d   %s", slot + 1, name), menu.cursor() == slot, detail);
   }
 }
 
 void TitleScreen::show_confirm()
 {
   heading->set_text(deleting ? text("¿Borrar esta partida?") : text("¿Reemplazar esta partida?"));
-  hints->set_text(text("Esto no se puede deshacer."));
-  MetalPlate::add_row(rows, deleting ? "Borrar" : "Reemplazar", menu.cursor() == 0);
-  MetalPlate::add_row(rows, "Cancelar", menu.cursor() == 1);
+  set_hints("E  elegir      Esc  volver");
+  FacetPlate::add_row(rows, deleting ? "Borrar" : "Reemplazar", menu.cursor() == 0, text("No se puede deshacer"));
+  FacetPlate::add_row(rows, "Cancelar", menu.cursor() == 1);
 }
 
 void TitleScreen::show_name()
 {
   heading->set_text(text("¿Cómo te llamas?"));
-  hints->set_text("Enter  empezar      Esc  volver");
+  set_hints("Enter  empezar      Esc  volver");
   name_field->clear();
   name_field->grab_focus();
 }
@@ -392,7 +465,7 @@ void TitleScreen::show_name()
 void TitleScreen::show_options()
 {
   heading->set_text("Opciones");
-  hints->set_text("A / D  ajustar      Esc  volver");
+  set_hints("A / D  ajustar      Esc  volver");
   for (int row = 0; row < GameSettings::ROWS; ++row)
-    MetalPlate::add_row(rows, GameSettings::row_name(row), menu.cursor() == row, GameSettings::row_value(row));
+    FacetPlate::add_row(rows, GameSettings::row_name(row), menu.cursor() == row, GameSettings::row_value(row));
 }

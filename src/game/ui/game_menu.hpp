@@ -65,6 +65,7 @@ private:
   void show_tabs(bool visible);
   void add_row(const godot::String & text, bool selected, const godot::String & value = godot::String());
   void paint_tab(godot::Label * label, FacetPlate * plate, bool active);
+  void hover_tab(godot::Label * label, bool on);
   void next_tab(int step);
   void show_tab(ItemKind kind);
   void move_in_grid(int step);

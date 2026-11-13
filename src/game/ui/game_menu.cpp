@@ -61,6 +61,9 @@ constexpr float ROWS_TOP = 188.f;
 constexpr float DETAIL_TOP = 596.f;
 constexpr float ROW_PITCH = 66.f;
 constexpr float DETAIL_GAP = 28.f;
+constexpr float TAB_HOVER_SCALE = 1.08f;
+constexpr float TAB_HOVER_TIME = 0.14f;
+const Color TAB_HOVER_LIGHT(1.3f, 1.3f, 1.25f);
 constexpr float TAB_BANDS = 9.f; // How far an active tab's bands hang below its label.
 
 const char * const STAT_NAMES[STAT_COUNT] = {
@@ -102,6 +105,14 @@ String text(const char * value)
 {
   return String::utf8(value);
 }
+
+// The second line of a medal's tag: what a click would do, or why it would not.
+String tip_status(SkillTreeView::State state, const String & action, int price, const String & locked)
+{
+  if (state == SkillTreeView::LEARNED)
+    return text("Aprendido");
+  return state == SkillTreeView::AVAILABLE ? vformat(text("%s: %d lochas"), action, price) : locked;
+}
 }
 
 void GameMenu::_ready()
@@ -127,6 +138,14 @@ void GameMenu::_ready()
   hints = get_node<KeyButton>("Sheet/Hints");
   hint_back = get_node<KeyButton>("Sheet/HintBack");
   rows = get_node<VBoxContainer>("Sheet/Rows");
+  // Tabs answer the mouse before a click: a hand and a small lift.
+  for (Label * tab_label : {tab_left, tab_middle, tab_right})
+  {
+    tab_label->set_mouse_filter(MOUSE_FILTER_PASS);
+    tab_label->set_default_cursor_shape(CURSOR_POINTING_HAND);
+    tab_label->connect("mouse_entered", callable_mp(this, &GameMenu::hover_tab).bind(tab_label, true));
+    tab_label->connect("mouse_exited", callable_mp(this, &GameMenu::hover_tab).bind(tab_label, false));
+  }
   board = get_node<SkillTreeView>("Board");
   grid = get_node<GridContainer>("Sheet/Grid");
   for (ItemSlot *& slot : slots)
@@ -172,6 +191,7 @@ void GameMenu::close()
     panel->create_tween()->tween_property(panel, "modulate:a", 1.f, HUD_RETURN_TIME);
   }
   get_tree()->set_pause(false);
+  Input::get_singleton()->set_default_cursor_shape(Input::CURSOR_ARROW);
   Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_CAPTURED);
   closed_tick = Engine::get_singleton()->get_physics_frames();
 }
@@ -371,8 +391,9 @@ void GameMenu::adjust_option(int direction)
 void GameMenu::move_row(int step)
 {
   const int from = menu.cursor();
-  if (menu.screen() == MenuScreen::Inventory)
+  if (menu.screen() == MenuScreen::Inventory || tree_screen())
   {
+    // The grid and the boards redraw whole, so the hovered slot or medal shows what it is at once.
     menu.move_cursor(step, row_count());
     refresh();
   }
@@ -415,6 +436,8 @@ bool GameMenu::handle_mouse(const Ref<InputEvent> & event)
   const int entry = entry_at(at);
   if (entry != NO_ENTRY && entry != menu.cursor())
     move_row(entry - menu.cursor());
+  // A hand over anything that answers a click, as on any other button.
+  Input::get_singleton()->set_default_cursor_shape(entry != NO_ENTRY ? Input::CURSOR_POINTING_HAND : Input::CURSOR_ARROW);
 
   const InputEventMouseButton * button = Object::cast_to<InputEventMouseButton>(*event);
   if (button == nullptr || !button->is_pressed())
@@ -732,6 +755,17 @@ void GameMenu::paint_tab(Label * label, FacetPlate * plate, bool active)
   }
 }
 
+void GameMenu::hover_tab(Label * label, bool on)
+{
+  label->set_pivot_offset(label->get_size() * 0.5f);
+  const float lift = on ? TAB_HOVER_SCALE : 1.f;
+  label->create_tween()->tween_property(label, "scale", Vector2(lift, lift), TAB_HOVER_TIME)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
+  // The painted strip catches the light too, so the lift reads on a small tab.
+  label->get_node<CanvasItem>("Plate")->set_self_modulate(on ? TAB_HOVER_LIGHT : Color(1.f, 1.f, 1.f));
+  if (on)
+    UiSounds::play(this, "Move");
+}
+
 void GameMenu::add_row(const String & value, bool selected, const String & right)
 {
   FacetPlate::add_row(rows, value, selected, right);
@@ -822,7 +856,9 @@ void GameMenu::show_stats()
     const int index = static_cast<int>(stat);
     // The first medal of a stat carries its icon and name; the rest only their rank.
     const String name = level == 1 ? text(STAT_TITLES[index]) : String();
-    entries.append(SkillTreeView::Entry{slots[i], name, text(NUMERALS[level - 1]), level == 1 ? Facet::skill_icon(STAT_KEYS[index]) : Ref<Texture2D>(), state});
+    SkillTreeView::Entry entry{slots[i], name, text(NUMERALS[level - 1]), level == 1 ? Facet::skill_icon(STAT_KEYS[index]) : Ref<Texture2D>(), state};
+    entry.tip = vformat("%s  %s\n", text(STAT_NAMES[index]), text(NUMERALS[level - 1])) + tip_status(state, text("Subir"), progress.stat_cost(player->chapel_zone()), stats.opened(stat) ? text("Sube antes el nivel de arriba") : text("Se abre con el primer nivel"));
+    entries.append(entry);
   }
   PackedStringArray titles;
   for (int group = 0; group < STAT_GROUPS; ++group)
@@ -991,7 +1027,9 @@ void GameMenu::show_machete()
       titles.push_back(text(info.name));
     const SkillTreeView::State state = slots[i].unlocked ? SkillTreeView::LEARNED : (progress.has_skill(info.parent) ? SkillTreeView::AVAILABLE : SkillTreeView::LOCKED);
     // Without an icon a medal shows its depth as a rank, as on the Filo chain.
-    entries.append(SkillTreeView::Entry{slots[i], text(info.name), text(NUMERALS[slots[i].depth - 1]), Facet::skill_icon(info.key), state});
+    SkillTreeView::Entry entry{slots[i], text(info.name), text(NUMERALS[slots[i].depth - 1]), Facet::skill_icon(info.key), state};
+    entry.tip = text(info.name) + "\n" + tip_status(state, text("Aprender"), progress.skill_price(slots[i].id, zone), vformat(text("Necesitas %s"), text(machete_skill(info.parent).name)));
+    entries.append(entry);
   }
   const SkillTreeView::Entry machete{slots[0], text(machete_skill(MacheteSkill::MACHETE).name), String(), Facet::skill_icon("machete"), SkillTreeView::LEARNED};
   board->show_tree(machete, entries, titles, menu.cursor());

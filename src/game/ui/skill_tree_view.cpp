@@ -37,6 +37,18 @@ constexpr float BRACKET_GROW = 10.f;
 constexpr float UNLOCK_TIME = 0.6f;
 constexpr float LINE_SHARE = 0.55f; // Of the unlock: the line fills first, then the medal flashes.
 constexpr float PULSE_TIME = 0.7f;
+constexpr float FOCUS_TIME = 0.22f;
+constexpr float BRACKET_SLIDE = 22.f; // The brackets close in from this far out.
+constexpr float HALO_SHARE = 0.78f;
+constexpr float CARD_GLOW = 5.f;
+const Vector2 MEDAL_SHADOW(3.f, 5.f);
+constexpr float PATH_WIDTH = 3.f;
+
+constexpr float TIP_GAP = 16.f;
+constexpr float TIP_PAD = 16.f;
+constexpr int TIP_NAME_SIZE = 30;
+constexpr int TIP_LINE_SIZE = 25;
+constexpr float TIP_RISE = 10.f;
 
 const Color LOCKED_MEDAL(0.55f, 0.52f, 0.5f);
 const Color LOCKED_LINE(UiPalette::INK_MUTED, 0.45f);
@@ -91,6 +103,12 @@ void SkillTreeView::set_pulse(float value)
     queue_redraw();
 }
 
+void SkillTreeView::set_focus(float value)
+{
+  focus = value;
+  queue_redraw();
+}
+
 void SkillTreeView::set_unlock(float value)
 {
   unlock = value;
@@ -102,6 +120,15 @@ void SkillTreeView::show_tree(const Entry & top, const Designar::DynArray<Entry>
   root = top;
   entries = value;
   titles = branch_titles;
+  if (at != cursor && is_visible_in_tree())
+  {
+    // The new medal swells in while the old one settles back.
+    previous = cursor;
+    if (focus_tween.is_valid())
+      focus_tween->kill();
+    focus_tween = create_tween();
+    focus_tween->tween_method(callable_mp(this, &SkillTreeView::set_focus), 0.f, 1.f, FOCUS_TIME)->set_trans(Tween::TRANS_BACK)->set_ease(Tween::EASE_OUT);
+  }
   cursor = at;
   arrange();
   queue_redraw();
@@ -161,6 +188,23 @@ const SkillTreeView::Entry & SkillTreeView::entry(int index) const
   return index < 0 ? root : entries[index];
 }
 
+bool SkillTreeView::on_path(int index) const
+{
+  if (entries.size() == 0)
+    return false;
+  for (int at = cursor; at >= 0;)
+  {
+    if (at == index)
+      return true;
+    int parent = -1;
+    for (int i = 0; i < static_cast<int>(entries.size()); ++i)
+      if (entries[i].slot.id == entries[at].slot.parent)
+        parent = i;
+    at = parent;
+  }
+  return false;
+}
+
 int SkillTreeView::toward(const Vector2 & direction) const
 {
   if (entries.size() == 0)
@@ -215,8 +259,9 @@ void SkillTreeView::draw_link(int index)
 
   const bool learned = child.state == LEARNED;
   const bool filling = index == celebrated && unlock < LINE_SHARE;
+  const bool path = on_path(index);
   if (!learned || filling)
-    draw_polyline(line, LOCKED_LINE, LOCKED_LINE_WIDTH);
+    draw_polyline(line, path ? Color(UiPalette::INK, 0.75f) : LOCKED_LINE, path ? LINE_WIDTH * 0.7f : LOCKED_LINE_WIDTH);
   if (!learned)
     return;
   const PackedVector2Array lit = filling ? partial(line, unlock / LINE_SHARE) : line;
@@ -227,6 +272,9 @@ void SkillTreeView::draw_link(int index)
     shadow[i] += Vector2(3.f, 3.f);
   draw_polyline(shadow, UiPalette::SHADOW, LINE_WIDTH);
   draw_polyline(lit, UiPalette::CANDLE, LINE_WIDTH);
+  // The way down to the cursor shines brighter, so the chain it hangs from reads at a glance.
+  if (path)
+    draw_polyline(lit, Color(UiPalette::JACKET_YELLOW.lightened(0.4f), focus), PATH_WIDTH);
 }
 
 void SkillTreeView::draw_medal(int index)
@@ -234,7 +282,8 @@ void SkillTreeView::draw_medal(int index)
   const Entry & entry = this->entry(index);
   const Vector2 at = center(index);
   const bool selected = index == cursor;
-  float size = medal * (selected ? CURSOR_SCALE : 1.f) * (index < 0 ? ROOT_SCALE : 1.f);
+  const float grow = selected ? Math::lerp(1.f, CURSOR_SCALE, focus) : (index == previous ? Math::lerp(CURSOR_SCALE, 1.f, focus) : 1.f);
+  float size = medal * grow * (index < 0 ? ROOT_SCALE : 1.f);
 
   const bool flashing = index == celebrated && unlock >= LINE_SHARE && unlock < 1.f;
   const float flash = flashing ? (unlock - LINE_SHARE) / (1.f - LINE_SHARE) : 0.f;
@@ -245,12 +294,22 @@ void SkillTreeView::draw_medal(int index)
     draw_colored_polygon(ring(at, medal * (0.6f + 0.9f * flash), 8), Color(UiPalette::JACKET_YELLOW, 0.55f * (1.f - flash)));
   }
 
+  if (selected)
+  {
+    // A faceted halo of candle light that breathes with the pulse.
+    const float halo = size * (HALO_SHARE + 0.06f * pulse);
+    draw_colored_polygon(ring(at, halo, 8), Color(UiPalette::CANDLE, 0.32f * focus));
+    draw_colored_polygon(ring(at, halo * 0.86f, 8), Color(UiPalette::JACKET_YELLOW, 0.38f * focus));
+  }
   if (entry.state == AVAILABLE)
     draw_polyline(ring(at, medal * 0.62f, 8), Color(UiPalette::JACKET_YELLOW, 0.45f + 0.55f * pulse), 4.f);
 
   const Rect2 box(at - Vector2(size, size) * 0.5f, Vector2(size, size));
   const Color tint = entry.state == LOCKED ? LOCKED_MEDAL : Color(1.f, 1.f, 1.f);
-  draw_texture_rect(entry.state == LEARNED ? gold : tin, box, false, tint);
+  const Ref<Texture2D> face = entry.state == LEARNED ? gold : tin;
+  // A hard shadow under the medal, its own shape in ink, so it stands off the paper.
+  draw_texture_rect(face, Rect2(box.position + MEDAL_SHADOW * grow, box.size), false, Color(UiPalette::SHADOW, 0.45f));
+  draw_texture_rect(face, box, false, tint);
 
   const float faded = entry.state == LOCKED ? 0.75f : 1.f;
   if (entry.icon.is_valid())
@@ -281,7 +340,7 @@ void SkillTreeView::draw_medal(int index)
   if (!selected)
     return;
   // Four corner brackets in the jacket's yellow, inked underneath.
-  const float half = size * 0.5f + BRACKET_GROW;
+  const float half = size * 0.5f + BRACKET_GROW + BRACKET_SLIDE * (1.f - MIN(focus, 1.f));
   for (int corner = 0; corner < 4; ++corner)
   {
     const Vector2 sign(corner % 2 ? 1.f : -1.f, corner / 2 ? 1.f : -1.f);
@@ -331,9 +390,50 @@ void SkillTreeView::_draw()
     const float rule_y = title_at.y - TITLE_SIZE - 8.f;
     draw_line(Vector2(area.position.x + area.size.x * 0.25f, rule_y), Vector2(area.position.x + area.size.x * 0.75f, rule_y), UiPalette::TERRACOTTA, 3.f);
   }
+  if (cursor >= 0 && cursor < static_cast<int>(entries.size()))
+    draw_card_glow(entries[cursor].slot.branch);
   for (int i = 0; i < static_cast<int>(entries.size()); ++i)
     draw_link(i);
   draw_medal(-1);
   for (int i = 0; i < static_cast<int>(entries.size()); ++i)
     draw_medal(i);
+  draw_tip();
+}
+
+// The card holding the cursor is outlined in candle gold, so the branch in play stands out.
+void SkillTreeView::draw_card_glow(int branch)
+{
+  const Rect2 area = card(branch);
+  draw_rect(area.grow(CARD_GLOW * 2.f), Color(UiPalette::JACKET_YELLOW, 0.18f + 0.12f * pulse), false, CARD_GLOW);
+  draw_rect(area.grow(CARD_GLOW * 0.5f), Color(UiPalette::JACKET_YELLOW, 0.6f + 0.3f * pulse), false, CARD_GLOW * 0.8f);
+}
+
+// A plaster tag beside the medal under the cursor: what it is and what it takes, without a click.
+void SkillTreeView::draw_tip()
+{
+  if (cursor < 0 || cursor >= static_cast<int>(entries.size()) || entries[cursor].tip.is_empty())
+    return;
+  const String & tip = entries[cursor].tip;
+  const int split = tip.find("\n");
+  const String name = split < 0 ? tip : tip.substr(0, split);
+  const String line = split < 0 ? String() : tip.substr(split + 1);
+  const Ref<Font> sign = get_theme_font("font", "SignLabel");
+  const Ref<Font> body = get_theme_font("font", "Label");
+  const float width = MAX(sign->get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, TIP_NAME_SIZE).x, body->get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, TIP_LINE_SIZE).x) + TIP_PAD * 2.f;
+  const float height = TIP_PAD * 2.f + TIP_NAME_SIZE + (line.is_empty() ? 0.f : TIP_LINE_SIZE + 6.f);
+
+  // Right of the medal, or left of it when that would run off the board; it rises in with the focus.
+  const Vector2 at = center(cursor);
+  const float reach = medal * CURSOR_SCALE * 0.5f + TIP_GAP;
+  float x = at.x + reach;
+  if (x + width > get_size().x)
+    x = at.x - reach - width;
+  const Rect2 area(Vector2(x, at.y - height * 0.5f + TIP_RISE * (1.f - focus)), Vector2(width, height));
+  const float alpha = CLAMP(focus, 0.f, 1.f);
+  Facet::panel(*this, Facet::outline(area, cursor + 11, 7.f, 0.f), Color(UiPalette::PLASTER, alpha), Vector2(5.f, 6.f) * alpha);
+  draw_rect(Rect2(area.position, Vector2(4.f, area.size.y)).grow_individual(0.f, -6.f, 0.f, -6.f), Color(UiPalette::TERRACOTTA, alpha));
+  const float top = area.position.y + TIP_PAD + sign->get_ascent(TIP_NAME_SIZE);
+  draw_string(sign, Vector2(area.position.x + TIP_PAD, top), name, HORIZONTAL_ALIGNMENT_LEFT, -1, TIP_NAME_SIZE, Color(UiPalette::INK, alpha));
+  if (!line.is_empty())
+    draw_string(body, Vector2(area.position.x + TIP_PAD, top + 6.f + body->get_ascent(TIP_LINE_SIZE) + 2.f), line, HORIZONTAL_ALIGNMENT_LEFT, -1, TIP_LINE_SIZE, Color(UiPalette::TERRACOTTA.darkened(0.25f), alpha));
 }

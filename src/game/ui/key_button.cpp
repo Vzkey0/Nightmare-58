@@ -52,6 +52,7 @@ void KeyButton::_notification(int what)
   {
     case NOTIFICATION_READY:
       set_mouse_filter(MOUSE_FILTER_PASS);
+      set_default_cursor_shape(CURSOR_POINTING_HAND);
       set_texture_repeat(TEXTURE_REPEAT_ENABLED);
       [[fallthrough]];
     case NOTIFICATION_RESIZED:

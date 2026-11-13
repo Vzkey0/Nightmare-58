@@ -13,7 +13,6 @@
 #include <game/ui/facet_plate.hpp>
 #include <game/ui/key_button.hpp>
 #include <game/ui/skill_tree_view.hpp>
-#include <game/ui/metal_plate.hpp>
 #include <game/ui/game_menu.hpp>
 #include <game/ui/item_slot.hpp>
 #include <game/ui/stat_bar.hpp>
@@ -46,7 +45,6 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);
     GDREGISTER_RUNTIME_CLASS(ItemSlot);
-    GDREGISTER_RUNTIME_CLASS(MetalPlate);
     GDREGISTER_RUNTIME_CLASS(FacetPlate);
     GDREGISTER_RUNTIME_CLASS(KeyButton);
     GDREGISTER_RUNTIME_CLASS(SkillTreeView);

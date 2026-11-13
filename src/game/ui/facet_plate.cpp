@@ -131,7 +131,7 @@ void Facet::panel(CanvasItem & canvas, const PackedVector2Array & shape, const C
   uvs.resize(shape.size());
   for (int i = 0; i < shape.size(); ++i)
     uvs[i] = shape[i] / GRAIN_TILE;
-  static Ref<Texture2D> grain = texture("plaster");
+  const Ref<Texture2D> grain = texture("plaster"); // Cached by the loader; a static would outlive the renderer.
   canvas.draw_colored_polygon(shape, color, uvs, grain);
   PackedVector2Array edge = shape;
   edge.push_back(shape[0]);

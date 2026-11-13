@@ -26,6 +26,7 @@ public:
     godot::String mark; // Drawn on the medal when there is no icon.
     godot::Ref<godot::Texture2D> icon;
     State state;
+    godot::String tip; // Two lines on the tag beside the medal under the cursor: its name, then its price or state.
   };
 
   void _ready() override;
@@ -50,6 +51,10 @@ private:
   void draw_medal(int index);
   void set_unlock(float value);
   void set_pulse(float value);
+  void set_focus(float value);
+  bool on_path(int index) const; // The cursor or one of its parents.
+  void draw_card_glow(int branch);
+  void draw_tip();
 
   Entry root;
   godot::Vector2 root_center;
@@ -61,6 +66,9 @@ private:
   int celebrated = -1;
   float unlock = 1.f;
   float pulse = 0.f;
+  int previous = -1; // The medal the cursor just left, shrinking back as focus grows.
+  float focus = 1.f;
+  godot::Ref<godot::Tween> focus_tween;
   godot::Ref<godot::Tween> unlock_tween;
   godot::Ref<godot::Texture2D> gold;
   godot::Ref<godot::Texture2D> tin;

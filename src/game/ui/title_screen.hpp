@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
@@ -47,6 +48,9 @@ private:
   void adjust_option(int direction);
   bool handle_mouse(const godot::Ref<godot::InputEvent> & event);
   int row_at(const godot::Vector2 & at) const;
+  void set_hints(const godot::String & value); // Keys apart by six spaces, each on its own plaque.
+  bool click_hint(const godot::Vector2 & at);
+  void slide_sheet_in();
   int row_count() const;
   void place_stage();
   void move_camera(float time);
@@ -61,7 +65,8 @@ private:
   godot::Control * stage = nullptr;
   godot::VBoxContainer * rows = nullptr;
   godot::Label * heading = nullptr;
-  godot::Label * hints = nullptr;
+  godot::Control * sheet = nullptr;
+  godot::HBoxContainer * hints = nullptr;
   godot::Control * name_box = nullptr;
   godot::LineEdit * name_field = nullptr;
   godot::ColorRect * fade = nullptr;
