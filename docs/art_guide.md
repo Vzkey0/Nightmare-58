@@ -105,6 +105,8 @@ blender --background art/characters/skeleton.blend --python art/characters/anima
 | `attack_lunge` | 1,87 s, avanza 2,4 m | 0,9 a 1,03 s | Embestida: se encoge, salta y cae cortando |
 | `hurt` | 0,5 s | | El cráneo salta hacia atrás y la mandíbula cuelga |
 | `death` | 2,2 s | | Cada hueso se suelta y cae por su cuenta; el cráneo acaba junto al montón |
+| `feed` | 3 s, en bucle | | Solo en la apertura: agachado sobre un cuerpo, muerde, jala sacudiendo el cráneo y mastica |
+| `feed_rise` | 1,2 s | | De `feed` a la guardia, el cráneo primero |
 
 Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos brillan más durante esa
 señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
@@ -553,6 +555,57 @@ interiores miden 2 m porque la malla pierde 0,5 m de cada lado.
   Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`. El de `build_route.py`
   llega a 8,6 m por el primer piso del abasto y por la losa del atajo.
 - Las capas largas se parten por tramos para que Godot omita lo que no está en cámara.
+
+## Apertura
+
+Todo lo de [opening.md](opening.md). Es una cinemática: se modela solo lo que sale en pantalla.
+
+**Luis:** [build_luis.py](../art/characters/build_luis.py) lo arma, lo anima y exporta `luis.glb`
+(2.300 triángulos). Delgado, barba completa, pelo peinado hacia atrás, franela verde oliva con cuello
+en V, pantalón cargo caqui, zapatos grises y un morral de lona, que es su propia malla
+(`luis_backpack`) para ocultarlo en el carro. Usa los nombres de huesos de la protagonista, y cada
+tramo de malla se pesa a sus dos huesos más cercanos, como las bestias. `PersonRig` pone el torso
+por rotaciones y brazos y piernas por cinemática inversa hacia un punto; la raíz es el piso del
+carro bajo el asiento.
+
+```bash
+blender --background --python art/characters/build_luis.py
+```
+
+| Clip | Duración | Uso |
+|---|---|---|
+| `drive` | 6 s, en bucle | Al volante, mirando la vía y el retrovisor |
+| `talk` | 5 s, en bucle | Hablando con el pasajero, la mano derecha fuera del volante |
+| `laugh` | 1,8 s | Risa cansada |
+| `point_back`, `let_go` | 1 s y 0,8 s | Estira la mano entre los asientos hacia el machete y vuelve al volante |
+| `hit_radio` | 1,5 s | Dos golpes a la radio |
+| `swerve` | 0,8 s | El volantazo |
+| `lying` | 4 s, en bucle | Boca abajo en el asfalto |
+| `reach` | 4 s | La mano se arrastra hacia el protagonista |
+
+El mismo archivo tiene los clips del protagonista de pasajero (`sit`, `sit_window`, `sit_back` y
+`brace`), que `animate_protagonist.py` hornea sobre su propio esqueleto; también acomodan la chaqueta
+larga sobre el asiento.
+
+**Gente:** `build_person()` es el mismo cuerpo con otra ropa, piel y peinado (`swept`, `short`,
+`long`, `cap`). Con `simple` pierde cara, dedos y barba y baja a unos 900 triángulos; así se hace la
+gente de fondo, congelada en una pose y pasada a color por vértice.
+
+**Carro:** [build_car.py](../art/props/build_car.py) exporta `car.glb` (sedán cuadrado de los 80,
+3.600 triángulos, con tablero, relojes, radio, rosario y arbolito en el retrovisor y estampita en
+el tablero; por dentro, butacas con los lados levantados y cabeceras redondas, puertas tapizadas con
+manivela y apoyabrazos, consola con freno de mano y cinturones), `car_wheel.glb` (el volante solo, para girarlo) y `car_crashed.glb` (trompa doblada,
+parabrisas estrellado y `door_right` abierta, con el origen en la bisagra). El frente apunta a +Y,
+así en Godot mira a -Z como el carro de la escena.
+
+**Sangre:** [build_blood.py](../art/props/build_blood.py) exporta `blood_pool.glb`: un charco
+irregular con el centro más oscuro, gotas alrededor y una mancha arrastrada, plano sobre el piso.
+
+**Recorrido:** [build_drive.py](../art/environments/build_drive.py) usa las piezas y la paleta de
+`build_avenue.py` y exporta a `game/models/environments/drive/` solo cuatro piezas: `street.glb`
+(tramo de 40 m que la escena recicla), `store.glb` (el abasto con la cola), `bus.glb` (el autobús
+varado y la gente que se va caminando) y `split_building.glb` (el edificio partido por el terremoto).
+Sus `.import` usan `avenue_import.gd` para el color por vértice.
 
 ## Presupuesto inicial
 
