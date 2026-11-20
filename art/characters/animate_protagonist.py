@@ -1139,6 +1139,12 @@ def main():
   rig = Rig(armature)
   for clip in CLIPS:
     bake(armature, rig, clip)
+  # Riding in Luis's car in the opening; build_luis.py has the seat and its solver.
+  sys.path.insert(0, HERE)
+  from build_luis import PASSENGER_CLIPS, PersonRig
+  seated = PersonRig(armature)
+  for clip in PASSENGER_CLIPS:
+    bake(armature, seated, clip())
   export(armature, body, weapon)
   bpy.ops.wm.save_mainfile()
 
