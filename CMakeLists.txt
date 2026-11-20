@@ -80,6 +80,7 @@ add_library(nightmare58_ext SHARED
   src/game/weapons/thrown_machete.cpp
   src/game/world/loot_pickup.cpp
   src/game/world/lost_lochas.cpp
+  src/game/world/opening_cutscene.cpp
   src/game/world/save_file.cpp)
 target_include_directories(nightmare58_ext PRIVATE src)
 target_link_libraries(nightmare58_ext PRIVATE godot-cpp nightmare58_core)

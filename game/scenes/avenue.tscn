@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/guino_enemy.tscn" id="11_guino"]
 [ext_resource type="PackedScene" path="res://models/environments/route.glb" id="12_route"]
 [ext_resource type="PackedScene" path="res://scenes/shortcut_gate.tscn" id="13_gate"]
+[ext_resource type="PackedScene" path="res://scenes/crashed_car.tscn" id="14_crashed_car"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.09, 0.1, 0.13, 1)
@@ -117,8 +118,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 130, 0, -94.5)
 collision_layer = 0
 collision_mask = 2
 
+[node name="CrashedCar" parent="." instance=ExtResource("14_crashed_car")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.2, 0, 30)
+
 [node name="Player" type="PlayerController" parent="." unique_id=1376458501 instance=ExtResource("2_player")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.2, 0.1, 34)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.6, 0.1, 30.2)
 collision_layer = 2
 collision_mask = 9
 
@@ -129,6 +133,11 @@ preprocess = 1.0
 visibility_aabb = AABB(-40, -30, -50, 80, 34, 100)
 process_material = SubResource("rain_process")
 draw_pass_1 = SubResource("rain_mesh")
+
+[node name="CrashSkeleton" type="SkeletonEnemy" parent="." groups=["unholy"] instance=ExtResource("4_skeleton")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.1, 26.5)
+collision_layer = 12
+collision_mask = 11
 
 [node name="Skeleton1" type="SkeletonEnemy" parent="." unique_id=1168991086 groups=["unholy"] instance=ExtResource("4_skeleton")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.1, 10)
