@@ -415,8 +415,74 @@ def death_clip():
   ))
 
 
+# Squatting over a body on the ground in front of it: heels up, the chest down over its knees, the
+# machete laid flat beside it and the left claw dug in. Only the opening uses it.
+FEED = {
+  "root": 0.0,
+  "hips_pos": (0.0, -0.05, -0.46),
+  "hips_rot": (30, 0, 0),
+  "spine_rot": (20, 0, 0),
+  "chest_rot": (20, 0, 0),
+  "head_rot": (70, 0, 0),
+  "jaw": 10.0,
+  "foot_l": (0.24, 0.16, 0.0),
+  "foot_l_rot": (28, 18),
+  "foot_r": (-0.22, -0.1, 0.0),
+  "foot_r_rot": (28, -14),
+  "grip": (-0.34, 0.5, 0.1),
+  "aim": (-0.25, 1.0, -0.08),
+  "edge": 90.0,
+  "pole_r": (-0.8, -0.2, -0.3),
+  "hand_l": (0.16, 0.62, 0.1),
+  "pole_l": (0.8, -0.2, -0.3),
+  "claw": 60.0,
+}
+
+
+def feed_clip():
+  """Bite, tear back with a shake of the skull, chew. Loops."""
+  def at_feed(**changes):
+    return dict(FEED, **changes)
+
+  channels = timeline(
+    (0, at_feed()),
+    (12, at_feed(chest_rot=(28, 0, 0), head_rot=(84, 0, 0), hand_l=(0.16, 0.64, 0.06))),
+    (20, at_feed(chest_rot=(30, 0, 0), head_rot=(88, 0, 0), hand_l=(0.16, 0.64, 0.06))),
+    (34, at_feed(chest_rot=(8, 4, 0), head_rot=(48, 16, 10), hand_l=(0.2, 0.45, 0.32), claw=80.0)),
+    (40, at_feed(chest_rot=(10, -4, 0), head_rot=(52, -12, -8), hand_l=(0.2, 0.47, 0.3), claw=80.0)),
+    (46, at_feed(chest_rot=(12, 2, 0), head_rot=(56, 8, 4), hand_l=(0.18, 0.52, 0.24), claw=70.0)),
+    (60, at_feed(chest_rot=(16, 0, 0), head_rot=(62, 0, 0))),
+    (82, at_feed()),
+  )
+  # Open before the bite, shut on it, then chewing.
+  def jaw(phase):
+    frame = phase * 90
+    if frame < 12:
+      return 10.0 + 25.0 * frame / 12
+    if frame < 20:
+      return 35.0 - 32.0 * (frame - 12) / 8
+    if frame < 50:
+      return 3.0
+    return 12.0 + 9.0 * math.sin(2.0 * math.pi * (frame - 50) / 8)
+
+  channels["jaw"] = jaw
+  return Clip("feed-loop", 90, channels, loop=True)
+
+
+def feed_rise_clip():
+  """The skull comes up first, then the rest of it, into the guard."""
+  return Clip("feed_rise", 36, timeline(
+    (0, dict(FEED)),
+    (8, dict(FEED, head_rot=(5, 0, 0), jaw=28.0, chest_rot=(10, 0, 0))),
+    (20, dict(GUARD, hips_pos=(0.0, -0.03, -0.3), hips_rot=(24, -4, 0), head_rot=(8, -2, 0), jaw=20.0)),
+    (36, dict(GUARD)),
+  ))
+
+
 CLIPS = [
   idle_clip(),
+  feed_clip(),
+  feed_rise_clip(),
   walk_clip(),
   run_clip(),
   circle_clip("strafe_left-loop", (1.0, 0.0)),
