@@ -25,6 +25,7 @@
 #include <game/weapons/thrown_machete.hpp>
 #include <game/world/loot_pickup.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/world/opening_cutscene.hpp>
 
 using namespace godot;
 
@@ -55,6 +56,7 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(ThrownMachete);
     GDREGISTER_RUNTIME_CLASS(LostLochas);
     GDREGISTER_RUNTIME_CLASS(LootPickup);
+    GDREGISTER_RUNTIME_CLASS(OpeningCutscene);
   }
 }
 

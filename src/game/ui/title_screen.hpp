@@ -40,7 +40,7 @@ private:
   void go_back();
   void open_slots(bool for_loading);
   void start_game();
-  void enter_game();
+  void enter_game(const char * scene);
   void delete_slot();
   void count_saved_games();
   void on_name_submitted(const godot::String & name);

@@ -21,6 +21,7 @@ using namespace godot;
 namespace
 {
 const char * const GAME_SCENE = "res://scenes/avenue.tscn";
+const char * const OPENING_SCENE = "res://scenes/opening.tscn"; // Only a new game sees it.
 const Vector2 STAGE_SIZE(1920.f, 1080.f);
 constexpr int NO_ROW = -1;
 constexpr float FADE_TIME = 2.2f;
@@ -377,20 +378,20 @@ void TitleScreen::on_name_submitted(const String & name)
   fresh.set_player_name(name.strip_edges().utf8().get_data());
   SaveFile::select(chosen_slot);
   SaveFile::write(fresh);
-  enter_game();
+  enter_game(OPENING_SCENE);
 }
 
 void TitleScreen::start_game()
 {
   SaveFile::select(chosen_slot);
-  enter_game();
+  enter_game(GAME_SCENE);
 }
 
 // Deferred: changing now takes this node out of the tree while it still handles the key.
-void TitleScreen::enter_game()
+void TitleScreen::enter_game(const char * scene)
 {
   Input::get_singleton()->set_default_cursor_shape(Input::CURSOR_ARROW);
-  get_tree()->call_deferred("change_scene_to_file", GAME_SCENE);
+  get_tree()->call_deferred("change_scene_to_file", scene);
 }
 
 void TitleScreen::refresh()
