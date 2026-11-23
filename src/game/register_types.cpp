@@ -10,6 +10,7 @@
 #include <game/enemies/guino_enemy.hpp>
 #include <game/enemies/rat_enemy.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/dialogue_box.hpp>
 #include <game/ui/facet_plate.hpp>
 #include <game/ui/key_button.hpp>
 #include <game/ui/skill_tree_view.hpp>
@@ -45,6 +46,7 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);
+    GDREGISTER_RUNTIME_CLASS(DialogueBox);
     GDREGISTER_RUNTIME_CLASS(ItemSlot);
     GDREGISTER_RUNTIME_CLASS(FacetPlate);
     GDREGISTER_RUNTIME_CLASS(KeyButton);
