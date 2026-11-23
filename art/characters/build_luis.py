@@ -8,7 +8,7 @@ import os
 import sys
 
 import bpy
-from mathutils import Quaternion, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -16,22 +16,22 @@ sys.path.insert(0, os.path.join(HERE, "..", "props"))
 
 from animate_protagonist import FORWARD, UP, Clip, Rig, at, bake, rot, timeline
 from beast_tools import Tags, mirrored, rig
-from prop_tools import Shape, material
+from prop_tools import Shape, linear, material
 
 BLEND_PATH = os.path.join(HERE, "luis.blend")
 GLB_PATH = os.path.join(HERE, "..", "..", "game", "models", "characters", "luis.glb")
 
 LUIS = {
-  "skin": (0.84, 0.68, 0.54),
-  "hair": (0.22, 0.14, 0.09),
-  "shirt": (0.33, 0.37, 0.22),
-  "trim": (0.22, 0.25, 0.15),
-  "pants": (0.56, 0.48, 0.31),
-  "pants_dark": (0.44, 0.37, 0.23),
-  "shoes": (0.27, 0.29, 0.32),
-  "sole": (0.15, 0.15, 0.16),
-  "pack": (0.62, 0.52, 0.34),
-  "strap": (0.43, 0.35, 0.22),
+  "skin": (0.80, 0.62, 0.48),
+  "hair": (0.19, 0.12, 0.08),
+  "shirt": (0.31, 0.36, 0.21),
+  "trim": (0.20, 0.24, 0.14),
+  "pants": (0.55, 0.47, 0.31),
+  "pants_dark": (0.42, 0.35, 0.22),
+  "shoes": (0.26, 0.28, 0.31),
+  "sole": (0.14, 0.14, 0.15),
+  "pack": (0.58, 0.48, 0.31),
+  "strap": (0.36, 0.28, 0.18),
   "beard": True,
   "hairstyle": "swept",
   "backpack": True,
@@ -73,16 +73,32 @@ def bones():
   })
 
 
-# --- Mesh helpers ----------------------------------------------------------------------------
-def ring(z, a, front, back, y=0.0, n=10, power=2.6, x=0.0):
+# --- Material & mesh helpers -----------------------------------------------------------------
+def make_material(name, color, roughness=0.84, metallic=0.0):
+  mat = material(name, color, roughness=roughness)
+  bsdf = mat.node_tree.nodes.get("Principled BSDF")
+  if bsdf is not None:
+    bsdf.inputs["Metallic"].default_value = metallic
+  return mat
+
+
+def scale_rgb(rgb, factor):
+  return tuple(max(0.0, min(1.0, c * factor)) for c in rgb)
+
+
+def mix_rgb(a, b, t):
+  return tuple(u + (v - u) * t for u, v in zip(a, b))
+
+
+def ring(z, a, front, back, y=0.0, n=10, power=2.5, x=0.0):
   """A rounded-box section: half width a, depth front and back. Angle 0 faces the camera (-Y)."""
   points = []
   for k in range(n):
     phi = math.tau * (k + 0.5) / n
     s, c = math.sin(phi), math.cos(phi)
-    px = a * math.copysign(abs(s) ** (2 / power), s)
+    px = a * math.copysign(abs(s) ** (2.0 / power), s)
     depth = front if c > 0 else back
-    py = -depth * math.copysign(abs(c) ** (2 / power), c)
+    py = -depth * math.copysign(abs(c) ** (2.0 / power), c)
     points.append((x + px, y + py, z))
   return points
 
@@ -95,308 +111,857 @@ def flip_path(path):
   return [((-p[0], p[1], p[2]), ru, rv) for p, ru, rv in path]
 
 
-def shell(shape, rows, thickness, mat):
-  """A curved plate from open rows of points: the outer face, an inner face pushed toward the
-  head center and the rim, so it stays a closed solid and its normals point the right way."""
-  center = Vector((0, 0.0, 1.64))
-  inner = [[tuple(Vector(p) + (center - Vector(p)).normalized() * thickness) for p in row] for row in rows]
-  cols = len(rows[0])
-  verts = [p for row in rows for p in row] + [p for row in inner for p in row]
-  base = len(rows) * cols
-  faces = []
-  for r in range(len(rows) - 1):
-    for c in range(cols - 1):
-      a, b = r * cols + c, r * cols + c + 1
-      faces.append((a, b, b + cols, a + cols))
-      faces.append((base + a + cols, base + b + cols, base + b, base + a))
-  for r in range(len(rows) - 1):
-    for c in (0, cols - 1):
-      a, b = r * cols + c, (r + 1) * cols + c
+def solid_shell(shape, rows, thickness, mat_outer, mat_inner=None, mat_edge=None, inward_dir=None):
+  """Closed faceted plate from open rows (r x c), with explicit inward normal direction."""
+  mat_inner = mat_inner or mat_outer
+  mat_edge = mat_edge or mat_outer
+  rcount, ccount = len(rows), len(rows[0])
+  outer = [[Vector(p) for p in row] for row in rows]
+  inner = []
+  for r in range(rcount):
+    irow = []
+    for c in range(ccount):
+      p = outer[r][c]
+      if inward_dir is not None:
+        n = inward_dir(p, r, c)
+      else:
+        dr = outer[min(r + 1, rcount - 1)][c] - outer[max(r - 1, 0)][c]
+        dc = outer[r][min(c + 1, ccount - 1)] - outer[r][max(c - 1, 0)]
+        n = dc.cross(dr)
+        n = n.normalized() if n.length > 1e-6 else Vector((0, 1, 0))
+      irow.append(p + n * thickness)
+    inner.append(irow)
+
+  verts = [tuple(p) for row in outer for p in row] + [tuple(p) for row in inner for p in row]
+  base = rcount * ccount
+  faces, mats = [], []
+  for r in range(rcount - 1):
+    for c in range(ccount - 1):
+      a, b = r * ccount + c, r * ccount + c + 1
+      faces.append((a, b, b + ccount, a + ccount))
+      mats.append(mat_outer)
+      faces.append((base + a + ccount, base + b + ccount, base + b, base + a))
+      mats.append(mat_inner)
+  for r in range(rcount - 1):
+    for c in (0, ccount - 1):
+      a, b = r * ccount + c, (r + 1) * ccount + c
       faces.append((a, b, base + b, base + a) if c else (b, a, base + a, base + b))
-  for r in (0, len(rows) - 1):
-    for c in range(cols - 1):
-      a, b = r * cols + c, r * cols + c + 1
+      mats.append(mat_edge)
+  for r in (0, rcount - 1):
+    for c in range(ccount - 1):
+      a, b = r * ccount + c, r * ccount + c + 1
       faces.append((b, a, base + a, base + b) if r == 0 else (a, b, base + b, base + a))
-  shape.add(verts, faces, mat)
+      mats.append(mat_edge)
+  shape.add(verts, faces, mats)
 
 
+def shell(shape, rows, thickness, mat):
+  center = Vector((0.0, 0.004, 1.652))
+  solid_shell(shape, rows, thickness, mat, inward_dir=lambda p, r, c: (center - p).normalized())
+
+
+# --- Sculpted head surface -------------------------------------------------------------------
 HEAD = [
   # z, half width, front, back, center y
-  (1.5, 0.05, 0.055, 0.05, 0.01),
-  (1.528, 0.06, 0.083, 0.055, 0.0),
-  (1.565, 0.083, 0.098, 0.075, 0.0),
-  (1.605, 0.092, 0.104, 0.09, 0.0),
-  (1.645, 0.097, 0.104, 0.1, 0.0),
-  (1.69, 0.096, 0.1, 0.106, 0.002),
-  (1.73, 0.089, 0.088, 0.104, 0.004),
-  (1.762, 0.068, 0.06, 0.08, 0.006),
-  (1.778, 0.03, 0.025, 0.035, 0.006),
+  (1.522, 0.036, 0.062, 0.034, -0.004),  # Chin tip
+  (1.544, 0.058, 0.088, 0.052, -0.002),  # Lower jaw
+  (1.576, 0.078, 0.098, 0.074, 0.000),   # Jaw angle / mouth level
+  (1.610, 0.088, 0.102, 0.090, 0.001),   # Lower cheeks
+  (1.644, 0.095, 0.104, 0.100, 0.002),   # Cheekbones
+  (1.668, 0.094, 0.101, 0.106, 0.004),   # Eye line (mid-skull)
+  (1.694, 0.095, 0.104, 0.110, 0.005),   # Brow ridge
+  (1.724, 0.090, 0.096, 0.108, 0.007),   # Forehead
+  (1.752, 0.078, 0.078, 0.094, 0.009),   # Upper skull curve
+  (1.770, 0.056, 0.055, 0.068, 0.010),   # Rounded dome
+  (1.782, 0.024, 0.024, 0.030, 0.010),   # Crown apex
 ]
 
 
-def head_point(z, phi, grow=0.0):
-  """A point on the head surface at height z and angle phi (0 is the face, + toward the left)."""
+def head_point(z, phi, grow=0.0, sculpt=True):
+  """Point on the sculpted head surface at height z and angle phi (0 is front -Y, + toward left +X)."""
   for (z0, a0, f0, b0, y0), (z1, a1, f1, b1, y1) in zip(HEAD, HEAD[1:]):
     if z <= z1:
       t = max(0.0, min(1.0, (z - z0) / (z1 - z0)))
       break
+  else:
+    (z0, a0, f0, b0, y0), (z1, a1, f1, b1, y1), t = HEAD[-2], HEAD[-1], 1.0
   a, f, b, y = (u + (v - u) * t for u, v in zip((a0, f0, b0, y0), (a1, f1, b1, y1)))
+  abs_phi = abs(math.atan2(math.sin(phi), math.cos(phi)))
   s, c = math.sin(phi), math.cos(phi)
-  px = (a + grow) * math.copysign(abs(s) ** (2 / 2.6), s)
-  depth = (f if c > 0 else b) + grow
-  py = -depth * math.copysign(abs(c) ** (2 / 2.6), c)
-  return (px, y + py, z)
+
+  relief = 0.0
+  if sculpt and c > -0.15:
+    # Recessed eye sockets
+    eye_s = math.exp(-((z - 1.668) / 0.015) ** 2) * math.exp(-((abs_phi - 0.36) / 0.19) ** 2)
+    relief -= 0.0085 * eye_s
+    # Strong masculine brow ridge
+    brow_s = math.exp(-((z - 1.693) / 0.013) ** 2) * math.exp(-((abs_phi) / 0.62) ** 2)
+    relief += 0.0062 * brow_s
+    # Defined cheekbones
+    cheek_b = math.exp(-((z - 1.644) / 0.017) ** 2) * math.exp(-((abs_phi - 0.65) / 0.25) ** 2)
+    relief += 0.0055 * cheek_b
+    # Subtle cheek plane under zygomatic arch
+    hollow = math.exp(-((z - 1.608) / 0.022) ** 2) * math.exp(-((abs_phi - 0.68) / 0.28) ** 2)
+    relief -= 0.0052 * hollow
+    # Flattened temples
+    temple = math.exp(-((z - 1.698) / 0.022) ** 2) * math.exp(-((abs_phi - 1.12) / 0.22) ** 2)
+    relief -= 0.0042 * temple
+    # Firm chin
+    chin = math.exp(-((z - 1.540) / 0.018) ** 2) * math.exp(-((abs_phi) / 0.36) ** 2)
+    relief += 0.0050 * chin
+    # Subtle philtrum / mouth recess
+    mouth_r = math.exp(-((z - 1.590) / 0.011) ** 2) * math.exp(-((abs_phi) / 0.28) ** 2)
+    relief -= 0.0032 * mouth_r
+
+  power = 2.45
+  px = (a + grow + relief * 0.62) * math.copysign(abs(s) ** (2.0 / power), s)
+  depth = (f if c > 0 else b) + grow + relief
+  py = y - depth * math.copysign(abs(c) ** (2.0 / power), c)
+  return (px, py, z)
 
 
 def hairline(phi):
-  """Where the hair starts, from the forehead (phi 0) round to the nape (pi)."""
+  """Where the hair starts, from forehead (phi 0) round to nape (pi)."""
   side = abs(math.atan2(math.sin(phi), math.cos(phi))) / math.pi
-  nape = math.sin(math.pi / 2 * min(1.0, max(0.0, (side - 0.5) / 0.3)))  # Squared off at the back.
-  return 1.74 - 0.075 * min(1.0, side / 0.45) ** 1.5 - 0.085 * nape
+  temple_dip = 0.014 * math.exp(-((side - 0.23) / 0.08) ** 2)
+  nape = math.sin(math.pi / 2 * min(1.0, max(0.0, (side - 0.48) / 0.32)))
+  return 1.726 + temple_dip - 0.064 * min(1.0, side / 0.45) ** 1.45 - 0.082 * nape
 
 
 def beardline(phi):
+  """Lower, natural cheek beardline curving up smoothly into sideburns by the ears."""
   side = abs(math.atan2(math.sin(phi), math.cos(phi))) / math.pi
-  return 1.622 + 0.045 * min(1.0, side / 0.55)
+  # Stays low across the cheeks (~1.586-1.600) and rises sharply only near the sideburn (side > 0.40)
+  return 1.588 + 0.016 * (side ** 1.4) + 0.060 * max(0.0, (side - 0.36) / 0.24) ** 1.6
+
+
+# --- Parametric torso surface (athletic-slim adult male, natural shirt drape) ----------------
+SHIRT_STATIONS = [
+  # z, half_w, front, back, y_shift, fold_amp
+  (0.864, 0.184, 0.123, 0.123, 0.002, 0.006),  # Shirt hem cleanly above belt
+  (0.930, 0.172, 0.114, 0.114, 0.002, 0.004),  # Upper hip
+  (1.025, 0.161, 0.107, 0.108, 0.002, 0.004),  # Tapered waist
+  (1.135, 0.173, 0.119, 0.114, -0.002, 0.003), # Lower ribcage
+  (1.245, 0.194, 0.132, 0.118, -0.006, 0.002), # Pectorals / mid-back
+  (1.345, 0.200, 0.124, 0.116, -0.003, 0.001), # Upper chest / shoulder blades
+  (1.412, 0.164, 0.098, 0.102, 0.003, 0.000),  # Natural sloping trapezius
+  (1.454, 0.084, 0.068, 0.072, 0.010, 0.000),  # Collar base
+]
+
+
+def shirt_params(z):
+  if z <= SHIRT_STATIONS[0][0]:
+    return SHIRT_STATIONS[0][1:]
+  for s0, s1 in zip(SHIRT_STATIONS, SHIRT_STATIONS[1:]):
+    if z <= s1[0]:
+      t = (z - s0[0]) / (s1[0] - s0[0])
+      return tuple(a + (b - a) * t for a, b in zip(s0[1:], s1[1:]))
+  return SHIRT_STATIONS[-1][1:]
+
+
+def shirt_point(z, phi, w=1.0, grow=0.0, folds=True):
+  """Point on the sculpted shirt surface at height z and angle phi (0 is front -Y, +pi/2 is left +X)."""
+  a, f, b, yc, famp = shirt_params(z)
+  abs_phi = abs(math.atan2(math.sin(phi), math.cos(phi)))
+  s, c = math.sin(phi), math.cos(phi)
+
+  relief = 0.0
+  if folds:
+    # Subtle chest / shoulder-blade volume
+    if c > 0.1:
+      pec = math.exp(-((z - 1.275) / 0.065) ** 2) * math.exp(-((abs_phi - 0.42) / 0.34) ** 2)
+      relief += 0.009 * pec
+      sternum = math.exp(-((z - 1.28) / 0.07) ** 2) * math.exp(-((abs_phi) / 0.18) ** 2)
+      relief -= 0.004 * sternum
+    if c < -0.1:
+      scap = math.exp(-((z - 1.305) / 0.075) ** 2) * math.exp(-((abs_phi - 2.65) / 0.35) ** 2)
+      relief += 0.008 * scap
+      spine_g = math.exp(-((z - 1.20) / 0.16) ** 2) * math.exp(-((math.pi - abs_phi) / 0.18) ** 2)
+      relief -= 0.005 * spine_g
+    # Soft natural cloth folds near waist & hem
+    if famp > 0.0:
+      relief += famp * (0.55 * math.cos(5.0 * phi + 0.3) + 0.45 * math.sin(3.0 * phi - 0.2))
+
+  power = 2.45
+  px = (a * w + grow + relief * 0.55) * math.copysign(abs(s) ** (2.0 / power), s)
+  depth = (f if c > 0 else b) * w + grow + relief
+  py = yc - depth * math.copysign(abs(c) ** (2.0 / power), c)
+  return (px, py, z)
+
+
+def vneck_z(phi):
+  """Top edge z of the shirt around the neck, dipping into a crisp V in front."""
+  abs_phi = abs(math.atan2(math.sin(phi), math.cos(phi)))
+  if abs_phi < 0.62:
+    # Linear-curved V dip down to z = 1.358 at center chest (phi = 0)
+    t = 1.0 - abs_phi / 0.62
+    return 1.456 - 0.098 * (t ** 1.25)
+  return 1.456 + 0.006 * max(0.0, -math.cos(phi))
 
 
 # --- The body --------------------------------------------------------------------------------
 def build_person(look, name):
   """One mesh for the body and, if worn, one for the backpack, both tagged for rigging."""
-  M = {key: material(f"{name}_{key}", value) for key, value in look.items() if isinstance(value, tuple)}
-  M["eye"] = material(f"{name}_eye", (0.06, 0.045, 0.04), roughness=0.4)
-  M["lip"] = material(f"{name}_lip", (0.2, 0.1, 0.08))
-  M["stubble"] = material(f"{name}_stubble", tuple(s * 0.6 + h * 0.4 for s, h in zip(look["skin"], look["hair"])))
-  M["eye_white"] = material(f"{name}_eye_white", (0.84, 0.8, 0.74), roughness=0.5)
-  M["lid"] = material(f"{name}_lid", tuple(c * 0.72 for c in look["skin"]))
+  M = {key: make_material(f"{name}_{key}", value) for key, value in look.items() if isinstance(value, tuple)}
+  M["eye"] = make_material(f"{name}_eye", (0.055, 0.036, 0.025), roughness=0.44)
+  M["eye_white"] = make_material(f"{name}_eye_white", (0.86, 0.83, 0.78), roughness=0.48)
+  M["lid"] = make_material(f"{name}_lid", scale_rgb(look["skin"], 0.76), roughness=0.86)
+  M["skin_bag"] = make_material(f"{name}_skin_bag", scale_rgb(look["skin"], 0.85), roughness=0.86)
+  M["lip"] = make_material(f"{name}_lip", mix_rgb(look["skin"], (0.46, 0.22, 0.19), 0.36), roughness=0.82)
+  M["stubble"] = make_material(f"{name}_stubble", mix_rgb(look["skin"], look["hair"], 0.46), roughness=0.88)
+  M["hair_dark"] = make_material(f"{name}_hair_dark", scale_rgb(look["hair"], 0.68), roughness=0.88)
+  M["shirt_dark"] = make_material(f"{name}_shirt_dark", scale_rgb(look["trim"], 0.68), roughness=0.90)
+  M["belt"] = make_material(f"{name}_belt", (0.16, 0.11, 0.075), roughness=0.72)
+  M["buckle"] = make_material(f"{name}_buckle", (0.56, 0.50, 0.36), roughness=0.38, metallic=0.72)
+  M["shoe_accent"] = make_material(f"{name}_shoe_accent", scale_rgb(look["shoes"], 0.62), roughness=0.86)
+  M["shoe_lace"] = make_material(f"{name}_shoe_lace", (0.72, 0.70, 0.65), roughness=0.88)
+  if "pack" in look:
+    M["pack_dark"] = make_material(f"{name}_pack_dark", scale_rgb(look["strap"], 0.68), roughness=0.88)
+    M["pack_roll"] = make_material(f"{name}_pack_roll", mix_rgb(look["pack"], (0.34, 0.35, 0.28), 0.55), roughness=0.90)
+  M["watch_band"] = make_material(f"{name}_watch_band", (0.11, 0.10, 0.10), roughness=0.75)
+  M["watch_case"] = make_material(f"{name}_watch_case", (0.62, 0.63, 0.66), roughness=0.32, metallic=0.82)
+  M["watch_face"] = make_material(f"{name}_watch_face", (0.10, 0.14, 0.17), roughness=0.18)
+
   w = look.get("build", 1.0)
-  # Background people: no face, fingers or beard, and fewer sides, about a third of Luis.
   simple = look.get("simple", False)
-  R = 8 if simple else 12
-  L = 5 if simple else 8
+  R_HEAD = 10 if simple else 18
+  R_TORSO = 8 if simple else 18
+  L_LEG = 6 if simple else 10
+  L_ARM = 5 if simple else 8
   body = Shape()
   tag = Tags(body)
 
-  # Head: skin, then beard and hair as plates over it.
+  # --- 1. SCULPTED HEAD, FACE, EARS, BEARD & HAIR --------------------------------------------
   tag("head")
-  body.loft([ring(z, a, f, b, y, n=R) for z, a, f, b, y in (HEAD[1::2] + HEAD[-1:] if simple else HEAD)], M["skin"], caps=(True, True))
-  # Nose: a bridge from between the brows down to a rounded tip, with wings at the base.
-  nose = [(0, -0.101, 1.686), (-0.01, -0.106, 1.664), (0.01, -0.106, 1.664), (0, -0.136, 1.634), (-0.023, -0.109, 1.627),
-          (0.023, -0.109, 1.627), (0, -0.119, 1.617), (-0.02, -0.101, 1.648), (0.02, -0.101, 1.648), (-0.012, -0.124, 1.622), (0.012, -0.124, 1.622)]
-  body.add(nose, [(0, 1, 3), (0, 3, 2), (1, 7, 4), (1, 4, 9, 3), (2, 3, 10, 5), (2, 5, 8), (3, 9, 6), (3, 6, 10), (9, 4, 6), (10, 6, 5)], M["skin"])
-  for side in () if simple else (-1, 1):
-    def on_face(dphi, z, grow):
-      return head_point(z, side * (0.36 + dphi), grow)
-    # Eye: an almond of white on the skin, a dark iris looking a touch inward, and a heavy upper lid.
-    almond = [(-0.12, 0.0), (-0.06, 0.0055), (0.04, 0.006), (0.12, 0.001), (0.05, -0.0045), (-0.05, -0.0045)]
-    white = [on_face(dp, 1.671 + dz, 0.001) for dp, dz in almond]
-    body.add(white, [(0, 1, 2, 3, 4, 5)], M["eye_white"])
-    body.add([on_face(dp * 0.55 - 0.02, 1.6712 + dz * 1.0, 0.0025) for dp, dz in almond], [(0, 1, 2, 3, 4, 5)], M["eye"])
-    lid_low = [on_face(dp, 1.671 + dz + 0.0005, 0.002) for dp, dz in almond[:4]]
-    lid_high = [on_face(dp * 1.05, 1.671 + dz + 0.0045, 0.0045) for dp, dz in almond[:4]]
-    shell(body, [lid_low, lid_high], 0.003, M["lid"])
-    # Brow: thick at the inner end, thinning and dropping toward the temple.
-    brow = [(-0.2, 1.689, 1.700), (-0.05, 1.692, 1.703), (0.1, 1.693, 1.701), (0.24, 1.688, 1.694)]
-    shell(body, [[on_face(dp, lo, 0.004) for dp, lo, hi in brow], [on_face(dp, hi, 0.007) for dp, lo, hi in brow]], 0.006, M["hair"])
-    ear = [(side * 0.094, 0.01, 1.625), (side * 0.112, 0.02, 1.64), (side * 0.11, 0.025, 1.685), (side * 0.094, 0.0, 1.69)]
-    ear_in = [(side * 0.088, p[1], p[2]) for p in ear]
-    body.add(ear + ear_in, [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], M["skin"])
+  head_zs = [st[0] for st in (HEAD[1::2] + HEAD[-1:] if simple else HEAD)]
+  head_phis = [math.tau * (k + 0.5) / R_HEAD for k in range(R_HEAD)]
+  head_rings = [[head_point(z, phi, sculpt=not simple) for phi in head_phis] for z in head_zs]
+  body.loft(head_rings, M["skin"], caps=(True, True))
 
-  if look.get("beard") and not simple:
-    # From under the jaw up to the cheeks, ear to ear; fuller on the chin.
-    angles = [math.radians(a) for a in range(-100, 101, 20)]
-    rows = []
-    for k in range(6):
-      t = k / 5
-      row = []
-      for phi in angles:
-        side = abs(phi) / math.radians(100)
-        bottom = 1.522 + 0.07 * side ** 2
-        top = beardline(phi)
-        z = bottom + (top - bottom) * t
-        bulk = 0.004 + (0.012 * math.cos(phi) + 0.004) * math.sin(math.pi * min(1.0, 0.25 + t)) * (1 - 0.6 * side)
-        row.append(head_point(z, phi, bulk if k else -0.004))
-      rows.append(row)
-    shell(body, rows, 0.016, M["hair"])
-    # Moustache over a dark line of mouth.
-    mo = [head_point(1.627, math.radians(a), 0.01) for a in (-34, -17, 0, 17, 34)]
-    lo = [head_point(1.611, math.radians(a), 0.014) for a in (-40, -20, 0, 20, 40)]
-    shell(body, [lo, mo], 0.01, M["hair"])
-    mouth = [head_point(1.6, math.radians(a), 0.012) for a in (-16, 0, 16)]
-    mouth_low = [head_point(1.594, math.radians(a), 0.012) for a in (-14, 0, 14)]
-    shell(body, [mouth_low, mouth], 0.006, M["lip"])
+  # Nose: sculpted bridge, defined rounded tip and flared nostrils.
+  nose_verts = [
+    (0.0, -0.100, 1.686),      # 0 bridge root
+    (-0.0085, -0.109, 1.664),  # 1 left mid-bridge
+    (0.0085, -0.109, 1.664),   # 2 right mid-bridge
+    (0.0, -0.130, 1.638),      # 3 nose tip
+    (-0.020, -0.106, 1.630),   # 4 left nostril wing outer
+    (0.020, -0.106, 1.630),    # 5 right nostril wing outer
+    (0.0, -0.115, 1.622),      # 6 columella base
+    (-0.015, -0.098, 1.650),   # 7 left nose side
+    (0.015, -0.098, 1.650),    # 8 right nose side
+    (-0.011, -0.120, 1.626),   # 9 left tip underside
+    (0.011, -0.120, 1.626),    # 10 right tip underside
+  ]
+  body.add(
+    nose_verts,
+    [(0, 1, 3), (0, 3, 2), (1, 7, 4), (1, 4, 9, 3), (2, 3, 10, 5), (2, 5, 8),
+     (3, 9, 6), (3, 6, 10), (9, 4, 6), (10, 6, 5)],
+    M["skin"],
+  )
 
+  if not simple:
+    for side in (-1, 1):
+      def on_face(dphi, z, grow):
+        return head_point(z, side * (0.36 + dphi), grow)
+
+      # Calm, slightly weary almond eye with full dark iris and relaxed upper lid
+      almond = [(-0.130, -0.001), (-0.055, 0.0062), (0.045, 0.0065), (0.130, 0.0005), (0.055, -0.0050), (-0.055, -0.0050)]
+      body.add([on_face(dp, 1.667 + dz, 0.0020) for dp, dz in almond], [(0, 1, 2, 3, 4, 5)], M["eye_white"])
+      body.add([on_face(dp * 0.70 - 0.008, 1.6672 + dz * 0.96, 0.0036) for dp, dz in almond], [(0, 1, 2, 3, 4, 5)], M["eye"])
+
+      # Relaxed upper eyelid slightly covering top of iris (natural calm gaze, not startled)
+      lid_low = [on_face(dp * 1.02, 1.667 + dz - 0.0004, 0.0038) for dp, dz in almond[:4]]
+      lid_high = [on_face(dp * 1.08, 1.667 + dz + 0.0046, 0.0062) for dp, dz in almond[:4]]
+      shell(body, [lid_low, lid_high], 0.0036, M["lid"])
+
+      bag_top = [on_face(dp, 1.667 + dz - 0.0012, 0.0016) for dp, dz in (almond[0], almond[5], almond[4], almond[3])]
+      bag_bot = [on_face(dp * 1.04, 1.667 + dz - 0.0060, 0.0018) for dp, dz in (almond[0], almond[5], almond[4], almond[3])]
+      shell(body, [bag_bot, bag_top], 0.0020, M["skin_bag"])
+
+      # Masculine, grounded eyebrows (lower, straighter inner brow)
+      brow = [(-0.19, 1.682, 1.693), (-0.05, 1.684, 1.695), (0.10, 1.685, 1.694), (0.23, 1.681, 1.688)]
+      shell(
+        body,
+        [[on_face(dp, lo, 0.0048) for dp, lo, hi in brow],
+         [on_face(dp, hi, 0.0080) for dp, lo, hi in brow]],
+        0.0060,
+        M["hair"],
+      )
+
+      # Sculpted ears (outer helix + lobe + recessed inner backing)
+      ear_outer = [
+        (side * 0.094, 0.008, 1.622),
+        (side * 0.111, 0.018, 1.630),
+        (side * 0.115, 0.026, 1.656),
+        (side * 0.111, 0.025, 1.684),
+        (side * 0.096, 0.008, 1.690),
+        (side * 0.092, 0.004, 1.656),
+      ]
+      ear_inner = [(side * 0.086, p[1] - 0.003, p[2]) for p in ear_outer]
+      n_e = len(ear_outer)
+      efaces = [tuple(range(n_e)), tuple(range(2 * n_e - 1, n_e - 1, -1))]
+      for k in range(n_e):
+        nk = (k + 1) % n_e
+        efaces.append((k, nk, n_e + nk, n_e + k))
+      body.add(ear_outer + ear_inner, efaces, M["skin"])
+
+    # Sculpted trimmed full beard + moustache + clearly visible natural lips
+    if look.get("beard"):
+      angles = [math.radians(a) for a in range(-102, 103, 17)]
+      rows = []
+      for k in range(7):
+        t = k / 6
+        row = []
+        for phi in angles:
+          side_f = abs(phi) / math.radians(102)
+          bottom = 1.514 + 0.072 * (side_f ** 1.9)
+          top = beardline(phi)
+          z = bottom + (top - bottom) * t
+          chin_full = (0.010 * max(0.0, math.cos(phi)) ** 1.4 + 0.0035) * (1.0 - 0.55 * side_f)
+          taper = math.sin(math.pi * min(1.0, 0.20 + 0.80 * t))
+          if k == 0:
+            bulk = -0.002
+          elif k == 6:
+            bulk = 0.0024
+          else:
+            bulk = 0.0030 + chin_full * taper
+          row.append(head_point(z, phi, bulk))
+        rows.append(row)
+      shell(body, rows, 0.013, M["hair"])
+
+      # Subtle narrow stubble fade along cheek beardline
+      stubble_angles = [math.radians(a) for a in range(-96, 97, 16)]
+      stubble_rows = [
+        [head_point(beardline(phi) - 0.002, phi, 0.0018) for phi in stubble_angles],
+        [head_point(beardline(phi) + 0.007, phi, 0.0012) for phi in stubble_angles],
+      ]
+      shell(body, stubble_rows, 0.0020, M["stubble"])
+
+      # Sculpted moustache sitting cleanly above the upper lip, curving into beard at corners
+      mo_top = [head_point(1.612 - 0.010 * (abs(a) / 42.0) ** 1.5, math.radians(a), 0.0065) for a in (-42, -26, -12, 0, 12, 26, 42)]
+      mo_bot = [head_point(1.601 - 0.014 * (abs(a) / 46.0) ** 1.3, math.radians(a), 0.0092) for a in (-46, -28, -13, 0, 13, 28, 46)]
+      shell(body, [mo_bot, mo_top], 0.0075, M["hair"])
+
+      # Subtle natural lips peeking cleanly between moustache and chin beard
+      lip_u = [head_point(1.597 - 0.002 * (abs(a) / 16.0), math.radians(a), 0.0082) for a in (-16, -8, 0, 8, 16)]
+      lip_m = [head_point(1.592, math.radians(a), 0.0072) for a in (-15, -7, 0, 7, 15)]
+      lip_l = [head_point(1.586 + 0.002 * (abs(a) / 14.0), math.radians(a), 0.0094) for a in (-14, -7, 0, 7, 14)]
+      shell(body, [lip_m, lip_u], 0.0045, M["lip"])
+      shell(body, [lip_l, lip_m], 0.0050, M["lip"])
+    else:
+      # Clean-shaven mouth
+      lip_u = [head_point(1.596, math.radians(a), 0.004) for a in (-18, 0, 18)]
+      lip_l = [head_point(1.588, math.radians(a), 0.005) for a in (-16, 0, 16)]
+      shell(body, [lip_l, lip_u], 0.004, M["lip"])
+
+  # Hair: base cap + cohesive swept-back layered quiff (for Luis) or short/long/cap variants
   style = look.get("hairstyle")
   if style:
-    # swept: Luis, volume combed up and back. short: close to the skull. long: swept, falling to
-    # the shoulders behind. cap: short, under a baseball cap.
     volume = 0.0 if style in ("short", "cap") else 1.0
-    angles = [math.radians(a) for a in range(-180, 181, 40 if simple else 20)]
+    angles = [math.radians(a) for a in range(-180, 181, 40 if simple else 18)]
     rows = []
-    steps = 3 if simple else 6
+    steps = 3 if simple else 7
     for k in range(steps + 1):
       t = k / steps
       row = []
       for phi in angles:
         low = hairline(phi)
-        z = low + (1.783 - low) * t
+        z = low + (1.784 - low) * t
         front = max(0.0, math.cos(phi))
         back = max(0.0, -math.cos(phi))
-        grow = 0.005 + volume * (0.02 * t ** 1.3 * (0.35 + 0.65 * front) + (0.006 + 0.008 * back) * math.sin(math.pi * t))
-        lift = volume * 0.028 * front ** 2 * math.sin(math.pi * min(1.0, t * 1.15))
-        p = Vector(head_point(min(z, 1.778), phi, grow))
+        side_w = abs(math.sin(phi))
+        # Subtle asymmetric swept-back crest (parted slightly toward +X left)
+        asym = 0.005 * math.sin(phi + 0.35) * front
+        grow = (
+          0.0045
+          + volume * (
+            0.020 * (t ** 1.15) * (0.40 + 0.60 * front)
+            + (0.007 + 0.009 * back) * math.sin(math.pi * t)
+            + 0.003 * side_w * math.sin(math.pi * t)
+            + asym * t
+          )
+        )
+        lift = volume * (0.024 * (front ** 1.5) + 0.008 * max(0.0, math.sin(phi + 0.3))) * math.sin(math.pi * min(1.0, t * 1.10))
+        p = Vector(head_point(min(z, 1.782), phi, grow, sculpt=not simple))
         p.z += lift
         row.append(tuple(p))
       rows.append(row)
-    top = 1.808 if volume else 1.79
-    rows[-1] = [tuple(Vector((0, 0.015, top)).lerp(Vector(p), 0.4)) for p in rows[-1]]
-    shell(body, rows, 0.02, M["hair"])
+    top_z = 1.812 if volume else 1.792
+    rows[-1] = [tuple(Vector((0.004, 0.016, top_z)).lerp(Vector(p), 0.35)) for p in rows[-1]]
+    shell(body, rows, 0.018, M["hair"])
+
     if not simple:
-      # A faded nape: stubble from the hairline down to the neck, round the back only.
-      back = [math.radians(a) for a in range(110, 251, 14)]
-      fade = [[head_point(hairline(phi) + 0.004, phi, 0.003) for phi in back],
-              [head_point(1.535, phi, 0.002) for phi in back]]
-      shell(body, fade, 0.002, M["stubble"])
+      # Clean faded nape and sideburn taper
+      back_a = [math.radians(a) for a in range(106, 255, 14)]
+      fade = [
+        [head_point(hairline(phi) + 0.005, phi, 0.0028) for phi in back_a],
+        [head_point(1.540, phi, 0.0018) for phi in back_a],
+      ]
+      shell(body, fade, 0.0022, M["stubble"])
+
+      # Cohesive overlapping swept-back waves (no comb-tooth gaps!)
+      if style == "swept":
+        wave_specs = [
+          # (phi_start_deg, phi_end_deg, lift_z, grow_extra, mat_key)
+          (-52, 16, 0.028, 0.015, "hair"),
+          (-14, 54, 0.022, 0.012, "hair_dark"),
+          (-32, 34, 0.032, 0.018, "hair"),
+        ]
+        for p0_deg, p1_deg, lift_z, g_ex, mkey in wave_specs:
+          w_rows = []
+          for step in range(6):
+            u = step / 5.0
+            # Sweep smoothly from forehead hairline up over the crown to the back
+            z_arc = 1.732 + (1.784 + lift_z - 1.732) * math.sin(math.pi * 0.52 * min(1.0, u * 1.15))
+            if u > 0.65:
+              uu = (u - 0.65) / 0.35
+              z_arc -= 0.075 * (uu ** 1.35)
+            y_pos = -0.098 + 0.215 * u
+            taper = math.sin(math.pi * (0.08 + 0.84 * u))
+            row = []
+            for ci in range(5):
+              v = ci / 4.0
+              ang = math.radians(p0_deg + (p1_deg - p0_deg) * v)
+              # Gentle diagonal sweep toward the right-back
+              ang_swept = ang + math.radians(10.0 * u)
+              arch = math.sin(math.pi * v)
+              r_x = 0.092 * math.sin(ang_swept) * (0.86 + 0.14 * taper)
+              ridge = (0.006 * arch + 0.003 * math.sin(math.tau * v)) * taper
+              px = r_x
+              py = y_pos - (0.012 + g_ex * arch) * (1.0 - u) + 0.008 * u
+              pz = z_arc + ridge - 0.010 * (1.0 - arch)
+              row.append((px, py, pz))
+            w_rows.append(row)
+          solid_shell(
+            body, w_rows, 0.012, M[mkey], M["hair_dark"], M[mkey],
+            inward_dir=lambda p, r, c: (Vector((0.0, 0.005, 1.66)) - p).normalized(),
+          )
+
     if style == "long":
-      back = [math.radians(a) for a in range(95, 266, 17)]
+      back_a = [math.radians(a) for a in range(95, 266, 17)]
       fall = []
       for k, z in enumerate((1.7, 1.6, 1.5, 1.42, 1.36)):
         row = []
-        for phi in back:
-          p = Vector(head_point(max(z, 1.52), phi, 0.022 + 0.012 * k))
+        for phi in back_a:
+          p = Vector(head_point(max(z, 1.52), phi, 0.022 + 0.012 * k, sculpt=False))
           p.z = z
           if z < 1.52:
             p.y += 0.03 * (1.52 - z) / 0.16
           row.append(tuple(p))
         fall.append(row)
-      shell(body, fall, 0.025, M["hair"])
+      shell(body, fall, 0.024, M["hair"])
     if style == "cap":
-      crown = [(head_point(1.72, phi, 0.016)) for phi in [math.tau * k / 12 for k in range(12)]]
-      dome = [[(x, y, z) for x, y, z in crown], [tuple(Vector((0, 0.005, 1.8)).lerp(Vector(p), 0.75) + Vector((0, 0, 0.055))) for p in crown]]
+      crown = [head_point(1.72, phi, 0.016, sculpt=False) for phi in [math.tau * k / 12 for k in range(12)]]
+      dome = [
+        [(x, y, z) for x, y, z in crown],
+        [tuple(Vector((0, 0.005, 1.8)).lerp(Vector(p), 0.75) + Vector((0, 0, 0.055))) for p in crown],
+      ]
       body.loft(dome, M["cap"])
       body.box((-0.085, -0.2, 1.71), (0.085, -0.09, 1.725), M["cap"])
 
+  # --- 2. ANATOMICAL NECK & UPPER CHEST SKIN (seals V-neck opening cleanly) ------------------
   tag("neck", "head", "chest")
-  body.tube([((0, 0.016, 1.43), 0.072, 0.06), ((0, 0.014, 1.47), 0.06, 0.054), ((0, 0.012, 1.5), 0.053, 0.051), ((0, 0.01, 1.55), 0.05, 0.05)], M["skin"], n=8)
-
-  # Shirt: hem over the hips up to the shoulders, a V collar in the darker trim.
-  tag("hips", "spine", "chest")
-  shirt = [
-    (0.83, 0.19, 0.13, 0.125, 0.0),
-    (0.92, 0.178, 0.12, 0.118, 0.0),
-    (1.02, 0.168, 0.112, 0.11, 0.0),
-    (1.14, 0.178, 0.125, 0.112, -0.005),
-    (1.26, 0.198, 0.132, 0.115, -0.01),
-    (1.36, 0.205, 0.122, 0.112, -0.004),
-    (1.43, 0.175, 0.1, 0.1, 0.0),
-    (1.465, 0.09, 0.075, 0.07, 0.008),
+  # Continuous inner chest/trapezius skin shell under the V-neck so no dark gap ever shows
+  chest_skin_phis = [math.tau * k / (8 if simple else 14) for k in range(8 if simple else 14)]
+  chest_skin_rings = [
+    [shirt_point(1.315, phi, w=w, grow=-0.010, folds=False) for phi in chest_skin_phis],
+    [shirt_point(1.385, phi, w=w, grow=-0.008, folds=False) for phi in chest_skin_phis],
+    [shirt_point(1.430, phi, w=w, grow=-0.008, folds=False) for phi in chest_skin_phis],
+    [ring(1.462, 0.066 * w, 0.058 * w, 0.060 * w, y=0.012, n=len(chest_skin_phis), power=2.2)[k] for k in range(len(chest_skin_phis))],
+    [ring(1.505, 0.053 * w, 0.050 * w, 0.051 * w, y=0.010, n=len(chest_skin_phis), power=2.2)[k] for k in range(len(chest_skin_phis))],
+    [ring(1.555, 0.049 * w, 0.049 * w, 0.049 * w, y=0.006, n=len(chest_skin_phis), power=2.2)[k] for k in range(len(chest_skin_phis))],
   ]
-  rings = [ring(z, a * w, f * w, b * w, y, n=R) for z, a, f, b, y in shirt]
+  body.loft(chest_skin_rings, M["skin"], caps=(True, True))
 
-  def shirt_mat(band, side):
-    front = side in (0, 11)
-    if band >= 6 and (front or not simple):
-      return M["trim"]
-    return M["shirt"]
-  body.loft(rings, shirt_mat, caps=(False, True))
-  def on_shirt(z, k, n=24, out=1.03):
-    """Point k of n around the shirt at height z, pushed a touch off the cloth."""
-    for row0, row1 in zip(shirt, shirt[1:]):
-      if z <= row1[0]:
-        break
-    u = (z - row0[0]) / (row1[0] - row0[0])
-    _, a, f, b, y = (p + (q - p) * u for p, q in zip(row0, row1))
-    px, py, pz = ring(z, a * w * out, f * w * out, b * w * out, y, n=n)[k % n]
-    return (px, py, pz)
+  # --- 3. SCULPTED OLIVE V-NECK T-SHIRT ------------------------------------------------------
+  tag("hips", "spine", "chest")
+  shirt_phis = [math.tau * k / R_TORSO for k in range(R_TORSO)]
+  shirt_rings = []
+  for idx, st in enumerate(SHIRT_STATIONS):
+    z_base = st[0]
+    row = []
+    for phi in shirt_phis:
+      if not simple and idx >= len(SHIRT_STATIONS) - 2:
+        # Smoothly dip the top two rings down into a crisp V-neck in front
+        v_top = vneck_z(phi)
+        if idx == len(SHIRT_STATIONS) - 1:
+          z_pt = v_top
+        else:
+          z_pt = min(z_base, v_top - 0.022)
+        row.append(shirt_point(z_pt, phi, w=w, grow=0.0, folds=True))
+      else:
+        row.append(shirt_point(z_base, phi, w=w, grow=0.0, folds=not simple))
+    shirt_rings.append(row)
+
+  body.loft(shirt_rings, M["shirt"], caps=(False, simple))
+
   if not simple:
-    # Shoulder seams, and folds pulled toward the spine by arms reaching for the wheel.
-    for side in (-1, 1):
-      body.tube([(on_shirt(1.43, 6 if side > 0 else 17), 0.004, 0.004), (on_shirt(1.4, 5 if side > 0 else 18), 0.004, 0.004),
-                 (on_shirt(1.36, 4 if side > 0 else 19), 0.004, 0.004)], M["trim"], n=3)
-      for z0, z1, k0, k1 in ((1.3, 1.16, 9, 11), (1.2, 1.06, 9, 11), (1.12, 1.0, 8, 10)):
-        a, b = (k0, k1) if side > 0 else (23 - k0, 23 - k1)
-        body.tube([(on_shirt(z0, a, out=1.02), 0.012, 0.004), (on_shirt(z1, b, out=1.02), 0.004, 0.003)], M["trim"], n=3)
-  # The V: two trim strips down the chest.
-  for side in () if simple else (-1, 1):
-    body.tube([((side * 0.045, -0.08, 1.455), 0.006, 0.012), ((side * 0.012, -0.123, 1.36), 0.006, 0.012)], M["trim"], n=4)
+    # Inner hem lip at bottom of shirt so it reads as real cloth over the belt/pants
+    hem_outer = shirt_rings[0]
+    hem_inner = [shirt_point(SHIRT_STATIONS[0][0] + 0.006, phi, w=w, grow=-0.014, folds=False) for phi in shirt_phis]
+    body.loft([hem_inner, hem_outer], M["shirt_dark"], caps=(False, False))
 
+    # Real 3D V-neck ribbed collar trim following the neckline cleanly
+    neck_phis = [math.tau * k / 24 for k in range(25)]
+    trim_top = [shirt_point(vneck_z(phi) + 0.004, phi, w=w, grow=0.0042, folds=True) for phi in neck_phis]
+    trim_bot = [shirt_point(vneck_z(phi) - 0.017, phi, w=w, grow=0.0048, folds=True) for phi in neck_phis]
+    solid_shell(
+      body, [trim_bot, trim_top], 0.007, M["trim"], M["shirt_dark"], M["trim"],
+      inward_dir=lambda p, r, c: Vector((-p.x, -p.y, 0.0)).normalized(),
+    )
+
+    # Subtle side & shoulder seams on the shirt
+    for s in (-1, 1):
+      phi_side = s * math.pi * 0.5
+      seam_pts = [(shirt_point(z, phi_side, w=w, grow=0.0018, folds=True), 0.0030, 0.0020) for z in (0.875, 1.00, 1.15, 1.29)]
+      body.tube(seam_pts, M["trim"], n=4)
+
+  # --- 4. PELVIS, BELT & CARGO PANTS ---------------------------------------------------------
   tag("hips", "upper_leg_l", "upper_leg_r")
-  pelvis = [ring(z, a * w, f * w, b * w, n=R) for z, a, f, b in ((0.8, 0.17, 0.11, 0.11), (0.9, 0.172, 0.112, 0.112), (0.98, 0.165, 0.108, 0.108))[::2 if simple else 1]]
-  body.loft(pelvis, M["pants"])
+  pelvis = [
+    ring(z, a * w, f * w, b * w, y=yc, n=R_TORSO, power=2.4)
+    for z, a, f, b, yc in (
+      (0.775, 0.166, 0.106, 0.110, 0.002),
+      (0.845, 0.172, 0.112, 0.114, 0.002),
+      (0.915, 0.168, 0.109, 0.110, 0.002),
+      (0.965, 0.162, 0.105, 0.106, 0.002),
+    )[::2 if simple else 1]
+  ]
+  body.loft(pelvis, M["pants"], caps=(True, True))
 
+  if not simple:
+    # Clean dark belt sitting just beneath the shirt hem (zero z-fighting) + aged brass buckle
+    belt_r = [
+      ring(0.824, 0.175 * w, 0.117 * w, 0.119 * w, y=0.002, n=16, power=2.4),
+      ring(0.854, 0.175 * w, 0.117 * w, 0.119 * w, y=0.002, n=16, power=2.4),
+    ]
+    body.loft(belt_r, M["belt"], caps=(True, True))
+    body.box((-0.025, -0.124 * w, 0.820), (0.025, -0.110 * w, 0.858), M["buckle"])
+    body.box((-0.015, -0.126 * w, 0.828), (0.015, -0.119 * w, 0.850), M["belt"])
+
+    # Subtle rear pockets tucked cleanly on the seat of the cargo pants
+    for s in (-1, 1):
+      bx0, bx1 = sorted((s * 0.032 * w, s * 0.122 * w))
+      body.box((bx0, 0.104 * w, 0.755), (bx1, 0.116 * w, 0.818), M["pants_dark"])
+
+  # --- 5. LEGS, SCULPTED CARGO POCKETS, SHOES, SLEEVES, ARMS & HANDS -------------------------
   for side, s in (("_l", 1), ("_r", -1)):
     tag("hips", "upper_leg" + side, "lower_leg" + side)
     leg = [
-      ((s * 0.095, 0.0, 0.92), 0.088 * w, 0.09 * w),
-      ((s * 0.098, -0.005, 0.72), 0.082 * w, 0.085 * w),
-      ((s * 0.1, -0.015, 0.5), 0.068 * w, 0.072 * w),
-      ((s * 0.103, -0.008, 0.3), 0.064 * w, 0.066 * w),
-      ((s * 0.105, 0.005, 0.15), 0.066 * w, 0.066 * w),
+      ((s * 0.095, 0.002, 0.905), 0.090 * w, 0.092 * w),
+      ((s * 0.097, -0.002, 0.760), 0.086 * w, 0.088 * w),
+      ((s * 0.099, -0.006, 0.620), 0.078 * w, 0.081 * w),
+      ((s * 0.100, -0.014, 0.490), 0.068 * w, 0.073 * w),  # Knee
+      ((s * 0.102, -0.004, 0.350), 0.069 * w, 0.072 * w),  # Calf fullness
+      ((s * 0.104, 0.004, 0.210), 0.064 * w, 0.066 * w),
+      ((s * 0.105, 0.008, 0.138), 0.066 * w, 0.068 * w),   # Natural trouser break above shoe
     ]
-    body.tube(leg[::2] if simple else leg, M["pants"], n=L, side=(1, 0, 0))
-    body.tube([((s * 0.105, 0.005, 0.165), 0.071 * w, 0.071 * w), ((s * 0.105, 0.005, 0.12), 0.072 * w, 0.072 * w)], M["pants_dark"], n=L, side=(1, 0, 0))
-    tag("upper_leg" + side)
-    pocket_x = s * (0.098 + 0.082 * w)
-    body.box((min(pocket_x, pocket_x + s * 0.03), -0.06, 0.56), (max(pocket_x, pocket_x + s * 0.03), 0.05, 0.71), M["pants_dark"])
-    body.box((min(pocket_x, pocket_x + s * 0.036), -0.065, 0.69), (max(pocket_x, pocket_x + s * 0.036), 0.055, 0.725), M["pants_dark"])
+    body.tube(leg[::2] if simple else leg, M["pants"], n=L_LEG, side=(1, 0, 0))
+    # Rolled / stitched cargo cuff at the ankle
+    body.tube([
+      ((s * 0.105, 0.008, 0.152), 0.070 * w, 0.071 * w),
+      ((s * 0.105, 0.008, 0.118), 0.071 * w, 0.072 * w),
+    ], M["pants_dark"], n=L_LEG, side=(1, 0, 0))
+    # Ankle sock/inner pant shadow
+    body.tube([
+      ((s * 0.105, 0.008, 0.130), 0.048 * w, 0.050 * w),
+      ((s * 0.105, 0.008, 0.065), 0.044 * w, 0.046 * w),
+    ], M["sole"], n=6, side=(1, 0, 0))
 
-    # Shoes, toe toward -Y.
+    # Sculpted cargo pocket hugging the outer thigh curvature (bellows + bevelled flap + button)
+    tag("upper_leg" + side)
+    if simple:
+      px = s * (0.098 + 0.080 * w)
+      body.box((min(px, px + s * 0.026), -0.055, 0.56), (max(px, px + s * 0.026), 0.045, 0.71), M["pants_dark"])
+    else:
+      thigh_cx = s * 0.098
+      thigh_cy = -0.004
+      p_rows = []
+      for kz, z_p in enumerate((0.555, 0.615, 0.675, 0.705)):
+        r_thigh = (0.076 + 0.009 * (kz / 3.0)) * w
+        bulge = 0.022 if kz in (1, 2) else 0.015
+        row = []
+        for ang_deg in (-36, -18, 0, 18, 36):
+          ang = math.radians(ang_deg)
+          pleat = 0.004 if ang_deg == 0 else 0.0
+          r = r_thigh + bulge + pleat
+          row.append((thigh_cx + s * r * math.cos(ang), thigh_cy + r * math.sin(ang), z_p))
+        p_rows.append(row)
+      solid_shell(
+        body, p_rows, 0.018, M["pants_dark"], M["pants_dark"], M["pants_dark"],
+        inward_dir=lambda p, r, c, cx=thigh_cx, cy=thigh_cy: Vector((cx - p.x, cy - p.y, 0.0)).normalized(),
+      )
+      # Bevelled top flap + dark snap button
+      flap_rows = []
+      for z_f, extra in ((0.682, 0.026), (0.718, 0.018)):
+        r_thigh = 0.084 * w
+        row = []
+        for ang_deg in (-38, 0, 38):
+          ang = math.radians(ang_deg)
+          r = r_thigh + extra
+          row.append((thigh_cx + s * r * math.cos(ang), thigh_cy + r * math.sin(ang), z_f))
+        flap_rows.append(row)
+      solid_shell(
+        body, flap_rows, 0.012, M["pants"], M["pants_dark"], M["pants_dark"],
+        inward_dir=lambda p, r, c, cx=thigh_cx, cy=thigh_cy: Vector((cx - p.x, cy - p.y, 0.0)).normalized(),
+      )
+      bx = thigh_cx + s * (0.084 * w + 0.028)
+      body.box((bx - 0.005, thigh_cy - 0.007, 0.686), (bx + 0.005, thigh_cy + 0.007, 0.698), M["belt"])
+
+    # Sculpted urban sneaker / low-cut boot, toe toward -Y
     tag("foot" + side, "toes" + side, "lower_leg" + side)
     x = s * 0.105
-    profile = [(0.07, 0.0), (0.07, 0.085), (0.02, 0.12), (-0.06, 0.1), (-0.15, 0.06), (-0.185, 0.03), (-0.185, 0.0)]
-    for y0, half, mat, lift in ((0, 0.055, M["shoes"], 0.012), (0, 0.058, M["sole"], 0.0)):
-      outline = [(-y, z + lift) for y, z in profile] if lift else [(-y, z) for y, z in ((0.075, 0.0), (0.075, 0.022), (-0.19, 0.022), (-0.19, 0.0))]
-      verts = [(x + dx, py, pz) for dx in (-half, half) for py, pz in outline]
-      count = len(outline)
-      faces = [tuple(range(count))[::-1], tuple(range(count, 2 * count))]
-      for k in range(count):
-        n = (k + 1) % count
-        faces.append((k, n, count + n, count + k))
-      body.add(verts, faces, mat)
+    if simple:
+      profile = [(0.07, 0.0), (0.07, 0.085), (0.02, 0.12), (-0.06, 0.1), (-0.15, 0.06), (-0.185, 0.03), (-0.185, 0.0)]
+      for half, mat, lift in ((0.054, M["shoes"], 0.012), (0.058, M["sole"], 0.0)):
+        outline = [(y, z + lift) for y, z in profile] if lift else [(0.075, 0.0), (0.075, 0.022), (-0.19, 0.022), (-0.19, 0.0)]
+        verts = [(x + dx, py, pz) for dx in (-half, half) for py, pz in outline]
+        count = len(outline)
+        faces = [tuple(range(count))[::-1], tuple(range(count, 2 * count))]
+        for k in range(count):
+          n = (k + 1) % count
+          faces.append((k, n, count + n, count + k))
+        body.add(verts, faces, mat)
+    else:
+      # Multi-station lofted sneaker: heel -> ankle -> instep -> forefoot -> rounded toe
+      shoe_stations = [
+        # (y_pos, z_bot, z_top, half_w_in, half_w_out)
+        (0.076, 0.020, 0.088, 0.042, 0.044),   # Heel counter
+        (0.025, 0.018, 0.106, 0.047, 0.050),   # Ankle collar
+        (-0.042, 0.018, 0.092, 0.050, 0.054),  # Instep / laces
+        (-0.115, 0.018, 0.062, 0.052, 0.057),  # Ball of foot
+        (-0.168, 0.020, 0.044, 0.042, 0.047),  # Toe box
+        (-0.190, 0.022, 0.034, 0.022, 0.025),  # Toe tip
+      ]
+      shoe_rings = []
+      for py, zb, zt, wi, wo in shoe_stations:
+        x_in = x - s * wi
+        x_out = x + s * wo
+        zm = zb + (zt - zb) * 0.52
+        shoe_rings.append([
+          (x_in * 0.85 + x * 0.15, py, zb),
+          (x_out * 0.85 + x * 0.15, py, zb),
+          (x_out, py, zm),
+          (x_out * 0.72 + x * 0.28, py, zt),
+          (x_in * 0.72 + x * 0.28, py, zt),
+          (x_in, py, zm),
+        ])
+      body.loft(shoe_rings, M["shoes"], caps=(True, True))
 
-    # Sleeve and arm.
+      # Thick sculpted rubber sole with slight heel drop and toe bumper
+      sole_rings = []
+      for py, zb, zt, wi, wo in shoe_stations:
+        x_in = x - s * (wi + 0.004)
+        x_out = x + s * (wo + 0.004)
+        z_top_s = zb + 0.006 if py > -0.15 else zb + 0.010
+        sole_rings.append([
+          (x_in, py, 0.0),
+          (x_out, py, 0.0),
+          (x_out, py, z_top_s),
+          (x_in, py, z_top_s),
+        ])
+      body.loft(sole_rings, M["sole"], caps=(True, True))
+
+      # Dark heel counter, padded ankle collar, tongue & 3 crisp laces
+      body.box((x - 0.045, 0.056, 0.026), (x + 0.045, 0.080, 0.082), M["shoe_accent"])
+      body.tube([
+        ((x, 0.015, 0.104), 0.048, 0.046),
+        ((x, 0.012, 0.120), 0.045, 0.044),
+      ], M["shoe_accent"], n=8, side=(1, 0, 0))
+      body.box((x - 0.026, -0.055, 0.085), (x + 0.026, -0.015, 0.114), M["shoe_accent"])
+      for ly, lz in ((-0.032, 0.095), (-0.058, 0.084), (-0.084, 0.073)):
+        body.box((x - 0.024, ly - 0.005, lz - 0.004), (x + 0.024, ly + 0.005, lz + 0.004), M["shoe_lace"])
+
+    # --- SLEEVE, ANATOMICAL ARM & SCULPTED HAND ----------------------------------------------
     tag("chest", "shoulder" + side, "upper_arm" + side)
-    sh, el = SHOULDER.copy(), ELBOW.copy()
-    if s < 0:
-      sh.x, el.x = -sh.x, -el.x
-    mid = sh.lerp(el, 0.55)
-    body.tube([(sh - (el - sh).normalized() * 0.03, 0.075 * w, 0.07 * w), (sh.lerp(el, 0.3), 0.07 * w, 0.065 * w), (mid, 0.062 * w, 0.058 * w)], M["shirt"], n=L)
-    body.tube([(sh.lerp(el, 0.5), 0.065 * w, 0.061 * w), (mid + (el - sh).normalized() * 0.02, 0.065 * w, 0.061 * w)], M["trim"], n=L)
-    tag("upper_arm" + side, "lower_arm" + side)
-    wr = WRIST.copy()
-    if s < 0:
-      wr.x = -wr.x
-    body.tube([(sh.lerp(el, 0.4), 0.045 * w, 0.043 * w), (el, 0.041 * w, 0.039 * w), (el.lerp(wr, 0.5), 0.038 * w, 0.034 * w), (wr, 0.03, 0.026)], M["skin"], n=4 if simple else 6)
-    tag("hand" + side, "fingers" + side, "lower_arm" + side)
+    sh, el, wr = SHOULDER.copy(), ELBOW.copy(), WRIST.copy()
     kn, tip, th = KNUCKLES.copy(), FINGER_TIP.copy(), THUMB_TIP.copy()
     if s < 0:
-      kn.x, tip.x, th.x = -kn.x, -tip.x, -th.x
-    body.tube([(wr, 0.034, 0.016), (kn, 0.042, 0.018), (kn.lerp(tip, 0.6), 0.038, 0.015), (tip, 0.025, 0.01)], M["skin"], n=4, side=(0, 1, 0))
+      sh.x, el.x, wr.x, kn.x, tip.x, th.x = -sh.x, -el.x, -wr.x, -kn.x, -tip.x, -th.x
+
+    u_dir = (el - sh).normalized()
+    # Smoothly integrated sloping shoulder & short sleeve (flows from trapezius, no spiky shoulder pads)
+    sh_vis = Vector((s * 0.145 * w, 0.004, 1.372))
+    deltoid = Vector((s * 0.192 * w, 0.008, 1.376))
+    sleeve_mid = sh.lerp(el, 0.28) + Vector((0.0, 0.0, -0.012))
+    sleeve_end = sh.lerp(el, 0.52)
+    body.tube([
+      (sh_vis, 0.052 * w, 0.056 * w),
+      (deltoid, 0.064 * w, 0.064 * w),
+      (sleeve_mid, 0.062 * w, 0.060 * w),
+      (sleeve_end, 0.059 * w, 0.057 * w),
+    ], M["shirt"], n=L_ARM)
+    # Sleeve hem cuff + dark inner recess around the bicep
+    body.tube([
+      (sh.lerp(el, 0.48), 0.061 * w, 0.059 * w),
+      (sleeve_end + u_dir * 0.018, 0.061 * w, 0.059 * w),
+    ], M["trim"], n=L_ARM)
+    if not simple:
+      body.tube([
+        (sleeve_end + u_dir * 0.017, 0.055 * w, 0.053 * w),
+        (sleeve_end - u_dir * 0.015, 0.047 * w, 0.045 * w),
+      ], M["shirt_dark"], n=L_ARM)
+
+    # Anatomical upper arm + elbow + forearm (bicep/forearm fullness, tapering to wrist)
+    tag("upper_arm" + side, "lower_arm" + side)
+    body.tube([
+      (sh.lerp(el, 0.36), 0.047 * w, 0.045 * w),
+      (sh.lerp(el, 0.68), 0.045 * w, 0.043 * w),  # Bicep
+      (el, 0.040 * w, 0.039 * w),                # Elbow
+      (el.lerp(wr, 0.28), 0.042 * w, 0.039 * w), # Upper forearm (brachioradialis)
+      (el.lerp(wr, 0.66), 0.035 * w, 0.032 * w), # Lower forearm
+      (wr, 0.029 * w, 0.025 * w),                # Wrist
+    ], M["skin"], n=5 if simple else 8)
+
+    # Subtle wristwatch on Luis's left wrist
+    if not simple and s > 0:
+      f_dir = (wr - el).normalized()
+      w_pos = wr - f_dir * 0.024
+      body.tube([
+        (w_pos - f_dir * 0.009, 0.033 * w, 0.029 * w),
+        (w_pos + f_dir * 0.009, 0.033 * w, 0.029 * w),
+      ], M["watch_band"], n=8)
+      # Watch case on outer/dorsal wrist
+      arm_up = Vector((-f_dir.z, 0.0, f_dir.x)).normalized()
+      if arm_up.z < 0:
+        arm_up = -arm_up
+      wc = w_pos + arm_up * (0.028 * w)
+      body.box((wc.x - 0.012, wc.y - 0.013, wc.z - 0.008), (wc.x + 0.012, wc.y + 0.013, wc.z + 0.008), M["watch_case"])
+      body.box((wc.x - 0.009, wc.y - 0.010, wc.z + 0.004), (wc.x + 0.009, wc.y + 0.010, wc.z + 0.010), M["watch_face"])
+
+    # Sculpted hand & grouped fingers (matching WRIST / KNUCKLES / FINGER_TIP / THUMB_TIP)
+    tag("hand" + side, "fingers" + side, "lower_arm" + side)
     if simple:
+      body.tube([(wr, 0.034, 0.016), (kn, 0.042, 0.018), (kn.lerp(tip, 0.6), 0.038, 0.015), (tip, 0.025, 0.01)], M["skin"], n=4, side=(0, 1, 0))
       continue
+
+    h_dir = (kn - wr).normalized()
+    # Local hand frame: h_dir along palm, h_front toward thumb (-Y), h_palm inward toward body
+    h_front = Vector((0.0, -1.0, 0.0))
+    h_palm = h_dir.cross(h_front).normalized()
+    if h_palm.x * s > 0:
+      h_palm = -h_palm
+
+    # Trapezoidal sculpted palm overlapped cleanly into the wrist (no dark seam)
+    body.tube([
+      (wr - h_dir * 0.014, 0.027, 0.019),
+      (wr, 0.029, 0.019),
+      (wr.lerp(kn, 0.45) + h_palm * 0.002, 0.037, 0.019),
+      (kn, 0.041, 0.017),
+    ], M["skin"], n=6, side=tuple(h_palm))
+
+    # Three sculpted finger groups (index, middle+ring, pinky) with gentle natural curl
+    tag("fingers" + side, "hand" + side)
+    f_len = (tip - kn).length
+    finger_specs = [
+      (0.024, 0.94, 0.0105, 0.0085),   # Index finger
+      (0.000, 1.04, 0.0155, 0.0090),   # Middle + ring grouped
+      (-0.023, 0.82, 0.0095, 0.0075),  # Pinky
+    ]
+    for f_off, scale_l, r_w, r_t in finger_specs:
+      base_p = kn + h_front * f_off
+      mid_p = base_p + h_dir * (f_len * 0.55 * scale_l) + h_palm * 0.008
+      end_p = base_p + h_dir * (f_len * scale_l) + h_palm * 0.019
+      body.tube([
+        (base_p, r_w, r_t),
+        (mid_p, r_w * 0.90, r_t * 0.88),
+        (end_p, r_w * 0.68, r_t * 0.72),
+      ], M["skin"], n=5, side=tuple(h_palm))
+
+    # Articulated thumb with fleshy base (thenar eminence)
     tag("thumb" + side, "hand" + side)
-    body.tube([(wr.lerp(kn, 0.3) + Vector((0, -0.018, 0)), 0.012, 0.012), (th, 0.009, 0.009)], M["skin"], n=4)
+    th_base = wr.lerp(kn, 0.34) + h_front * 0.020 + h_palm * 0.008
+    th_mid = th_base.lerp(th, 0.52) + h_palm * 0.005
+    body.tube([
+      (th_base, 0.014, 0.012),
+      (th_mid, 0.011, 0.010),
+      (th, 0.0085, 0.0080),
+    ], M["skin"], n=5)
 
   parts = [(body, tag)]
+
+  # --- 6. DETAILED CANVAS BACKPACK (separate object for hiding inside the car) ---------------
   if look.get("backpack"):
     pack = Shape()
     ptag = Tags(pack)
     ptag("chest", "spine")
-    p = [ring(z, a, f, b, y=0.188, n=8, power=4) for z, a, f, b in ((1.02, 0.14, 0.06, 0.07), (1.12, 0.155, 0.07, 0.085), (1.3, 0.155, 0.07, 0.085), (1.4, 0.14, 0.06, 0.075))]
-    pack.loft(p, M["pack"])
-    pack.tube([((-0.15, 0.188, 1.43), 0.05, 0.05), ((0.15, 0.188, 1.43), 0.05, 0.05)], M["pack"], n=8, side=(0, 0, 1))
-    pack.box((-0.11, 0.268, 1.06), (0.11, 0.305, 1.24), M["strap"])
-    pack.box((-0.115, 0.27, 1.235), (0.115, 0.31, 1.27), M["strap"])
+
+    if simple:
+      p = [ring(z, a, f, b, y=0.188, n=8, power=4) for z, a, f, b in ((1.02, 0.14, 0.06, 0.07), (1.12, 0.155, 0.07, 0.085), (1.3, 0.155, 0.07, 0.085), (1.4, 0.14, 0.06, 0.075))]
+      pack.loft(p, M["pack"])
+      pack.tube([((-0.15, 0.188, 1.43), 0.05, 0.05), ((0.15, 0.188, 1.43), 0.05, 0.05)], M["pack"], n=8, side=(0, 0, 1))
+      pack.box((-0.11, 0.268, 1.06), (0.11, 0.305, 1.24), M["strap"])
+    else:
+      # Main rucksack body: fuller at the bottom, softly rounded canvas bag
+      bag_stations = [
+        (0.995, 0.132, 0.052, 0.065, 0.186),
+        (1.065, 0.158, 0.068, 0.090, 0.194),
+        (1.185, 0.160, 0.072, 0.094, 0.196),
+        (1.310, 0.150, 0.066, 0.086, 0.192),
+        (1.392, 0.132, 0.055, 0.072, 0.186),
+        (1.416, 0.085, 0.036, 0.044, 0.184),
+      ]
+      pack.loft([ring(z, a, f, b, y=yc, n=12, power=3.2) for z, a, f, b, yc in bag_stations], M["pack"], caps=(True, True))
+
+      # Curved top flap lid over the rucksack
+      flap_stations = [
+        (1.295, 0.154, 0.050, 0.102, 0.196),
+        (1.355, 0.156, 0.064, 0.098, 0.195),
+        (1.408, 0.142, 0.062, 0.082, 0.190),
+        (1.428, 0.112, 0.046, 0.056, 0.185),
+      ]
+      pack.loft([ring(z, a, f, b, y=yc, n=12, power=3.4) for z, a, f, b, yc in flap_stations], M["strap"], caps=(True, True))
+
+      # Rolled tarp / bedroll strapped across top of the backpack
+      pack.tube([
+        ((-0.158, 0.186, 1.448), 0.038, 0.038),
+        ((-0.140, 0.186, 1.452), 0.044, 0.044),
+        ((0.0, 0.186, 1.454), 0.045, 0.045),
+        ((0.140, 0.186, 1.452), 0.044, 0.044),
+        ((0.158, 0.186, 1.448), 0.038, 0.038),
+      ], M["pack_roll"], n=10, side=(0, 0, 1))
+      # Two dark cinch straps tying the bedroll & securing the front flap with brass buckles
+      for sx in (-0.085, 0.085):
+        pack.tube([
+          ((sx, 0.186, 1.452), 0.049, 0.049),
+          ((sx + (0.016 if sx < 0 else -0.016), 0.186, 1.452), 0.049, 0.049),
+        ], M["pack_dark"], n=10, side=(0, 0, 1))
+        pack.box((sx - 0.012, 0.280, 1.215), (sx + 0.012, 0.302, 1.375), M["pack_dark"])
+        pack.box((sx - 0.015, 0.292, 1.242), (sx + 0.015, 0.308, 1.266), M["buckle"])
+
+      # Front zippered/flapped pouch
+      pack.box((-0.106, 0.268, 1.035), (0.106, 0.312, 1.205), M["strap"])
+      pack.box((-0.112, 0.272, 1.192), (0.112, 0.318, 1.224), M["pack_dark"])
+
+      # Two small side utility pouches
+      for s in (-1, 1):
+        px0, px1 = sorted((s * 0.152, s * 0.184))
+        pack.box((px0, 0.148, 1.045), (px1, 0.236, 1.185), M["strap"])
+        pack.box((px0, 0.145, 1.174), (px1 + s * 0.004, 0.239, 1.198), M["pack_dark"])
+
+      # Bottom leather reinforcement pad
+      pack.box((-0.125, 0.140, 0.985), (0.125, 0.245, 1.010), M["pack_dark"])
+
+    # Ergonomic shoulder straps arching smoothly over the trapezius and chest without clipping
     for s in (-1, 1):
       ptag("chest", "spine")
-      pack.tube([
-        ((s * 0.09, 0.13, 1.42), 0.022, 0.006),
-        ((s * 0.1, 0.03, 1.462), 0.022, 0.006),
-        ((s * 0.11, -0.09, 1.4), 0.022, 0.006),
-        ((s * 0.125, -0.135, 1.24), 0.02, 0.006),
-        ((s * 0.14, -0.125, 1.1), 0.018, 0.006),
-        ((s * 0.16, -0.06, 1.04), 0.016, 0.006),
-      ], M["strap"], n=4)
+      strap_pts = [
+        ((s * 0.105 * w, 0.132 * w, 1.398), 0.023, 0.008),
+        ((s * 0.110 * w, 0.068 * w, 1.436), 0.024, 0.008),
+        ((s * 0.114 * w, 0.002 * w, 1.442), 0.024, 0.008),
+        ((s * 0.118 * w, -0.056 * w, 1.422), 0.024, 0.008),
+        (shirt_point(1.345, s * 0.70, w=w, grow=0.017, folds=False), 0.024, 0.008),
+        (shirt_point(1.235, s * 0.74, w=w, grow=0.016, folds=False), 0.022, 0.007),
+        (shirt_point(1.120, s * 0.96, w=w, grow=0.015, folds=False), 0.019, 0.006),
+        (shirt_point(1.045, s * 1.52, w=w, grow=0.015, folds=False), 0.017, 0.006),
+        ((s * 0.135, 0.160, 1.035), 0.016, 0.006),
+      ]
+      pack.tube(strap_pts, M["strap"], n=6 if not simple else 4)
+      if not simple:
+        # Small chest adjustment buckle seated cleanly on the front strap
+        bp = Vector(shirt_point(1.195, s * 0.80, w=w, grow=0.020, folds=False))
+        pack.box((bp.x - 0.013, bp.y - 0.008, bp.z - 0.011), (bp.x + 0.013, bp.y + 0.008, bp.z + 0.011), M["buckle"])
+
     parts.append((pack, ptag))
   return parts
 
