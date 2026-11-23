@@ -57,8 +57,13 @@ compartir animaciones. `root` va en el suelo y lleva el avance de esquivas y gol
 `jacket_front`, `jacket_side` y `jacket_back` con tres por cadena, y `hair_front`, `hair_side` y
 `hair_back` con dos, todos a cada lado.
 
+Las piezas se arman en un espacio de diseño y `reshape()` les da al final proporciones de héroe:
+cabeza al 88 %, hombros más anchos, mangas y piernas más gruesas y manos al 120 %. Los huesos se
+mueven con la misma función, y la posición de diseño queda en el atributo `paint_co`, que es la
+que lee el pintor, así las proporciones se ajustan sin tocar la pintura.
+
 [paint_protagonist.py](../art/characters/paint_protagonist.py) despliega las UV, hornea posición,
-normales y oclusión, y pinta una sola textura de 2048 px por posición en el cuerpo, así las costuras
+normales y oclusión, y pinta una sola textura de 4096 px por posición en el cuerpo, así las costuras
 de la UV no se notan. Hay que correrlo después de `build_protagonist.py`:
 
 ```bash
@@ -100,12 +105,14 @@ blender --background art/characters/skeleton.blend --python art/characters/anima
 | `attack_lunge` | 1,87 s, avanza 2,4 m | 0,9 a 1,03 s | Embestida: se encoge, salta y cae cortando |
 | `hurt` | 0,5 s | | El cráneo salta hacia atrás y la mandíbula cuelga |
 | `death` | 2,2 s | | Cada hueso se suelta y cae por su cuenta; el cráneo acaba junto al montón |
+| `feed` | 3 s, en bucle | | Solo en la apertura: agachado sobre un cuerpo, muerde, jala sacudiendo el cráneo y mastica |
+| `feed_rise` | 1,2 s | | De `feed` a la guardia, el cráneo primero |
 
 Todos los ataques dejan más de 0,34 s entre la señal y el golpe, y los ojos brillan más durante esa
 señal. En `death` los huesos caen sin seguir a su padre, por lo que el clip mueve todos los huesos; se
 queda en el último cuadro, y el esqueleto queda así hasta que el jugador descansa o muere.
 
-**IA:** [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp) reúne lo que el enemigo sabe, el árbol elige
+**IA:** [`MeleeEnemy`](../src/game/enemies/melee_enemy.cpp), con el perfil de [`SkeletonEnemy`](../src/game/enemies/skeleton_enemy.cpp), reúne lo que el enemigo sabe, el árbol elige
 qué hacer y `EnemyActions` lo ejecuta. Un paseo se puede cambiar, un ataque no: un golpe solo lo
 interrumpe antes del barrido, y un combo aturde una vez cada 2,5 s. Deja de girar poco antes del golpe,
 para que esquivar tarde funcione.
@@ -121,6 +128,97 @@ carros. Si cambian las colisiones de la avenida, hay que volver a hornearla con 
 **Sin haber visto al jugador:** pasean alrededor de su sitio, a menos de 4 m, con pausas de 2 a 5 s, así
 que miran hacia todos lados y pueden descubrirlo desde cualquier dirección. Al verlo corren hacia él
 y caminan solo en los últimos 4 m. Corren más lento que el jugador, que todavía puede escapar.
+
+### Rata gigante y perro
+
+[build_rat.py](../art/characters/build_rat.py) y [build_dog.py](../art/characters/build_dog.py) generan
+cada modelo ya con esqueleto. Los huesos son `root`, `hips`, `spine`, `chest`, `neck`, `head`, `jaw`,
+`tail_*` y, por pata, `upper_`, `lower_`, `foot_` y `toes_`, más `front_l`, `front_r`, `hind_l` o
+`hind_r`. Cada tramo de la malla se marca con los huesos que lo pueden mover, y cada vértice sigue a
+los dos más cercanos de esa lista. Las ayudas compartidas están en
+[beast_tools.py](../art/characters/beast_tools.py).
+
+[animate_rat.py](../art/characters/animate_rat.py) y [animate_dog.py](../art/characters/animate_dog.py)
+generan los clips y exportan `rat.glb` y `dog.glb`. Usan
+[beast_anim.py](../art/characters/beast_anim.py), que resuelve las cuatro patas con cinemática inversa
+y deja que el hombro se deslice un poco cuando la pata no alcanza, como la escápula. La cabeza
+mantiene su dirección aunque el cuerpo se mueva, y la cola sigue al cuerpo con retraso:
+
+```bash
+blender --background art/characters/rat.blend --python art/characters/animate_rat.py
+blender --background art/characters/dog.blend --python art/characters/animate_dog.py
+```
+
+| Rata | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 4 s, en bucle | | Olfatea a ráfagas, cambia el peso y levanta una mano |
+| `walk` | 0,53 s, en bucle | | Paso sigiloso a 0,9 m/s, culebreando |
+| `run` | 0,27 s, en bucle | | A saltos a 4,8 m/s: más rápida que el trote del jugador, más lenta que su esprint |
+| `strafe_left`, `strafe_right` | 0,4 s, en bucle | | Rodear a 1,2 m/s con los dientes fuera |
+| `walk_back` | 0,53 s, en bucle | | Retroceder a 0,9 m/s |
+| `attack_bite` | 1,13 s, avanza 0,35 m | 0,57 a 0,7 s | Echa la cabeza atrás y muerde corto |
+| `attack_pounce` | 1,8 s, avanza 2,5 m | 0,9 a 1,03 s | Se agacha meneando la cadera, salta y cae mordiendo |
+| `attack_rake` | 1,67 s, avanza 0,3 m | 0,63 a 0,73 s | Se para en dos patas y rasga con las dos manos |
+| `threat` | 1,8 s | | Medio erguida, boca abierta y temblando: aviso al ver al jugador |
+| `hurt` | 0,53 s | | |
+| `death` | 2,33 s | | Rueda patas arriba y patalea; se queda en el último cuadro |
+
+| Perro | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 3 s, en bucle | | Agachado, jadeando y gruñendo |
+| `walk` | 0,67 s, en bucle | | Acecho a 1,3 m/s con la cabeza baja |
+| `run` | 0,4 s, en bucle | | Galope a 5,8 m/s |
+| `strafe_left`, `strafe_right` | 0,53 s, en bucle | | Rodear a 1,3 m/s |
+| `walk_back` | 0,6 s, en bucle | | Retroceder a 1 m/s |
+| `attack_snap` | 1,47 s, avanza 0,55 m | 0,53 a 0,63 s y 0,77 a 0,87 s | Doble dentellada: muerde dos veces |
+| `attack_lunge` | 1,93 s, avanza 3 m | 0,87 a 1 s | Salto con la boca abierta |
+| `attack_thrash` | 2 s, avanza 0,3 m | Muerde a 0,53 s y sacude de 0,73 a 1,4 s | Muerde y sacude la cabeza; puede ser un agarre |
+| `bark` | 1,53 s | | Tres ladridos para llamar a la jauría |
+| `hurt` | 0,53 s | | Aullido de dolor |
+| `death` | 2,47 s | | Cae de lado y patalea; se queda en el último cuadro |
+
+La IA es la del esqueleto: [`MeleeEnemy`](../src/game/enemies/melee_enemy.cpp) la comparte, y
+[`RatEnemy`](../src/game/enemies/rat_enemy.cpp) y [`DogEnemy`](../src/game/enemies/dog_enemy.cpp) solo
+dan su perfil: vida, rangos, ataques y velocidades. Esas velocidades deben coincidir con las de los
+bucles, o las patas patinan. Al ver al jugador, la rata amenaza y el perro ladra antes de atacar; los
+dos muerden con una cápsula en la cabeza.
+
+### Güino, el minijefe
+
+[build_guino.py](../art/characters/build_guino.py) lo arma con los mismos huesos que el perro, más
+`chain`, que nunca se anima: los eslabones del suelo se arrastran con la raíz y los que cuelgan, con el
+cuello. Mide 2,7 m a la cruz y la mandíbula está modelada abierta: en los clips, `jaw` 0 es la sonrisa
+completa y -34 la cierra. [animate_guino.py](../art/characters/animate_guino.py) exporta `guino.glb`;
+el canal `spin` de `beast_anim.py` gira el cuerpo entero, para el latigazo de cola:
+
+```bash
+blender --background --python art/characters/build_guino.py
+blender --background art/characters/guino.blend --python art/characters/animate_guino.py
+```
+
+| Güino | Duración | Golpe | Uso |
+|---|---|---|---|
+| `idle` | 5 s, en bucle | | Respira pesado, ladea la cabeza como un perro curioso y raspa el asfalto |
+| `walk` | 1,2 s, en bucle | | Acecho pesado a 1,6 m/s, los hombros rodando |
+| `run` | 0,67 s, en bucle | | Galope a 7,5 m/s: el jugador no se le escapa corriendo |
+| `strafe_left`, `strafe_right` | 0,93 s, en bucle | | Rodear a 1,5 m/s |
+| `walk_back` | 1 s, en bucle | | Retroceder a 1,2 m/s |
+| `howl` | 2,8 s | | Aúlla al cielo al ver al jugador y le gruñe |
+| `attack_maul` | 2,4 s, avanza 1 m | 0,67 y 1,37 s | Zarpazo derecho y luego izquierdo, más rápido |
+| `attack_crunch` | 1,87 s, avanza 1,6 m | 0,67 a 0,83 s | Echa la cabeza atrás con las fauces abiertas, se lanza y sacude |
+| `attack_whirl` | 2 s | 0,63 a 0,9 s | Gira entero en un salto con la cola a la altura del pecho; solo se salva quien se pega a su costado |
+| `attack_crash` | 2,4 s, avanza 6 m | 1,03 a 1,17 s | Menea la grupa como un gato, salta y cae con las dos patas: onda en el suelo |
+| `enrage` | 3,2 s | | Fase 2: se sacude como perro mojado, se alza en dos patas y golpea el suelo rugiendo |
+| `attack_frenzy` | 2,8 s, avanza 2,2 m | 0,43, 0,67, 0,9 y 1,5 s | Fase 2: tres zarpazos seguidos y una mordida tardía |
+| `attack_quake` | 2,47 s, avanza 0,5 m | 0,93 a 1,07 s | Fase 2: se alza en dos patas y cae con todo su peso |
+| `death` | 4 s | | Último aullido, cae de pecho y rueda de lado; se queda en el último cuadro |
+
+[`GuinoEnemy`](../src/game/enemies/guino_enemy.cpp) usa la IA de `MeleeEnemy` con un perfil de jefe:
+no se aturde, su barra va fija arriba al centro con su nombre y vencerlo congela la inflación de la
+avenida para siempre. Bajo el 30 % de vida ruge una vez (`enrage`), las costillas se encienden como
+brasas, todo su reloj corre un 20 % más rápido y ataca con su cola de furia. Golpea con cápsulas en la
+cabeza, en cada antebrazo y en la cola, y con un cilindro en el suelo (`Slam`) en los impactos, que
+levanta polvo. Entre los golpes de un combo sigue girando hacia el jugador, pero nunca durante uno.
 
 ## Animaciones
 
@@ -319,6 +417,9 @@ pintadas con ruido y figuras simples en [prop_tools.py](../art/props/prop_tools.
 | Cromo de béisbol | Bateador con marco rojo, doblado por una esquina | 48 |
 | Ficha de dominó | Doble seis de marfil con reverso oscuro y remache de latón | 364 |
 | Foto familiar | Sepia, doblada al medio y con una esquina rota; una de las figuras casi se borró | 94 |
+| Hallaca | Paquete de hoja de plátano atado con pabilo en cruz, con una punta de hoja seca doblada encima | 210 |
+| Papelón con limón | Vaso alto color papelón, rueda de limón en el borde y pitillo a rayas | 392 |
+| Agua bendita | Botella plástica azul de capilla con etiqueta de cruz y tapa de rosca | 244 |
 | Machete | Lomo recto, panza hacia la punta, bisel limado, dos muescas, cachas con tres remaches y óxido en bandas | 521 |
 | Capilla | Capilla de carretera: arco azul, techo de zinc, Virgen, velas, placas y hiedra | 1.766 |
 | Mancha de lochas | Charco de brea con borde pálido y monedas sueltas | Cerca de 900 |
@@ -353,26 +454,97 @@ con balcones, casas de ladrillo con escaleras, comercios cerrados, hiedra densa,
 autobús y carros abandonados, postes con cables caídos, charcos, escombros detrás del
 inicio, torre escalonada y el Ávila al fondo.
 
-**Recorrido:** solo la avenida tiene arte. El resto de la zona es un bloqueo con cajas grises en
-[avenue_blockout.tscn](../game/scenes/avenue_blockout.tscn), con letreros donde va lo que aún falta.
-Se reemplaza por arte en su propia tarea, cuando el recorrido ya se sienta bien jugando.
+**Recorrido:** toda la zona tiene arte. Lo que todavía no existe (la radio, las pintadas legibles, el
+padre y el modelo del bachaquero) queda marcado con cápsulas y letreros en
+[avenue_markers.tscn](../game/scenes/avenue_markers.tscn).
 
 | Tramo | Dónde (x, z en Godot) | Qué hay |
 |---|---|---|
 | Avenida | 0, de 46 a -46 | Inicio, un esqueleto solo y luego una pareja |
-| Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos, la radio y el edificio saqueado al oeste, con un esqueleto y dos coleccionables |
-| Callejón del terremoto | 30 a 130, de -107 a -125 | Escombros en zigzag, dos esqueletos y pintadas |
-| Plazoleta de la capilla | 130 a 160, de -95 a -140 | Capilla y padre: aquí se descansa por primera vez |
-| Calle a la catedral | 160 a 260, de -105 a -125 | Bachaquero a la salida de la capilla, dos esqueletos y sitio para ratas y perros |
-| Plaza de la catedral | 260 a 310, de -85 a -145 | Arena del perro minijefe y salida a la selva |
+| Plaza de la torre | -30 a 30, de -50 a -125 | Tres esqueletos afuera, la radio y el abasto saqueado al noreste, con tres ratas, el vinilo y la ficha |
+| Callejón del terremoto | 30 a 130, de -99 a -125 | Zigzag entre edificios agrietados, la casa partida, tres esqueletos y pintadas |
+| Plazoleta de la capilla | 130 a 160, de -94 a -140 | Capilla y padre: aquí se descansa por primera vez. El portón abre la callejuela hacia la plaza |
+| Calle a la catedral | 160 a 260, de -105 a -140 | Bachaquero, mercado de lonas con dos ratas, cancha con dos perros, una rata entre los carros, dos esqueletos y el café antes del jefe |
+| Plaza de la catedral | 260 a 312, de -85 a -145 | Güino frente a su guarida, y la puerta trancada de la catedral, salida a la selva |
 
 Al otro lado de la torre, el Ávila empieza en z = -170, así que el recorrido gira al este antes de
 llegar. La lluvia va con el jugador para cubrir toda la zona.
 
-[build_avenue.py](../art/environments/build_avenue.py) la genera, guarda
-`avenue.blend` y exporta `avenue.glb`. Los objetos terminados en `-colonly` son las
-colisiones. La escena [avenue.tscn](../game/scenes/avenue.tscn) añade cielo, niebla,
-luz de tormenta, reflejos y lluvia.
+[build_avenue.py](../art/environments/build_avenue.py) genera la avenida, guarda
+`avenue.blend` y exporta `avenue.glb`; su suelo termina en z = -50 y su fondo de edificios no pasa de
+ahí. [build_route.py](../art/environments/build_route.py) genera el resto con las mismas funciones y
+los mismos cinco materiales, guarda `route.blend` y exporta `route.glb` y `shortcut_gate.glb`:
+
+```bash
+blender --background --python art/environments/build_avenue.py
+blender --background --python art/environments/build_route.py
+```
+
+Los objetos terminados en `-colonly` son las colisiones: una malla por tramo. La escena
+[avenue.tscn](../game/scenes/avenue.tscn) añade cielo, niebla, luz de tormenta, reflejos y lluvia.
+`route.glb` usa el mismo `avenue_import.gd` que la avenida, así que su fondo (`backdrop_square`) no
+proyecta sombra y el resto la proyecta por las dos caras.
+
+**Fachadas en cualquier dirección:** `building(a, b, ...)` levanta una manzana cuya fachada va de `a` a
+`b` con la zona jugable a su izquierda. Por dentro usa un marco local (`frame`), así que reutiliza
+`window`, `shop_front` e `ivy_curtain` de la avenida tal cual. `collide` guarda colisiones giradas
+con el mismo marco, y `holed_wall` y `holed_slab` arman paredes y losas con huecos.
+
+**Plaza de la torre:** la torre tapa el frente al salir de la avenida y obliga a rodearla. El
+abasto y farmacia ocupa x 10 a 30, z -99 a -113, en dos pisos de 3,6 y 3,5 m:
+
+- Abajo: mostrador de farmacia con estantería, tres góndolas (una volcada) que forman pasillos de
+  2,8 m, neveras abiertas (una de cara al piso) y el depósito con su cocinita.
+- Escalera de concreto contra la pared norte, de 1,7 m de ancho: con menos, la navegación no sube.
+  Una rampa de colisión de 27° la cubre y bloques escalonados llenan su vientre.
+- Arriba: oficina con escritorio (la ficha de dominó), sala con tocadiscos (el vinilo), chinchorro y
+  sofá, y un cuarto abierto donde alguien durmió. El hueco del piso (x 18,9 a 21,4, z -105 a -108)
+  deja ver los pasillos y deja un paso de 1,6 m junto a él.
+- Luz: ventanas tapiadas con rendijas entre las tablas, por donde entra la luz de tormenta. El
+  `ReflectionProbe` `StoreInterior` baja la luz ambiente dentro.
+- Atajo de un solo sentido: la pared este rota del primer piso da a la losa caída de la casa vecina,
+  que baja de 3,5 a 2,3 m. Al final se salta al bolsillo del callejón (x 44 a 50), detrás del primer
+  zigzag y de su esqueleto. Con 1,1 m de salto no se vuelve a subir.
+
+**Callejón del terremoto:** las fachadas del norte avanzan y retroceden (z -121, -125, -116, -123,2,
+-115, -125) y el camino zigzaguea entre ellas y la fila sur (z -108). En la primera curva, una
+fachada caída y escombros de 1,3 m obligan a pegarse al norte. Una losa cruza el callejón por
+arriba, a más de 4 m. La casa partida (x 86 a 98) se cruza por dentro: entra por la puerta oeste,
+pasa por la sala y la cocina y sale por la pared este rota. La grieta corre por el medio y deja el
+techo abierto sobre el camino, para que la cámara tenga aire. La animita del norte, en x 56, es un
+punto de botín.
+
+**Callejuela del portón:** de 5 m de ancho (z -94 a -99), corre detrás de la fila sur del callejón,
+con ropa tendida, tanques y la casita de un perro. Termina en el portón de la plazoleta de la
+capilla, en x 130. [ShortcutGate](../src/game/world/shortcut_gate.cpp) solo se abre con E desde
+el lado +X (la capilla); del otro lado avisa "Cerrado por el otro lado". La hoja gira hacia la
+plazoleta y la apertura se guarda como el bit 200 de los pickups, así que ningún `pickup_id` debe
+usar ese número.
+
+**Plazoleta de la capilla:** casas coloniales pintadas de dos pisos, el mango con su banco
+redondo, bancos, matas en materos y un farol con luz cálida (`ChapelLamp`). No hay enemigos.
+
+**Calle a la catedral:** santamarías a ambos lados y el puesto del bachaquero (x 172). El mercado
+(x 185 a 212) tiene lonas caídas sobre cajas donde duermen las ratas. La cancha (x 216 a 244,
+z -125 a -140) tiene malla ciclón de 3,5 m con una rotura en el extremo oeste, por donde salen los
+perros. En x 248 la calle se estrecha a 6 m con huesos, una cadena rota, un collar y tres zarpazos
+en las paredes.
+
+**Plaza de la catedral:** la arena despejada mide 40 × 50 m. La fuente central tiene 3,5 m de radio
+y un borde de 0,45 m. La cobertura baja (bancos, materos, un taxi y los restos de la torre caída) va
+solo junto a las paredes. La catedral tiene la torre sur entera, la norte partida, la fachada con
+el rosetón y una viga caída que tranca la puerta. Bajo el pórtico de tres arcos está la guarida, con
+colchones, huesos, platos oxidados y una cadena.
+
+**Botín:** se colocan pocos de los objetos actuales: el vinilo y la ficha en el abasto, y el
+segundo café antes del jefe. Los nodos `Marker3D` de `LootSpots` en `avenue.tscn` marcan superficies
+listas para el botín nuevo: cocina, caja registradora, estante y sofá del abasto, colchón, bañera,
+animita, mesa y cocina de la casa partida, casita del perro, banco de la capilla, puesto del mercado,
+colchón de la cancha, guarida y fuente. Un `LootPickup` nuevo va en la posición de uno de ellos.
+
+**Navegación:** después de cambiar colisiones, hay que hornear de nuevo con el botón Bake del nodo
+`Navigation`. Hay que comprobar que la escalera, la oficina y el depósito sigan dentro: las puertas
+interiores miden 2 m porque la malla pierde 0,5 m de cada lado.
 
 **Optimización de escenarios:**
 
@@ -380,8 +552,60 @@ luz de tormenta, reflejos y lluvia.
 - La vegetación se hace con láminas continuas y domos, no con objetos sueltos.
 - Se borran las caras que quedan dentro de sólidos o de espaldas a toda la zona
   jugable. Por eso el mapa se ve incompleto desde fuera o desde arriba: es a propósito.
-  Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`.
+  Si el jugador va a poder subir a un sitio, hay que ampliar `PLAY_CORNERS`. El de `build_route.py`
+  llega a 8,6 m por el primer piso del abasto y por la losa del atajo.
 - Las capas largas se parten por tramos para que Godot omita lo que no está en cámara.
+
+## Apertura
+
+Todo lo de [opening.md](opening.md). Es una cinemática: se modela solo lo que sale en pantalla.
+
+**Luis:** [build_luis.py](../art/characters/build_luis.py) lo arma, lo anima y exporta `luis.glb`
+(2.300 triángulos). Delgado, barba completa, pelo peinado hacia atrás, franela verde oliva con cuello
+en V, pantalón cargo caqui, zapatos grises y un morral de lona, que es su propia malla
+(`luis_backpack`) para ocultarlo en el carro. Usa los nombres de huesos de la protagonista, y cada
+tramo de malla se pesa a sus dos huesos más cercanos, como las bestias. `PersonRig` pone el torso
+por rotaciones y brazos y piernas por cinemática inversa hacia un punto; la raíz es el piso del
+carro bajo el asiento.
+
+```bash
+blender --background --python art/characters/build_luis.py
+```
+
+| Clip | Duración | Uso |
+|---|---|---|
+| `drive` | 6 s, en bucle | Al volante, mirando la vía y el retrovisor |
+| `talk` | 5 s, en bucle | Hablando con el pasajero, la mano derecha fuera del volante |
+| `laugh` | 1,8 s | Risa cansada |
+| `point_back`, `let_go` | 1 s y 0,8 s | Estira la mano entre los asientos hacia el machete y vuelve al volante |
+| `hit_radio` | 1,5 s | Dos golpes a la radio |
+| `swerve` | 0,8 s | El volantazo |
+| `lying` | 4 s, en bucle | Boca abajo en el asfalto |
+| `reach` | 4 s | La mano se arrastra hacia el protagonista |
+
+El mismo archivo tiene los clips del protagonista de pasajero (`sit`, `sit_window`, `sit_back` y
+`brace`), que `animate_protagonist.py` hornea sobre su propio esqueleto; también acomodan la chaqueta
+larga sobre el asiento.
+
+**Gente:** `build_person()` es el mismo cuerpo con otra ropa, piel y peinado (`swept`, `short`,
+`long`, `cap`). Con `simple` pierde cara, dedos y barba y baja a unos 900 triángulos; así se hace la
+gente de fondo, congelada en una pose y pasada a color por vértice.
+
+**Carro:** [build_car.py](../art/props/build_car.py) exporta `car.glb` (sedán cuadrado de los 80,
+3.600 triángulos, con tablero, relojes, radio, rosario y arbolito en el retrovisor y estampita en
+el tablero; por dentro, butacas con los lados levantados y cabeceras redondas, puertas tapizadas con
+manivela y apoyabrazos, consola con freno de mano y cinturones), `car_wheel.glb` (el volante solo, para girarlo) y `car_crashed.glb` (trompa doblada,
+parabrisas estrellado y `door_right` abierta, con el origen en la bisagra). El frente apunta a +Y,
+así en Godot mira a -Z como el carro de la escena.
+
+**Sangre:** [build_blood.py](../art/props/build_blood.py) exporta `blood_pool.glb`: un charco
+irregular con el centro más oscuro, gotas alrededor y una mancha arrastrada, plano sobre el piso.
+
+**Recorrido:** [build_drive.py](../art/environments/build_drive.py) usa las piezas y la paleta de
+`build_avenue.py` y exporta a `game/models/environments/drive/` solo cuatro piezas: `street.glb`
+(tramo de 40 m que la escena recicla), `store.glb` (el abasto con la cola), `bus.glb` (el autobús
+varado y la gente que se va caminando) y `split_building.glb` (el edificio partido por el terremoto).
+Sus `.import` usan `avenue_import.gd` para el color por vértice.
 
 ## Presupuesto inicial
 
