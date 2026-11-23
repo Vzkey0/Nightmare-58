@@ -6,8 +6,13 @@
 #include <game/enemies/combat_target.hpp>
 #include <game/debug/designar_check.hpp>
 #include <game/player/player_controller.hpp>
+#include <game/enemies/dog_enemy.hpp>
+#include <game/enemies/guino_enemy.hpp>
+#include <game/enemies/rat_enemy.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
-#include <game/ui/metal_plate.hpp>
+#include <game/ui/facet_plate.hpp>
+#include <game/ui/key_button.hpp>
+#include <game/ui/skill_tree_view.hpp>
 #include <game/ui/game_menu.hpp>
 #include <game/ui/item_slot.hpp>
 #include <game/ui/stat_bar.hpp>
@@ -16,9 +21,11 @@
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
 #include <game/world/merchant.hpp>
+#include <game/world/shortcut_gate.hpp>
 #include <game/weapons/thrown_machete.hpp>
 #include <game/world/loot_pickup.hpp>
 #include <game/world/lost_lochas.hpp>
+#include <game/world/opening_cutscene.hpp>
 
 using namespace godot;
 
@@ -30,18 +37,26 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(PlayerController);
     GDREGISTER_RUNTIME_CLASS(StatBar);
     GDREGISTER_RUNTIME_CLASS(CombatTarget);
+    GDREGISTER_RUNTIME_CLASS(MeleeEnemy);
     GDREGISTER_RUNTIME_CLASS(SkeletonEnemy);
+    GDREGISTER_RUNTIME_CLASS(RatEnemy);
+    GDREGISTER_RUNTIME_CLASS(DogEnemy);
+    GDREGISTER_RUNTIME_CLASS(GuinoEnemy);
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);
     GDREGISTER_RUNTIME_CLASS(ItemSlot);
-    GDREGISTER_RUNTIME_CLASS(MetalPlate);
+    GDREGISTER_RUNTIME_CLASS(FacetPlate);
+    GDREGISTER_RUNTIME_CLASS(KeyButton);
+    GDREGISTER_RUNTIME_CLASS(SkillTreeView);
     GDREGISTER_RUNTIME_CLASS(TitleScreen);
     GDREGISTER_RUNTIME_CLASS(Chapel);
     GDREGISTER_RUNTIME_CLASS(Merchant);
+    GDREGISTER_RUNTIME_CLASS(ShortcutGate);
     GDREGISTER_RUNTIME_CLASS(ThrownMachete);
     GDREGISTER_RUNTIME_CLASS(LostLochas);
     GDREGISTER_RUNTIME_CLASS(LootPickup);
+    GDREGISTER_RUNTIME_CLASS(OpeningCutscene);
   }
 }
 
