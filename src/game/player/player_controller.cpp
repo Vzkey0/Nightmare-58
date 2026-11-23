@@ -1,14 +1,18 @@
 #include "player_controller.hpp"
 #include <game/enemies/combat_target.hpp>
+#include <game/ui/dialogue_box.hpp>
 #include <game/ui/game_menu.hpp>
 #include <game/ui/stat_bar.hpp>
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
+#include <game/world/dialogue_npc.hpp>
 #include <game/world/lost_lochas.hpp>
 #include <game/world/merchant.hpp>
+#include <game/world/shortcut_gate.hpp>
 #include <game/weapons/thrown_machete.hpp>
 #include <game/ui/game_settings.hpp>
 #include <game/ui/item_slot.hpp>
+#include <game/ui/facet_plate.hpp>
 #include <game/world/save_file.hpp>
 
 #include <godot_cpp/classes/animation_library.hpp>
@@ -24,6 +28,7 @@
 #include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/method_tweener.hpp>
 #include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -87,6 +92,13 @@ constexpr float CAMERA_FOLLOW = 11.f;
 constexpr float CAMERA_STICK_SPEED = 2.8f;
 constexpr float CAMERA_MIN_PITCH = -1.05f;
 constexpr float CAMERA_MAX_PITCH = 0.6f;
+constexpr float DIALOGUE_CAMERA_FOLLOW = 7.5f;
+constexpr float DIALOGUE_FOCUS_HEIGHT = 1.44f;
+constexpr float DIALOGUE_SPRING_LENGTH = 1.6f;
+constexpr float DIALOGUE_FOV = 48.f;
+constexpr float DIALOGUE_SIDE_ANGLE = 0.55f; // ~32 deg off the player-NPC axis for clean 3/4 portrait framing.
+constexpr float DIALOGUE_PITCH = -0.05f;
+constexpr float DIALOGUE_EXIT_TIME = 0.45f;
 
 constexpr float HITSTOP_PER_DAMAGE = 0.0027f;
 constexpr float HITSTOP_TIME_SCALE = 0.02f; // Not 0: the shake divides by it to stay in real time.
@@ -107,6 +119,11 @@ constexpr float RESPAWN_TIME = 3.f;
 constexpr float DEATH_FADE = 0.6f;
 
 constexpr int COFFEE_HEAL = 45;
+constexpr float HALLACA_TIME = 20.f;
+constexpr float HALLACA_REGEN = 3.f; // Health per second after the full heal.
+constexpr float PAPELON_TIME = 30.f;
+constexpr float PAPELON_BREATH = 1.5f;
+constexpr float HOLY_DAMAGE = 1.25f; // Against the "unholy" group: skeletons and the legends.
 constexpr float TOAST_TIME = 2.5f;
 
 constexpr float LOCK_SPEED = 2.2f; // Must match LOCK_SPEED in animate_protagonist.py.
@@ -114,7 +131,6 @@ constexpr float LOCK_RANGE = 12.f;
 constexpr float LOCK_BREAK_RANGE = 16.f;
 constexpr float LOCK_VIEW_ANGLE = 1.05f;
 constexpr float LOCK_HIDDEN_TIME = 1.f;
-constexpr float LOCK_HEIGHT = 1.2f; // Aims at the chest.
 constexpr float LOCK_CAMERA_FOLLOW = 9.f;
 constexpr float LOCK_CAMERA_PITCH = -0.2f; // Over the shoulder, so the player stays in view.
 constexpr float LOCK_MIN_CAMERA_GAP = 0.8f; // Closer than this, the direction spins too fast.
@@ -134,6 +150,7 @@ const Color STAMINA_READY(0.08f, 0.78f, 0.96f);
 const Color STAMINA_WINDED(0.5f, 0.55f, 0.62f);
 const Color FIRE_COAT(1.f, 0.38f, 0.05f);
 const Color ICE_COAT(0.45f, 0.85f, 1.f);
+const Color HOLY_COAT(1.f, 0.92f, 0.62f);
 constexpr float COAT_ALPHA = 0.55f;
 constexpr float COAT_GLOW = 2.2f;
 constexpr float COAT_PULSE = 9.f;     // Radians per second.
@@ -142,6 +159,7 @@ const Color RAGE_FILLING(0.62f, 0.14f, 0.08f);
 const Color RAGE_FULL(1.f, 0.3f, 0.08f);
 const Color RAGE_BURNING(1.f, 0.08f, 0.05f);
 constexpr float RAGE_PULSE = 7.f;
+constexpr float LOCHAS_COUNT_TIME = 0.6f;
 constexpr float RAGE_ALPHA = 0.28f;
 constexpr float RAGE_SHAKE = 0.8f;
 
@@ -185,6 +203,7 @@ void PlayerController::_ready()
   spawn_point = get_global_position();
   model = get_node<Node3D>("Model");
   camera_pivot = get_node<Node3D>("CameraPivot");
+  spring_arm = get_node<SpringArm3D>("CameraPivot/SpringArm3D");
   camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   hitbox = get_node<ShapeCast3D>("Model/armature_male/Skeleton3D/WeaponBone/Hitbox");
@@ -205,6 +224,7 @@ void PlayerController::_ready()
   rage_bar = get_node<StatBar>("Hud/Panel/RageBar");
   lock_marker = get_node<Node2D>("Hud/LockMarker");
   lochas_label = get_node<Label>("Hud/LochasLabel");
+  level_label = get_node<Label>("Hud/Panel/LevelLabel");
   cup = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Cup");
   candle = get_node<Node3D>("Model/armature_male/Skeleton3D/HandItem/Candle");
   cap = get_node<Node3D>("Model/armature_male/Skeleton3D/HeadItem/Cap");
@@ -230,11 +250,15 @@ void PlayerController::_ready()
   coat_material->set_grow_enabled(true);
   coat_material->set_grow(0.004f);
   item_slot = get_node<ItemSlot>("Hud/Panel/ItemSlot");
-  prompt_label = get_node<Label>("Hud/Prompt");
+  keepsake_slot = get_node<ItemSlot>("Hud/Panel/KeepsakeSlot");
+  prompt_label = get_node<KeyButton>("Hud/Prompt");
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
   menu->bind(this);
+  dialogue = memnew(DialogueBox);
+  get_node<Node>("Hud")->add_child(dialogue);
   base_fov = camera->get_fov();
+  base_spring_length = spring_arm->get_length();
 
   // The scene places the player with a rotation; it moves to the model and the camera.
   facing_yaw = target_yaw = get_rotation().y;
@@ -279,6 +303,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
   Input * input = Input::get_singleton();
   const bool captured = input->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED;
 
+  if (dialogue != nullptr && dialogue->holds_input())
+    return;
+
   if (event->is_action_pressed("pause"))
   {
     menu->open(MenuScreen::Pause);
@@ -294,6 +321,7 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
     return;
   }
   const float sensitivity = mouse_sensitivity * GameSettings::mouse_scale();
+  dialogue_exit_blend = 0.f;
   camera_yaw -= motion->get_relative().x * sensitivity;
   camera_pitch -= motion->get_relative().y * sensitivity;
 }
@@ -309,8 +337,8 @@ void PlayerController::_physics_process(double delta_time)
   const float delta = static_cast<float>(delta_time);
   Input * input = Input::get_singleton();
 
-  // The world keeps going behind a menu, as in the souls games; only the player stops.
-  const bool free_hands = !menu->holds_input();
+  // The world keeps going behind a menu or dialogue, as in the souls games; only the player stops.
+  const bool free_hands = !menu->holds_input() && !dialogue->holds_input();
   const Vector2 stick = free_hands ? input->get_vector(move_left, move_right, move_forward, move_back) : Vector2();
   const Vector3 wish = Vector3(stick.x, 0, stick.y).rotated(UP, camera_yaw);
   const bool wants_to_move = wish.length_squared() > 0.01f;
@@ -479,7 +507,7 @@ void PlayerController::start_action(const Vector3 & wish)
       break;
     case PlayerAction::UseItem:
       item_in_use = save.quick_slots().current();
-      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+      if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
         play(grease_clip, BLEND_TO_DODGE);
       else
         play(item_in_use == ItemCatalog::CANDLE ? use_candle_clip : drink_clip, BLEND_TO_DODGE);
@@ -548,15 +576,15 @@ void PlayerController::hit_targets()
 {
   // Asked on each tick: an Area3D on an animated bone reports nothing for a swing this fast.
   hitbox->force_shapecast_update();
-  const int damage = Math::round(PlayerActions::timing(actions.current()).damage * blow_scale());
+  const float blow = PlayerActions::timing(actions.current()).damage * blow_scale();
   for (int i = 0; i < hitbox->get_collision_count(); ++i)
   {
     CombatTarget * target = Object::cast_to<CombatTarget>(hitbox->get_collider(i));
     if (target != nullptr)
     {
+      const int damage = blow_on(target, blow);
       target->take_hit(damage, get_global_position(), hitbox->get_collision_point(i));
-      if (coat.active())
-        target->apply_status(coat.kind());
+      coat_target(target);
       dealt(damage);
       feel_hit(damage);
       hit_sound->play();
@@ -642,6 +670,8 @@ void PlayerController::take_hit(int raw_damage, const Vector3 & attacker)
     respawn_time = RESPAWN_TIME;
     coat.clear();
     rage.reset();
+    feast_time = 0.f;
+    sweet_time = 0.f;
     drop_thrown_machete();
     play(death_clip, BLEND_TO_DODGE);
     clear_dropped_lochas();
@@ -671,7 +701,7 @@ void PlayerController::respawn()
 
 void PlayerController::earn(int lochas)
 {
-  save.earn(lochas);
+  save.earn(save.bounty(lochas));
   SaveFile::write(save);
   refresh_hud();
 }
@@ -692,16 +722,178 @@ void PlayerController::pick_up(const String & item_key, int amount, int pickup_i
   show_toast(kept > 0 ? vformat("%s  x%d", name, kept) : vformat(String::utf8("%s al máximo"), name));
 }
 
+void PlayerController::refresh_prompt()
+{
+  if (nearby_npc != nullptr)
+    prompt_label->set_text(nearby_npc->get_prompt_text());
+  else if (nearby_chapel != nullptr)
+    prompt_label->set_text("E  Capilla");
+  else if (nearby_merchant != nullptr)
+    prompt_label->set_text("E  Bachaquero");
+  else if (nearby_gate != nullptr)
+    prompt_label->set_text(nearby_gate->openable_by(this) ? String::utf8("E  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+  else
+    prompt_label->set_text("");
+}
+
 void PlayerController::set_nearby_chapel(Chapel * chapel)
 {
   nearby_chapel = chapel;
-  prompt_label->set_text(chapel != nullptr ? "[E]  Capilla" : "");
+  refresh_prompt();
+}
+
+void PlayerController::set_nearby_npc(DialogueNpc * npc)
+{
+  nearby_npc = npc;
+  refresh_prompt();
 }
 
 void PlayerController::set_nearby_merchant(Merchant * merchant)
 {
   nearby_merchant = merchant;
-  prompt_label->set_text(merchant != nullptr ? "[E]  Bachaquero" : "");
+  refresh_prompt();
+}
+
+void PlayerController::set_nearby_gate(ShortcutGate * gate)
+{
+  nearby_gate = gate;
+  refresh_prompt();
+}
+
+void PlayerController::begin_dialogue_camera(Node3D * npc)
+{
+  release_lock();
+  dialogue_npc = npc;
+  dialogue_npc_speaks = true;
+  saved_camera_yaw = camera_yaw;
+  saved_camera_pitch = camera_pitch;
+  dialogue_exit_blend = 0.f;
+  if (npc != nullptr)
+    target_yaw = yaw_towards(npc);
+}
+
+void PlayerController::end_dialogue_camera()
+{
+  if (dialogue_npc != nullptr)
+    dialogue_exit_blend = DIALOGUE_EXIT_TIME;
+  dialogue_npc = nullptr;
+}
+
+void PlayerController::talk_to_npc()
+{
+  if (nearby_npc == nullptr || dialogue == nullptr)
+    return;
+  constexpr int PRIEST_INTRO_ID = 200;
+  DialogueNpc * npc = nearby_npc;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(npc);
+
+  std::vector<DialogueLine> lines;
+  if (!save.pickup_taken(PRIEST_INTRO_ID))
+  {
+    lines = {
+      {String::utf8("Padre"), String::utf8("Pasa, hijo. Aquí no entran. Mientras quede una vela encendida, la capilla aguanta."), true},
+      {"P", String::utf8("En la avenida... escuché un silbido antes de chocar."), false},
+      {String::utf8("Padre"), String::utf8("El Silbón. Antes era un cuento para que los muchachos no salieran tarde. Ya no."), true},
+      {String::utf8("Padre"), String::utf8("Dicen que mató a su propio padre y que carga los huesos en un saco a la espalda. Se alimenta de la culpa... y de la tristeza que dejó este país vacío."), true},
+      {String::utf8("Padre"), String::utf8("Desde que se apagó la música en las calles, anda suelto hacia el llano. Si lo escuchas cerca, todavía está lejos; si casi no se oye, corre."), true},
+      {"P", String::utf8("Necesito cruzar. Mi mamá vive del otro lado."), false},
+      {String::utf8("Padre"), String::utf8("Entonces descansa en el altar cuando te haga falta y cuida esa rabia. Dios te acompañe, muchacho."), true},
+    };
+    dialogue->start(
+      lines,
+      pname,
+      [this, npc](bool speaking)
+      {
+        dialogue_npc_speaks = speaking;
+        npc->set_talking(speaking);
+      },
+      [this]()
+      {
+        end_dialogue_camera();
+        remember(PRIEST_INTRO_ID);
+      });
+  }
+  else
+  {
+    lines = {
+      {String::utf8("Padre"), String::utf8("Si ves huesos regados más adelante, no te confíes. El silencio siempre llega antes que él."), true},
+      {String::utf8("Padre"), String::utf8("La capilla sigue abierta. Vuelve cuando necesites aire."), true},
+    };
+    dialogue->start(
+      lines,
+      pname,
+      [this, npc](bool speaking)
+      {
+        dialogue_npc_speaks = speaking;
+        npc->set_talking(speaking);
+      },
+      [this]() { end_dialogue_camera(); });
+  }
+}
+
+void PlayerController::start_merchant_intro()
+{
+  if (nearby_merchant == nullptr || dialogue == nullptr)
+    return;
+  constexpr int MERCHANT_INTRO_ID = 201;
+  Merchant * merchant = nearby_merchant;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(merchant);
+  const std::vector<DialogueLine> lines = {
+    {String::utf8("Bachaquero"), String::utf8("¡Epa, mano! Pensé que ya no quedaba gente viva por esta avenida. Y con machete nuevo y todo."), true},
+    {String::utf8("Bachaquero"), String::utf8("¿Traes lochas? Eso sí me sirve. Billetes ni me los saques, que ya no sirven ni para prender un fogón."), true},
+    {String::utf8("Bachaquero"), String::utf8("Tengo café para que no te mueras en la esquina, y cosas que no pierden valor. Si te quieres afilar ese machete, también resuelvo."), true},
+    {String::utf8("Bachaquero"), String::utf8("Eso sí, te aviso de una vez: compra hoy. Cada vez que te echas a dormir en esa capilla, todo amanece más caro. Aquí nadie fía."), true},
+  };
+  dialogue->start(
+    lines,
+    pname,
+    [this, merchant](bool speaking)
+    {
+      dialogue_npc_speaks = speaking;
+      merchant->set_talking(speaking);
+    },
+    [this]()
+    {
+      end_dialogue_camera();
+      remember(MERCHANT_INTRO_ID);
+      if (nearby_merchant != nullptr)
+        menu->open(MenuScreen::Shop);
+    });
+}
+
+void PlayerController::talk_to_merchant()
+{
+  if (nearby_merchant == nullptr || dialogue == nullptr)
+    return;
+  Merchant * merchant = nearby_merchant;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(merchant);
+  static const char * const CHAT_LINES[] = {
+    "Aprovéchalo hoy, mano, que mañana cuesta el doble.",
+    "Si consigues algo viejo que todavía valga la pena —un disco, un dominó—, tráemelo. Eso no se devalúa.",
+  };
+  const char * text = CHAT_LINES[merchant_chat_index % 2];
+  ++merchant_chat_index;
+  const std::vector<DialogueLine> lines = {
+    {String::utf8("Bachaquero"), String::utf8(text), true},
+  };
+  dialogue->start(
+    lines,
+    pname,
+    [this, merchant](bool speaking)
+    {
+      dialogue_npc_speaks = speaking;
+      merchant->set_talking(speaking);
+    },
+    [this]() { end_dialogue_camera(); });
+}
+
+void PlayerController::remember(int id)
+{
+  save.take_pickup(id);
+  SaveFile::write(save);
 }
 
 Zone PlayerController::merchant_zone() const
@@ -730,6 +922,15 @@ bool PlayerController::learn(int skill)
 bool PlayerController::wear(ItemId item)
 {
   if (!save.wear(item))
+    return false;
+  SaveFile::write(save);
+  refresh_hud();
+  return true;
+}
+
+bool PlayerController::carry(ItemId item)
+{
+  if (!save.carry(item))
     return false;
   SaveFile::write(save);
   refresh_hud();
@@ -790,7 +991,6 @@ void PlayerController::freeze_inflation(Zone zone)
 void PlayerController::apply_stats()
 {
   health.set_maximum(save.stats().max_health());
-  actions.set_stamina_regen(save.stats().stamina_regen_scale());
 }
 
 void PlayerController::place_at_saved_chapel()
@@ -849,10 +1049,22 @@ void PlayerController::read_item_input()
   }
   if (input->is_action_just_pressed(inventory_input))
     menu->open(MenuScreen::Inventory);
-  if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
+  if (input->is_action_just_pressed(interact_input) && prompt_label->get_text().begins_with("E  "))
+    prompt_label->press();
+  if (input->is_action_just_pressed(interact_input) && nearby_npc != nullptr && alive)
+    talk_to_npc();
+  else if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
     menu->open(MenuScreen::Chapel);
   else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
-    menu->open(MenuScreen::Shop);
+  {
+    constexpr int MERCHANT_INTRO_ID = 201;
+    if (!save.pickup_taken(MERCHANT_INTRO_ID))
+      start_merchant_intro();
+    else
+      menu->open(MenuScreen::Shop);
+  }
+  else if (input->is_action_just_pressed(interact_input) && nearby_gate != nullptr && alive)
+    nearby_gate->open(*this);
 
   const ItemId item = save.quick_slots().current();
   if (input->is_action_just_pressed(use_item_input) && item != NO_ITEM && save.inventory().count(item) > 0)
@@ -870,9 +1082,23 @@ void PlayerController::use_item()
     release_lock();
     SaveFile::write(save);
   }
-  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE)
+  else if (item_in_use == ItemCatalog::FIRE_GREASE || item_in_use == ItemCatalog::ICE_GREASE || item_in_use == ItemCatalog::HOLY_WATER)
   {
-    coat.apply(item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn : Status::Chill);
+    const Status kind = item_in_use == ItemCatalog::FIRE_GREASE ? Status::Burn
+                      : item_in_use == ItemCatalog::ICE_GREASE ? Status::Chill : Status::Holy;
+    coat.apply(kind); // Replaces whatever coat was on: one at a time.
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::HALLACA)
+  {
+    health.restore();
+    feast_time = HALLACA_TIME;
+    SaveFile::write(save);
+  }
+  else if (item_in_use == ItemCatalog::PAPELON)
+  {
+    actions.refill_stamina();
+    sweet_time = PAPELON_TIME;
     SaveFile::write(save);
   }
   item_in_use = NO_ITEM;
@@ -883,7 +1109,7 @@ void PlayerController::launch_machete()
   // At the locked target's chest, or straight ahead at the height of the hand.
   const CombatTarget * locked = locked_target();
   const Vector3 from = weapon_bone->get_global_position();
-  const Vector3 direction = locked != nullptr ? locked->get_global_position() + UP * LOCK_HEIGHT - from
+  const Vector3 direction = locked != nullptr ? locked->aim_point() - from
                                               : MODEL_FORWARD.rotated(UP, facing_yaw);
   thrown = memnew(ThrownMachete);
   get_parent()->add_child(thrown);
@@ -895,10 +1121,9 @@ void PlayerController::launch_machete()
 
 void PlayerController::throw_hit(CombatTarget * target, const Vector3 & point)
 {
-  const int damage = Math::round(ThrownWeapon::DAMAGE * blow_scale());
+  const int damage = blow_on(target, ThrownWeapon::DAMAGE * blow_scale() * save.throw_scale());
   target->take_hit(damage, get_global_position(), point);
-  if (coat.active())
-    target->apply_status(coat.kind());
+  coat_target(target);
   dealt(damage);
   // No hitstop: the blow lands away from the player, who is not the one feeling it.
   camera_shake = MIN(camera_shake + damage * SHAKE_PER_DAMAGE * 0.5f, 1.f);
@@ -930,6 +1155,18 @@ void PlayerController::drop_thrown_machete()
 float PlayerController::blow_scale() const
 {
   return save.stats().damage_scale() * save.machete_damage_scale() * save.outfit_damage_scale() * rage.damage_dealt_scale();
+}
+
+int PlayerController::blow_on(const CombatTarget * target, float damage) const
+{
+  const bool blessed = coat.active() && coat.kind() == Status::Holy && target->is_in_group("unholy");
+  return Math::round(blessed ? damage * HOLY_DAMAGE : damage);
+}
+
+void PlayerController::coat_target(CombatTarget * target) const
+{
+  if (coat.active() && coat.kind() != Status::Holy)
+    target->apply_status(coat.kind());
 }
 
 void PlayerController::dealt(int damage)
@@ -965,7 +1202,7 @@ void PlayerController::update_coat(float delta)
     machete->set_material_overlay(Ref<Material>());
     return;
   }
-  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : ICE_COAT;
+  const Color & color = coat.kind() == Status::Burn ? FIRE_COAT : coat.kind() == Status::Chill ? ICE_COAT : HOLY_COAT;
   // A slow pulse while it lasts, and a flicker in its last seconds.
   const float clock = static_cast<float>(Time::get_singleton()->get_ticks_msec()) * 0.001f;
   const float pulse = 0.75f + 0.25f * Math::sin(clock * COAT_PULSE);
@@ -982,7 +1219,11 @@ void PlayerController::update_progress(float delta)
   if (health.dead())
     return;
 
-  regen_carry += save.stats().regen_per_second() * delta;
+  feast_time = MAX(feast_time - delta, 0.f);
+  sweet_time = MAX(sweet_time - delta, 0.f);
+  actions.set_stamina_regen(save.stamina_regen_scale() * (sweet_time > 0.f ? PAPELON_BREATH : 1.f));
+
+  regen_carry += (save.stats().regen_per_second() + (feast_time > 0.f ? HALLACA_REGEN : 0.f)) * delta;
   const int whole = static_cast<int>(regen_carry);
   if (whole > 0)
   {
@@ -1005,7 +1246,7 @@ float PlayerController::yaw_towards(const Node3D * node) const
 bool PlayerController::sees(const CombatTarget * target) const
 {
   const Vector3 from = get_global_position() + UP * CAMERA_HEIGHT;
-  const Vector3 to = target->get_global_position() + UP * LOCK_HEIGHT;
+  const Vector3 to = target->aim_point();
   const Dictionary hit = get_world_3d()->get_direct_space_state()->intersect_ray(PhysicsRayQueryParameters3D::create(from, to, LEVEL_MASK));
   return hit.is_empty() || static_cast<uint64_t>(hit["collider_id"]) == target->get_instance_id();
 }
@@ -1143,8 +1384,12 @@ void PlayerController::update_hud(float delta)
       rage_bar->set_fill_color(rage.full() ? RAGE_FULL.lerp(Color(1, 0.9f, 0.5f), throb) : RAGE_FILLING);
   }
 
-  prompt_label->set_visible(!menu->is_open());
-  lochas_label->set_visible(!menu->is_open());
+  const bool in_dialogue = dialogue->is_open();
+  const bool hud_busy = menu->is_open() || in_dialogue;
+  if (!menu->is_open())
+    hud_panel->set_visible(!in_dialogue);
+  prompt_label->set_visible(!hud_busy);
+  lochas_label->set_visible(!hud_busy);
   if (toast_time > 0.f)
   {
     toast_time -= delta;
@@ -1152,7 +1397,7 @@ void PlayerController::update_hud(float delta)
   }
 
   const CombatTarget * target = locked_target();
-  const Vector3 aim = target != nullptr ? target->get_global_position() + UP * LOCK_HEIGHT : Vector3();
+  const Vector3 aim = target != nullptr ? target->aim_point() : Vector3();
   lock_marker->set_visible(target != nullptr && !camera->is_position_behind(aim));
   if (lock_marker->is_visible())
     lock_marker->set_position(camera->unproject_position(aim));
@@ -1161,10 +1406,36 @@ void PlayerController::update_hud(float delta)
 // Only on change: building these strings on each frame would reserve memory for nothing.
 void PlayerController::refresh_hud()
 {
-  lochas_label->set_text(save.endless() ? String::utf8("∞") : String::num_int64(save.lochas()));
+  if (save.endless())
+    lochas_label->set_text(String::utf8("∞"));
+  else if (lochas_target < 0)
+    show_lochas(lochas_target = save.lochas());
+  else if (save.lochas() != lochas_target)
+  {
+    // The count rolls to its new value, and the plaque jumps once to say it changed.
+    lochas_target = save.lochas();
+    if (lochas_tween.is_valid())
+      lochas_tween->kill();
+    lochas_tween = create_tween();
+    lochas_tween->tween_method(callable_mp(this, &PlayerController::show_lochas), lochas_shown, static_cast<float>(lochas_target), LOCHAS_COUNT_TIME)->set_trans(Tween::TRANS_CUBIC)->set_ease(Tween::EASE_OUT);
+    lochas_label->set_pivot_offset(lochas_label->get_size() * 0.5f);
+    Facet::pop(*lochas_label, 1.f);
+  }
+  int level = 1;
+  for (int stat = 0; stat < STAT_COUNT; ++stat)
+    level += save.stats().level(static_cast<Stat>(stat));
+  level_label->set_text(vformat("NV %d", level));
   cap->set_visible(save.worn() == ItemCatalog::CAP);
   const ItemId item = save.quick_slots().current();
   item_slot->show_item(item, item == NO_ITEM ? 0 : save.inventory().count(item), false);
+  keepsake_slot->set_visible(save.keepsake() != NO_ITEM);
+  keepsake_slot->show_item(save.keepsake(), -1, false);
+}
+
+void PlayerController::show_lochas(float value)
+{
+  lochas_shown = value;
+  lochas_label->set_text(String::num_int64(static_cast<int64_t>(Math::round(value))));
 }
 
 void PlayerController::show_toast(const String & text)
@@ -1318,20 +1589,63 @@ void PlayerController::turn_model(float delta, float speed)
 
 void PlayerController::update_camera(float delta)
 {
+  if (dialogue_npc != nullptr)
+  {
+    const Vector3 player_pos = get_global_transform_interpolated().origin;
+    const Vector3 npc_pos = dialogue_npc->get_global_position();
+    Vector3 to_npc = (npc_pos - player_pos).slide(UP);
+    if (to_npc.length_squared() < 0.001f)
+      to_npc = MODEL_FORWARD.rotated(UP, facing_yaw);
+    else
+      to_npc = to_npc.normalized();
+    const Vector3 side = UP.cross(to_npc).normalized();
+
+    // Shot-reverse-shot on the same side of the 180-degree line:
+    // NPC speaking -> camera on player's side looking at NPC's face.
+    // Player speaking -> camera on NPC's side looking back at player's face.
+    const float c = Math::cos(DIALOGUE_SIDE_ANGLE);
+    const float s = Math::sin(DIALOGUE_SIDE_ANGLE);
+    const Vector3 focus = (dialogue_npc_speaks ? npc_pos : player_pos) + UP * DIALOGUE_FOCUS_HEIGHT;
+    const Vector3 cam_dir = (dialogue_npc_speaks ? (-to_npc * c + side * s) : (to_npc * c + side * s)).normalized();
+    const float target_cam_yaw = Math::atan2(cam_dir.x, cam_dir.z);
+
+    const float blend = damp(DIALOGUE_CAMERA_FOLLOW, delta);
+    camera_focus = camera_focus.lerp(focus, blend);
+    camera_yaw = Math::lerp_angle(camera_yaw, target_cam_yaw, blend);
+    camera_pitch = Math::lerp(camera_pitch, DIALOGUE_PITCH, blend);
+    spring_arm->set_length(Math::lerp(spring_arm->get_length(), DIALOGUE_SPRING_LENGTH, blend));
+    camera->set_fov(Math::lerp(camera->get_fov(), DIALOGUE_FOV, blend));
+    camera_pivot->set_global_position(camera_focus);
+    camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
+    camera->set_h_offset(0.f);
+    camera->set_v_offset(0.f);
+    return;
+  }
+
   const CombatTarget * locked = locked_target();
   if (locked == nullptr)
   {
     const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);
+    if (look.length_squared() > 0.01f)
+      dialogue_exit_blend = 0.f;
     camera_yaw -= look.x * CAMERA_STICK_SPEED * delta;
     camera_pitch -= look.y * CAMERA_STICK_SPEED * delta;
+    if (dialogue_exit_blend > 0.f)
+    {
+      dialogue_exit_blend = MAX(0.f, dialogue_exit_blend - delta);
+      const float back = damp(DIALOGUE_CAMERA_FOLLOW, delta);
+      camera_yaw = Math::lerp_angle(camera_yaw, saved_camera_yaw, back);
+      camera_pitch = Math::lerp(camera_pitch, saved_camera_pitch, back);
+    }
   }
   camera_pitch = CLAMP(camera_pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
 
   const Vector3 focus = get_global_transform_interpolated().origin + UP * CAMERA_HEIGHT;
   camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
+  spring_arm->set_length(Math::lerp(spring_arm->get_length(), base_spring_length, damp(DIALOGUE_CAMERA_FOLLOW, delta)));
   if (locked != nullptr)
   {
-    const Vector3 offset = locked->get_global_position() + UP * LOCK_HEIGHT - camera_focus;
+    const Vector3 offset = locked->aim_point() - camera_focus;
     const float gap = offset.slide(UP).length();
     if (gap > LOCK_MIN_CAMERA_GAP)
       camera_yaw = Math::lerp_angle(camera_yaw, Math::atan2(-offset.x, -offset.z), damp(LOCK_CAMERA_FOLLOW, delta));
@@ -1344,7 +1658,8 @@ void PlayerController::update_camera(float delta)
   const float real_delta = delta / static_cast<float>(Engine::get_singleton()->get_time_scale());
   camera_shake = MAX(camera_shake - SHAKE_FADE * real_delta, 0.f);
   camera_kick = MAX(camera_kick - KICK_FADE * real_delta, 0.f);
-  camera->set_fov(base_fov - camera_kick * camera_kick * KICK_FOV);
+  const float wanted_fov = base_fov - camera_kick * camera_kick * KICK_FOV;
+  camera->set_fov(Math::lerp(camera->get_fov(), wanted_fov, damp(DIALOGUE_CAMERA_FOLLOW, delta)));
   const float reach = camera_shake * camera_shake * SHAKE_SIZE;
   camera->set_h_offset(UtilityFunctions::randf_range(-reach, reach));
   camera->set_v_offset(UtilityFunctions::randf_range(-reach, reach));

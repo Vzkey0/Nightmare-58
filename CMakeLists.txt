@@ -76,6 +76,7 @@ add_library(nightmare58_ext SHARED
   src/game/enemies/training_dummy.cpp
   src/game/weapons/weapon_trail.cpp
   src/game/world/chapel.cpp
+  src/game/world/dialogue_npc.cpp
   src/game/world/merchant.cpp
   src/game/world/shortcut_gate.cpp
   src/game/weapons/thrown_machete.cpp

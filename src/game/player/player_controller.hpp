@@ -1,5 +1,6 @@
 #pragma once
 
+#include <godot_cpp/classes/tween.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
@@ -13,7 +14,10 @@
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
+#include <godot_cpp/classes/spring_arm3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
+
+#include <game/ui/key_button.hpp>
 
 #include <core/ai/attack_turns.hpp>
 #include <core/health.hpp>
@@ -26,9 +30,12 @@
 
 class Chapel;
 class CombatTarget;
+class DialogueBox;
+class DialogueNpc;
 class GameMenu;
 class LostLochas;
 class Merchant;
+class ShortcutGate;
 class StatBar;
 class ThrownMachete;
 class WeaponTrail;
@@ -65,16 +72,21 @@ public:
   void earn(int lochas);
   void pick_up(const godot::String & item_key, int amount, int pickup_id);
   void set_nearby_chapel(Chapel * chapel);
+  void set_nearby_npc(DialogueNpc * npc);
   void rest();
   void recover_lochas();
   bool raise_stat(Stat stat);
   Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
   void set_nearby_merchant(Merchant * merchant);
+  void talk_to_merchant();
+  void set_nearby_gate(ShortcutGate * gate);
+  void remember(int id); // Saves a one-time world change, such as an opened gate, as a pickup bit.
   Zone merchant_zone() const;
   bool buy(ItemId item);
   bool sell(ItemId item);
   bool learn(int skill);
   bool wear(ItemId item);
+  bool carry(ItemId item);
 
   // For a boss: beating it stops inflation in its zone.
   void freeze_inflation(Zone zone);
@@ -108,6 +120,11 @@ private:
   void drop_lochas();
   void clear_dropped_lochas();
   void read_item_input();
+  void refresh_prompt();
+  void talk_to_npc();
+  void start_merchant_intro();
+  void begin_dialogue_camera(godot::Node3D * npc);
+  void end_dialogue_camera();
   void use_item();
   void launch_machete();
   void drop_thrown_machete();
@@ -117,8 +134,11 @@ private:
   void update_rage(float delta);
   float blow_scale() const;
   void dealt(int damage);
+  int blow_on(const CombatTarget * target, float damage) const;
+  void coat_target(CombatTarget * target) const;
   void refresh_hud();
   void show_toast(const godot::String & text);
+  void show_lochas(float value);
 
   CombatTarget * locked_target() const;
   float yaw_towards(const godot::Node3D * node) const;
@@ -144,6 +164,7 @@ private:
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
+  godot::SpringArm3D * spring_arm = nullptr;
   godot::Camera3D * camera = nullptr;
   godot::AnimationPlayer * animator = nullptr;
   godot::ShapeCast3D * hitbox = nullptr;
@@ -165,6 +186,10 @@ private:
   godot::Ref<godot::StandardMaterial3D> rage_material;
   godot::Node2D * lock_marker = nullptr;
   godot::Label * lochas_label = nullptr;
+  godot::Label * level_label = nullptr;
+  godot::Ref<godot::Tween> lochas_tween;
+  float lochas_shown = 0.f;
+  int lochas_target = -1; // None yet: the first count is shown at once.
   godot::Node3D * cup = nullptr;
   godot::Node3D * candle = nullptr;
   godot::Node3D * cap = nullptr;
@@ -174,12 +199,23 @@ private:
   ThrownMachete * thrown = nullptr;
   godot::Ref<godot::StandardMaterial3D> coat_material;
   ItemSlot * item_slot = nullptr;
-  godot::Label * prompt_label = nullptr;
+  ItemSlot * keepsake_slot = nullptr;
+  KeyButton * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
+  DialogueBox * dialogue = nullptr;
   Chapel * nearby_chapel = nullptr;
+  DialogueNpc * nearby_npc = nullptr;
   Merchant * nearby_merchant = nullptr;
+  ShortcutGate * nearby_gate = nullptr;
   LostLochas * dropped_lochas = nullptr;
+  godot::Node3D * dialogue_npc = nullptr;
+  bool dialogue_npc_speaks = true;
+  float saved_camera_yaw = 0.f;
+  float saved_camera_pitch = -0.2f;
+  float dialogue_exit_blend = 0.f;
+  float base_spring_length = 3.4f;
+  int merchant_chat_index = 0;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.
   float run_speed = 4.6f;
@@ -208,6 +244,8 @@ private:
   float regen_carry = 0.f; // Health comes in whole points; a slow rate adds up across ticks.
   float toast_time = 0.f;
   ItemId item_in_use = NO_ITEM;
+  float feast_time = 0.f; // Left of the hallaca's healing.
+  float sweet_time = 0.f; // Left of the papelón's quick breath.
 
   uint64_t lock_id = 0; // An id and not a pointer: a target may be freed while locked.
   float lock_hidden_time = 0.f;
