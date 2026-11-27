@@ -16,7 +16,7 @@ Es el proyecto de Programación 3: todas las estructuras de datos del juego sale
 DeSiGNAR. La lógica vive en una librería sin Godot que se prueba y mide desde la
 terminal; una capa delgada la conecta al motor.
 
-**Alcance de la entrega:** capítulo 1 (apertura, avenida, selva y llano con El Silbón).
+**Alcance de la entrega:** capítulo 1 (apertura, calle caotica, mini-boss Guino y posiblemente llano con El Silbón).
 El proyecto continúa después con otros capítulos.
 
 ### 1.2 Objetivos y no objetivos
