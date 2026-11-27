@@ -2,7 +2,7 @@
 
 #include <godot_cpp/classes/node.hpp>
 
-// The menus' sounds live in the UiSounds autoload (scenes/ui_sounds.tscn): the pause menu needs
+// The menus' sounds live in the UiSounds autoload (scenes/ui/ui_sounds.tscn): the pause menu needs
 // them with the tree paused, and the title screen's last click has to outlast its own scene.
 namespace UiSounds
 {

@@ -542,7 +542,7 @@ void MeleeEnemy::pay_the_player()
   if (item == NO_ITEM)
     return;
 
-  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/loot_pickup.tscn");
+  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/world/loot_pickup.tscn");
   LootPickup * pickup = Object::cast_to<LootPickup>(scene->instantiate());
   pickup->set_item_key(ItemCatalog::instance()[item].key);
   get_parent()->add_child(pickup);

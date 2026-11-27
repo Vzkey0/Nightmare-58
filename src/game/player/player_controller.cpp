@@ -1,11 +1,13 @@
 #include "player_controller.hpp"
 #include <game/enemies/combat_target.hpp>
+#include <game/ui/dialogue_box.hpp>
 #include <game/ui/game_menu.hpp>
 #include <game/ui/stat_bar.hpp>
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
+#include <game/npcs/dialogue_npc.hpp>
 #include <game/world/lost_lochas.hpp>
-#include <game/world/merchant.hpp>
+#include <game/npcs/merchant.hpp>
 #include <game/world/shortcut_gate.hpp>
 #include <game/weapons/thrown_machete.hpp>
 #include <game/ui/game_settings.hpp>
@@ -90,6 +92,13 @@ constexpr float CAMERA_FOLLOW = 11.f;
 constexpr float CAMERA_STICK_SPEED = 2.8f;
 constexpr float CAMERA_MIN_PITCH = -1.05f;
 constexpr float CAMERA_MAX_PITCH = 0.6f;
+constexpr float DIALOGUE_CAMERA_FOLLOW = 7.5f;
+constexpr float DIALOGUE_FOCUS_HEIGHT = 1.44f;
+constexpr float DIALOGUE_SPRING_LENGTH = 1.6f;
+constexpr float DIALOGUE_FOV = 48.f;
+constexpr float DIALOGUE_SIDE_ANGLE = 0.55f; // ~32 deg off the player-NPC axis for clean 3/4 portrait framing.
+constexpr float DIALOGUE_PITCH = -0.05f;
+constexpr float DIALOGUE_EXIT_TIME = 0.45f;
 
 constexpr float HITSTOP_PER_DAMAGE = 0.0027f;
 constexpr float HITSTOP_TIME_SCALE = 0.02f; // Not 0: the shake divides by it to stay in real time.
@@ -194,6 +203,7 @@ void PlayerController::_ready()
   spawn_point = get_global_position();
   model = get_node<Node3D>("Model");
   camera_pivot = get_node<Node3D>("CameraPivot");
+  spring_arm = get_node<SpringArm3D>("CameraPivot/SpringArm3D");
   camera = get_node<Camera3D>("CameraPivot/SpringArm3D/Camera3D");
   animator = get_node<AnimationPlayer>("Model/AnimationPlayer");
   hitbox = get_node<ShapeCast3D>("Model/armature_male/Skeleton3D/WeaponBone/Hitbox");
@@ -245,7 +255,10 @@ void PlayerController::_ready()
   toast_label = get_node<Label>("Hud/Toast");
   menu = get_node<GameMenu>("Hud/Menu");
   menu->bind(this);
+  dialogue = memnew(DialogueBox);
+  get_node<Node>("Hud")->add_child(dialogue);
   base_fov = camera->get_fov();
+  base_spring_length = spring_arm->get_length();
 
   // The scene places the player with a rotation; it moves to the model and the camera.
   facing_yaw = target_yaw = get_rotation().y;
@@ -290,6 +303,9 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
   Input * input = Input::get_singleton();
   const bool captured = input->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED;
 
+  if (dialogue != nullptr && dialogue->holds_input())
+    return;
+
   if (event->is_action_pressed("pause"))
   {
     menu->open(MenuScreen::Pause);
@@ -305,6 +321,7 @@ void PlayerController::_unhandled_input(const Ref<InputEvent> & event)
     return;
   }
   const float sensitivity = mouse_sensitivity * GameSettings::mouse_scale();
+  dialogue_exit_blend = 0.f;
   camera_yaw -= motion->get_relative().x * sensitivity;
   camera_pitch -= motion->get_relative().y * sensitivity;
 }
@@ -320,8 +337,8 @@ void PlayerController::_physics_process(double delta_time)
   const float delta = static_cast<float>(delta_time);
   Input * input = Input::get_singleton();
 
-  // The world keeps going behind a menu, as in the souls games; only the player stops.
-  const bool free_hands = !menu->holds_input();
+  // The world keeps going behind a menu or dialogue, as in the souls games; only the player stops.
+  const bool free_hands = !menu->holds_input() && !dialogue->holds_input();
   const Vector2 stick = free_hands ? input->get_vector(move_left, move_right, move_forward, move_back) : Vector2();
   const Vector3 wish = Vector3(stick.x, 0, stick.y).rotated(UP, camera_yaw);
   const bool wants_to_move = wish.length_squared() > 0.01f;
@@ -705,25 +722,172 @@ void PlayerController::pick_up(const String & item_key, int amount, int pickup_i
   show_toast(kept > 0 ? vformat("%s  x%d", name, kept) : vformat(String::utf8("%s al máximo"), name));
 }
 
+void PlayerController::refresh_prompt()
+{
+  if (nearby_npc != nullptr)
+    prompt_label->set_text(nearby_npc->get_prompt_text());
+  else if (nearby_chapel != nullptr)
+    prompt_label->set_text("E  Capilla");
+  else if (nearby_merchant != nullptr)
+    prompt_label->set_text("E  Bachaquero");
+  else if (nearby_gate != nullptr)
+    prompt_label->set_text(nearby_gate->openable_by(this) ? String::utf8("E  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+  else
+    prompt_label->set_text("");
+}
+
 void PlayerController::set_nearby_chapel(Chapel * chapel)
 {
   nearby_chapel = chapel;
-  prompt_label->set_text(chapel != nullptr ? "E  Capilla" : "");
+  refresh_prompt();
+}
+
+void PlayerController::set_nearby_npc(DialogueNpc * npc)
+{
+  nearby_npc = npc;
+  refresh_prompt();
 }
 
 void PlayerController::set_nearby_merchant(Merchant * merchant)
 {
   nearby_merchant = merchant;
-  prompt_label->set_text(merchant != nullptr ? "E  Bachaquero" : "");
+  refresh_prompt();
 }
 
 void PlayerController::set_nearby_gate(ShortcutGate * gate)
 {
   nearby_gate = gate;
-  if (gate == nullptr)
-    prompt_label->set_text("");
+  refresh_prompt();
+}
+
+void PlayerController::begin_dialogue_camera(Node3D * npc)
+{
+  release_lock();
+  dialogue_npc = npc;
+  dialogue_npc_speaks = true;
+  saved_camera_yaw = camera_yaw;
+  saved_camera_pitch = camera_pitch;
+  dialogue_exit_blend = 0.f;
+  if (npc != nullptr)
+    target_yaw = yaw_towards(npc);
+}
+
+void PlayerController::end_dialogue_camera()
+{
+  if (dialogue_npc != nullptr)
+    dialogue_exit_blend = DIALOGUE_EXIT_TIME;
+  dialogue_npc = nullptr;
+}
+
+void PlayerController::talk_to_npc()
+{
+  if (nearby_npc == nullptr || dialogue == nullptr)
+    return;
+  constexpr int PRIEST_INTRO_ID = 200;
+  DialogueNpc * npc = nearby_npc;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(npc);
+
+  std::vector<DialogueLine> lines;
+  if (!save.pickup_taken(PRIEST_INTRO_ID))
+  {
+    lines = {
+      {String::utf8("Padre"), String::utf8("Pasa, hijo. Aquí no entran. Mientras quede una vela encendida, la capilla aguanta."), true},
+      {"P", String::utf8("En la avenida... escuché un silbido antes de chocar."), false},
+      {String::utf8("Padre"), String::utf8("El Silbón. Antes era un cuento para que los muchachos no salieran tarde. Ya no."), true},
+      {String::utf8("Padre"), String::utf8("Dicen que mató a su propio padre y que carga los huesos en un saco a la espalda. Se alimenta de la culpa... y de la tristeza que dejó este país vacío."), true},
+      {String::utf8("Padre"), String::utf8("Desde que se apagó la música en las calles, anda suelto hacia el llano. Si lo escuchas cerca, todavía está lejos; si casi no se oye, corre."), true},
+      {"P", String::utf8("Necesito cruzar. Mi mamá vive del otro lado."), false},
+      {String::utf8("Padre"), String::utf8("Entonces descansa en el altar cuando te haga falta y cuida esa rabia. Dios te acompañe, muchacho."), true},
+    };
+    dialogue->start(
+      lines,
+      pname,
+      [this, npc](bool speaking)
+      {
+        dialogue_npc_speaks = speaking;
+        npc->set_talking(speaking);
+      },
+      [this]()
+      {
+        end_dialogue_camera();
+        remember(PRIEST_INTRO_ID);
+      });
+  }
   else
-    prompt_label->set_text(gate->openable_by(this) ? String::utf8("E  Abrir portón") : String::utf8("Cerrado por el otro lado"));
+  {
+    lines = {
+      {String::utf8("Padre"), String::utf8("Si ves huesos regados más adelante, no te confíes. El silencio siempre llega antes que él."), true},
+      {String::utf8("Padre"), String::utf8("La capilla sigue abierta. Vuelve cuando necesites aire."), true},
+    };
+    dialogue->start(
+      lines,
+      pname,
+      [this, npc](bool speaking)
+      {
+        dialogue_npc_speaks = speaking;
+        npc->set_talking(speaking);
+      },
+      [this]() { end_dialogue_camera(); });
+  }
+}
+
+void PlayerController::start_merchant_intro()
+{
+  if (nearby_merchant == nullptr || dialogue == nullptr)
+    return;
+  constexpr int MERCHANT_INTRO_ID = 201;
+  Merchant * merchant = nearby_merchant;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(merchant);
+  const std::vector<DialogueLine> lines = {
+    {String::utf8("Bachaquero"), String::utf8("¡Epa, mano! Pensé que ya no quedaba gente viva por esta avenida. Y con machete nuevo y todo."), true},
+    {String::utf8("Bachaquero"), String::utf8("¿Traes lochas? Eso sí me sirve. Billetes ni me los saques, que ya no sirven ni para prender un fogón."), true},
+    {String::utf8("Bachaquero"), String::utf8("Tengo café para que no te mueras en la esquina, y cosas que no pierden valor. Si te quieres afilar ese machete, también resuelvo."), true},
+    {String::utf8("Bachaquero"), String::utf8("Eso sí, te aviso de una vez: compra hoy. Cada vez que te echas a dormir en esa capilla, todo amanece más caro. Aquí nadie fía."), true},
+  };
+  dialogue->start(
+    lines,
+    pname,
+    [this, merchant](bool speaking)
+    {
+      dialogue_npc_speaks = speaking;
+      merchant->set_talking(speaking);
+    },
+    [this]()
+    {
+      end_dialogue_camera();
+      remember(MERCHANT_INTRO_ID);
+      if (nearby_merchant != nullptr)
+        menu->open(MenuScreen::Shop);
+    });
+}
+
+void PlayerController::talk_to_merchant()
+{
+  if (nearby_merchant == nullptr || dialogue == nullptr)
+    return;
+  Merchant * merchant = nearby_merchant;
+  const String pname = String::utf8(save.player_name().c_str());
+  begin_dialogue_camera(merchant);
+  static const char * const CHAT_LINES[] = {
+    "Aprovéchalo hoy, mano, que mañana cuesta el doble.",
+    "Si consigues algo viejo que todavía valga la pena —un disco, un dominó—, tráemelo. Eso no se devalúa.",
+  };
+  const char * text = CHAT_LINES[merchant_chat_index % 2];
+  ++merchant_chat_index;
+  const std::vector<DialogueLine> lines = {
+    {String::utf8("Bachaquero"), String::utf8(text), true},
+  };
+  dialogue->start(
+    lines,
+    pname,
+    [this, merchant](bool speaking)
+    {
+      dialogue_npc_speaks = speaking;
+      merchant->set_talking(speaking);
+    },
+    [this]() { end_dialogue_camera(); });
 }
 
 void PlayerController::remember(int id)
@@ -849,7 +1013,7 @@ void PlayerController::drop_lochas()
   if (!save.has_death_mark())
     return;
 
-  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/lost_lochas.tscn");
+  const Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/world/lost_lochas.tscn");
   dropped_lochas = Object::cast_to<LostLochas>(scene->instantiate());
   const DeathMark & mark = save.death_mark();
   get_parent()->add_child(dropped_lochas);
@@ -887,10 +1051,18 @@ void PlayerController::read_item_input()
     menu->open(MenuScreen::Inventory);
   if (input->is_action_just_pressed(interact_input) && prompt_label->get_text().begins_with("E  "))
     prompt_label->press();
-  if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
+  if (input->is_action_just_pressed(interact_input) && nearby_npc != nullptr && alive)
+    talk_to_npc();
+  else if (input->is_action_just_pressed(interact_input) && nearby_chapel != nullptr && alive)
     menu->open(MenuScreen::Chapel);
   else if (input->is_action_just_pressed(interact_input) && nearby_merchant != nullptr && alive)
-    menu->open(MenuScreen::Shop);
+  {
+    constexpr int MERCHANT_INTRO_ID = 201;
+    if (!save.pickup_taken(MERCHANT_INTRO_ID))
+      start_merchant_intro();
+    else
+      menu->open(MenuScreen::Shop);
+  }
   else if (input->is_action_just_pressed(interact_input) && nearby_gate != nullptr && alive)
     nearby_gate->open(*this);
 
@@ -1212,8 +1384,12 @@ void PlayerController::update_hud(float delta)
       rage_bar->set_fill_color(rage.full() ? RAGE_FULL.lerp(Color(1, 0.9f, 0.5f), throb) : RAGE_FILLING);
   }
 
-  prompt_label->set_visible(!menu->is_open());
-  lochas_label->set_visible(!menu->is_open());
+  const bool in_dialogue = dialogue->is_open();
+  const bool hud_busy = menu->is_open() || in_dialogue;
+  if (!menu->is_open())
+    hud_panel->set_visible(!in_dialogue);
+  prompt_label->set_visible(!hud_busy);
+  lochas_label->set_visible(!hud_busy);
   if (toast_time > 0.f)
   {
     toast_time -= delta;
@@ -1413,17 +1589,60 @@ void PlayerController::turn_model(float delta, float speed)
 
 void PlayerController::update_camera(float delta)
 {
+  if (dialogue_npc != nullptr)
+  {
+    const Vector3 player_pos = get_global_transform_interpolated().origin;
+    const Vector3 npc_pos = dialogue_npc->get_global_position();
+    Vector3 to_npc = (npc_pos - player_pos).slide(UP);
+    if (to_npc.length_squared() < 0.001f)
+      to_npc = MODEL_FORWARD.rotated(UP, facing_yaw);
+    else
+      to_npc = to_npc.normalized();
+    const Vector3 side = UP.cross(to_npc).normalized();
+
+    // Shot-reverse-shot on the same side of the 180-degree line:
+    // NPC speaking -> camera on player's side looking at NPC's face.
+    // Player speaking -> camera on NPC's side looking back at player's face.
+    const float c = Math::cos(DIALOGUE_SIDE_ANGLE);
+    const float s = Math::sin(DIALOGUE_SIDE_ANGLE);
+    const Vector3 focus = (dialogue_npc_speaks ? npc_pos : player_pos) + UP * DIALOGUE_FOCUS_HEIGHT;
+    const Vector3 cam_dir = (dialogue_npc_speaks ? (-to_npc * c + side * s) : (to_npc * c + side * s)).normalized();
+    const float target_cam_yaw = Math::atan2(cam_dir.x, cam_dir.z);
+
+    const float blend = damp(DIALOGUE_CAMERA_FOLLOW, delta);
+    camera_focus = camera_focus.lerp(focus, blend);
+    camera_yaw = Math::lerp_angle(camera_yaw, target_cam_yaw, blend);
+    camera_pitch = Math::lerp(camera_pitch, DIALOGUE_PITCH, blend);
+    spring_arm->set_length(Math::lerp(spring_arm->get_length(), DIALOGUE_SPRING_LENGTH, blend));
+    camera->set_fov(Math::lerp(camera->get_fov(), DIALOGUE_FOV, blend));
+    camera_pivot->set_global_position(camera_focus);
+    camera_pivot->set_rotation(Vector3(camera_pitch, camera_yaw, 0));
+    camera->set_h_offset(0.f);
+    camera->set_v_offset(0.f);
+    return;
+  }
+
   const CombatTarget * locked = locked_target();
   if (locked == nullptr)
   {
     const Vector2 look = Input::get_singleton()->get_vector(camera_left, camera_right, camera_up, camera_down);
+    if (look.length_squared() > 0.01f)
+      dialogue_exit_blend = 0.f;
     camera_yaw -= look.x * CAMERA_STICK_SPEED * delta;
     camera_pitch -= look.y * CAMERA_STICK_SPEED * delta;
+    if (dialogue_exit_blend > 0.f)
+    {
+      dialogue_exit_blend = MAX(0.f, dialogue_exit_blend - delta);
+      const float back = damp(DIALOGUE_CAMERA_FOLLOW, delta);
+      camera_yaw = Math::lerp_angle(camera_yaw, saved_camera_yaw, back);
+      camera_pitch = Math::lerp(camera_pitch, saved_camera_pitch, back);
+    }
   }
   camera_pitch = CLAMP(camera_pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
 
   const Vector3 focus = get_global_transform_interpolated().origin + UP * CAMERA_HEIGHT;
   camera_focus = camera_focus.lerp(focus, damp(CAMERA_FOLLOW, delta));
+  spring_arm->set_length(Math::lerp(spring_arm->get_length(), base_spring_length, damp(DIALOGUE_CAMERA_FOLLOW, delta)));
   if (locked != nullptr)
   {
     const Vector3 offset = locked->aim_point() - camera_focus;
@@ -1439,7 +1658,8 @@ void PlayerController::update_camera(float delta)
   const float real_delta = delta / static_cast<float>(Engine::get_singleton()->get_time_scale());
   camera_shake = MAX(camera_shake - SHAKE_FADE * real_delta, 0.f);
   camera_kick = MAX(camera_kick - KICK_FADE * real_delta, 0.f);
-  camera->set_fov(base_fov - camera_kick * camera_kick * KICK_FOV);
+  const float wanted_fov = base_fov - camera_kick * camera_kick * KICK_FOV;
+  camera->set_fov(Math::lerp(camera->get_fov(), wanted_fov, damp(DIALOGUE_CAMERA_FOLLOW, delta)));
   const float reach = camera_shake * camera_shake * SHAKE_SIZE;
   camera->set_h_offset(UtilityFunctions::randf_range(-reach, reach));
   camera->set_v_offset(UtilityFunctions::randf_range(-reach, reach));

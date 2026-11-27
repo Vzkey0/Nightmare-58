@@ -14,21 +14,24 @@
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/shape_cast3d.hpp>
+#include <godot_cpp/classes/spring_arm3d.hpp>
 #include <godot_cpp/variant/string_name.hpp>
 
 #include <game/ui/key_button.hpp>
 
 #include <core/ai/attack_turns.hpp>
-#include <core/health.hpp>
-#include <core/health_trail.hpp>
-#include <core/lock_on.hpp>
+#include <core/combat/health.hpp>
+#include <core/combat/health_trail.hpp>
+#include <core/combat/lock_on.hpp>
 #include <core/player/player_actions.hpp>
 #include <core/player/rage.hpp>
-#include <core/status_effects.hpp>
+#include <core/combat/status_effects.hpp>
 #include <core/progression/player_progress.hpp>
 
 class Chapel;
 class CombatTarget;
+class DialogueBox;
+class DialogueNpc;
 class GameMenu;
 class LostLochas;
 class Merchant;
@@ -69,11 +72,13 @@ public:
   void earn(int lochas);
   void pick_up(const godot::String & item_key, int amount, int pickup_id);
   void set_nearby_chapel(Chapel * chapel);
+  void set_nearby_npc(DialogueNpc * npc);
   void rest();
   void recover_lochas();
   bool raise_stat(Stat stat);
   Zone chapel_zone() const; // The zone whose prices apply at the chapel the player stands in.
   void set_nearby_merchant(Merchant * merchant);
+  void talk_to_merchant();
   void set_nearby_gate(ShortcutGate * gate);
   void remember(int id); // Saves a one-time world change, such as an opened gate, as a pickup bit.
   Zone merchant_zone() const;
@@ -115,6 +120,11 @@ private:
   void drop_lochas();
   void clear_dropped_lochas();
   void read_item_input();
+  void refresh_prompt();
+  void talk_to_npc();
+  void start_merchant_intro();
+  void begin_dialogue_camera(godot::Node3D * npc);
+  void end_dialogue_camera();
   void use_item();
   void launch_machete();
   void drop_thrown_machete();
@@ -154,6 +164,7 @@ private:
 
   godot::Node3D * model = nullptr;
   godot::Node3D * camera_pivot = nullptr;
+  godot::SpringArm3D * spring_arm = nullptr;
   godot::Camera3D * camera = nullptr;
   godot::AnimationPlayer * animator = nullptr;
   godot::ShapeCast3D * hitbox = nullptr;
@@ -192,10 +203,19 @@ private:
   KeyButton * prompt_label = nullptr;
   godot::Label * toast_label = nullptr;
   GameMenu * menu = nullptr;
+  DialogueBox * dialogue = nullptr;
   Chapel * nearby_chapel = nullptr;
+  DialogueNpc * nearby_npc = nullptr;
   Merchant * nearby_merchant = nullptr;
   ShortcutGate * nearby_gate = nullptr;
   LostLochas * dropped_lochas = nullptr;
+  godot::Node3D * dialogue_npc = nullptr;
+  bool dialogue_npc_speaks = true;
+  float saved_camera_yaw = 0.f;
+  float saved_camera_pitch = -0.2f;
+  float dialogue_exit_blend = 0.f;
+  float base_spring_length = 3.4f;
+  int merchant_chat_index = 0;
 
   // Must match RUN_SPEED in animate_protagonist.py, or the feet slide.
   float run_speed = 4.6f;

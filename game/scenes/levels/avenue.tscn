@@ -1,19 +1,20 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://models/environments/avenue.glb" id="1_avenue"]
-[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
-[ext_resource type="PackedScene" path="res://scenes/avenue_markers.tscn" id="3_markers"]
-[ext_resource type="PackedScene" path="res://scenes/skeleton_enemy.tscn" id="4_skeleton"]
-[ext_resource type="PackedScene" path="res://scenes/chapel.tscn" id="5_chapel"]
-[ext_resource type="PackedScene" path="res://scenes/loot_pickup.tscn" id="6_pickup"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/levels/avenue_markers.tscn" id="3_markers"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/skeleton_enemy.tscn" id="4_skeleton"]
+[ext_resource type="PackedScene" path="res://scenes/world/chapel.tscn" id="5_chapel"]
+[ext_resource type="PackedScene" path="res://scenes/world/loot_pickup.tscn" id="6_pickup"]
 [ext_resource type="NavigationMesh" path="res://navigation/avenue.tres" id="7_navigation"]
-[ext_resource type="PackedScene" path="res://scenes/merchant.tscn" id="8_merchant"]
-[ext_resource type="PackedScene" path="res://scenes/rat_enemy.tscn" id="9_rat"]
-[ext_resource type="PackedScene" path="res://scenes/dog_enemy.tscn" id="10_dog"]
-[ext_resource type="PackedScene" path="res://scenes/guino_enemy.tscn" id="11_guino"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/merchant.tscn" id="8_merchant"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/rat_enemy.tscn" id="9_rat"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/dog_enemy.tscn" id="10_dog"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/guino_enemy.tscn" id="11_guino"]
 [ext_resource type="PackedScene" path="res://models/environments/route.glb" id="12_route"]
-[ext_resource type="PackedScene" path="res://scenes/shortcut_gate.tscn" id="13_gate"]
-[ext_resource type="PackedScene" path="res://scenes/crashed_car.tscn" id="14_crashed_car"]
+[ext_resource type="PackedScene" path="res://scenes/world/shortcut_gate.tscn" id="13_gate"]
+[ext_resource type="PackedScene" path="res://scenes/world/crashed_car.tscn" id="14_crashed_car"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/priest.tscn" id="15_priest"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.09, 0.1, 0.13, 1)
@@ -244,8 +245,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 145, 0.1, -137.5)
 collision_layer = 0
 collision_mask = 2
 
+[node name="Padre" parent="." instance=ExtResource("15_priest")]
+transform = Transform3D(0.9394, 0, 0.3429, 0, 1, 0, -0.3429, 0, 0.9394, 142.4, 0.0, -136.3)
+
 [node name="Bachaquero" type="Merchant" parent="." unique_id=2011260169 instance=ExtResource("8_merchant")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 172, 0.1, -106.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 172, 0.18, -106.5)
 collision_layer = 0
 collision_mask = 2
 

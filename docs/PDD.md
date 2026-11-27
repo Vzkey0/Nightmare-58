@@ -251,7 +251,7 @@ DeSiGNAR (submódulo extern/DeSiGNAR)
 Regla: el núcleo no incluye nada de Godot. Así se compila y prueba desde la
 terminal con el ejecutable actual.
 
-Estructura propuesta:
+Estructura:
 
 ```
 src/core/      lógica sin motor

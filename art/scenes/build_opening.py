@@ -1,4 +1,4 @@
-"""Writes game/scenes/opening.tscn and game/scenes/crashed_car.tscn: the drive, the crash site and
+"""Writes game/scenes/levels/opening.tscn and game/scenes/world/crashed_car.tscn: the drive, the crash site and
 the whole script of docs/opening.md as one AnimationPlayer timeline.
   py art/scenes/build_opening.py
 Both scenes are this script's output: change them here and run it again, hand edits are lost."""
@@ -190,7 +190,7 @@ def build_crashed_car():
   s.node("Headlight", "SpotLight3D", root, {"position": V3(-0.58, 0.57, -2.0), "rotation": V3(-0.1, 0.5, 0), "light_color": C(1, 0.93, 0.75), "light_energy": 2.5, "spot_range": 14.0, "spot_angle": 35.0})
   body = s.node("Body", "StaticBody3D", root)
   s.node("Shape", "CollisionShape3D", body, {"shape": s.sub("BoxShape3D", {"size": V3(1.9, 1.5, 4.4)}), "position": V3(0, 0.75, 0.15)})
-  s.write(os.path.join(GAME, "crashed_car.tscn"))
+  s.write(os.path.join(GAME, "world", "crashed_car.tscn"))
 
 
 # --- The timeline ------------------------------------------------------------------------------
@@ -355,7 +355,7 @@ def build_opening():
   skeleton = s.ext_res("PackedScene", "res://models/characters/skeleton.glb", "skeleton")
   hero = s.ext_res("PackedScene", "res://models/characters/protagonist_male.glb", "hero")
   luis_res = s.ext_res("PackedScene", "res://models/characters/luis.glb", "luis")
-  crashed = s.ext_res("PackedScene", "res://scenes/crashed_car.tscn", "crashed")
+  crashed = s.ext_res("PackedScene", "res://scenes/world/crashed_car.tscn", "crashed")
 
   sky = s.sub("Environment", {"background_mode": 1, "background_color": C(0.55, 0.58, 0.62), "ambient_light_source": 2,
                               "ambient_light_color": C(0.6, 0.63, 0.7), "ambient_light_energy": 0.6, "tonemap_mode": 2,
@@ -779,7 +779,7 @@ def build_opening():
 
   s.node("AnimationPlayer", "AnimationPlayer", ".", {"libraries": Raw('{&"": ' + lib + "}"), "autoplay": Raw('&"opening"')})
   s.node("Wipers", "AnimationPlayer", ".", {"libraries": Raw('{&"": ' + wipe_lib + "}"), "autoplay": Raw('&"wipe"')})
-  s.write(os.path.join(GAME, "opening.tscn"))
+  s.write(os.path.join(GAME, "levels", "opening.tscn"))
   print(f"opening: {end:.1f} s, {len(s.nodes)} nodes")
 
 

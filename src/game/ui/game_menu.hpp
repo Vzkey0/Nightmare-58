@@ -8,7 +8,7 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 
-#include <core/menu_stack.hpp>
+#include <core/ui/menu_stack.hpp>
 #include <core/progression/inventory.hpp>
 
 class FacetPlate;

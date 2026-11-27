@@ -63,6 +63,7 @@ add_library(nightmare58_ext SHARED
   src/game/enemies/melee_enemy.cpp
   src/game/enemies/rat_enemy.cpp
   src/game/enemies/skeleton_enemy.cpp
+  src/game/ui/dialogue_box.cpp
   src/game/ui/facet_plate.cpp
   src/game/ui/key_button.cpp
   src/game/ui/skill_tree_view.cpp
@@ -75,7 +76,8 @@ add_library(nightmare58_ext SHARED
   src/game/enemies/training_dummy.cpp
   src/game/weapons/weapon_trail.cpp
   src/game/world/chapel.cpp
-  src/game/world/merchant.cpp
+  src/game/npcs/dialogue_npc.cpp
+  src/game/npcs/merchant.cpp
   src/game/world/shortcut_gate.cpp
   src/game/weapons/thrown_machete.cpp
   src/game/world/loot_pickup.cpp

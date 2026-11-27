@@ -20,8 +20,8 @@ using namespace godot;
 
 namespace
 {
-const char * const GAME_SCENE = "res://scenes/avenue.tscn";
-const char * const OPENING_SCENE = "res://scenes/opening.tscn"; // Only a new game sees it.
+const char * const GAME_SCENE = "res://scenes/levels/avenue.tscn";
+const char * const OPENING_SCENE = "res://scenes/levels/opening.tscn"; // Only a new game sees it.
 const Vector2 STAGE_SIZE(1920.f, 1080.f);
 constexpr int NO_ROW = -1;
 constexpr float FADE_TIME = 2.2f;

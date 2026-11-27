@@ -18,7 +18,7 @@ using namespace godot;
 
 namespace
 {
-const char * const GAME_SCENE = "res://scenes/avenue.tscn";
+const char * const GAME_SCENE = "res://scenes/levels/avenue.tscn";
 constexpr float SKYLINE_RATIO = 0.2f; // The far city crawls; that is what gives the windows depth.
 constexpr float SEND_AHEAD = 180.f;    // Where a scripted piece enters the street, deep in the fog.
 constexpr float GONE_BEHIND = 30.f;
