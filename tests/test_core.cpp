@@ -7,11 +7,11 @@
 #include <core/ai/attack_turns.hpp>
 #include <core/ai/behavior_tree.hpp>
 #include <core/ai/enemy_actions.hpp>
-#include <core/distance.hpp>
-#include <core/health.hpp>
-#include <core/health_trail.hpp>
-#include <core/lock_on.hpp>
-#include <core/menu_stack.hpp>
+#include <core/combat/distance.hpp>
+#include <core/combat/health.hpp>
+#include <core/combat/health_trail.hpp>
+#include <core/combat/lock_on.hpp>
+#include <core/ui/menu_stack.hpp>
 #include <core/player/player_actions.hpp>
 #include <core/player/rage.hpp>
 #include <core/player/thrown_weapon.hpp>
@@ -23,8 +23,8 @@
 #include <core/progression/player_progress.hpp>
 #include <core/progression/quick_slots.hpp>
 #include <core/progression/skill_tree.hpp>
-#include <core/stamina.hpp>
-#include <core/status_effects.hpp>
+#include <core/combat/stamina.hpp>
+#include <core/combat/status_effects.hpp>
 
 static void test_skill_tree()
 {

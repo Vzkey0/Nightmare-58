@@ -9,7 +9,7 @@
 #include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 
-#include <core/menu_stack.hpp>
+#include <core/ui/menu_stack.hpp>
 
 // The game's first screen: the main menu, the five saved games, the new player's name and options.
 class TitleScreen : public godot::Control

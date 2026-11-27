@@ -3,7 +3,7 @@
 #include <list.hpp>
 #include <queue.hpp>
 
-#include <core/stamina.hpp>
+#include <core/combat/stamina.hpp>
 
 // Attack, Attack2 and Attack3 stay together: PlayerController::attack_clip follows this order.
 enum class PlayerAction { None, Dodge, Attack, Attack2, Attack3, Jump, AirAttack, RollAttack, RunAttack, HeavyAttack, Hurt, Dead, UseItem, Throw, Catch };

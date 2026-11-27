@@ -3,9 +3,9 @@
 #include <godot_cpp/classes/character_body3d.hpp>
 #include <godot_cpp/classes/cpu_particles3d.hpp>
 
-#include <core/health.hpp>
-#include <core/health_trail.hpp>
-#include <core/status_effects.hpp>
+#include <core/combat/health.hpp>
+#include <core/combat/health_trail.hpp>
+#include <core/combat/status_effects.hpp>
 
 class StatBar;
 

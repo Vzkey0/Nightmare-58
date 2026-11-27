@@ -3,8 +3,8 @@
 #include <mtreenode.hpp>
 #include <queue.hpp>
 
-#include <core/attack.hpp>
-#include <core/distance.hpp>
+#include <core/combat/attack.hpp>
+#include <core/combat/distance.hpp>
 
 enum class BehaviorNodeType { Selector, Sequence, Condition, Action };
 enum class BehaviorCondition { LowHealth, Near, Medium, Far, Unaware, LostSight, CanAttack, ChargeReady };
