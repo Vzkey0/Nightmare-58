@@ -43,15 +43,15 @@ constexpr float HUD_RETURN_TIME = 0.3f;
 constexpr float DIM_SATURATION = 0.28f;
 constexpr float DIM_BRIGHTNESS = 0.55f;
 constexpr float DIM_TIME = 0.25f;
-const char * const TITLE_SCENE = "res://scenes/title.tscn";
+const char * const TITLE_SCENE = "res://scenes/ui/title.tscn";
 constexpr int PAUSE_ROWS = 3;
 enum PauseRow { ROW_RESUME, ROW_OPTIONS, ROW_TO_TITLE };
 
 constexpr int CHAPEL_ROWS = 4;
 enum ChapelRow { ROW_REST, ROW_LEVEL_UP, ROW_INVENTORY, ROW_LEAVE };
 
-constexpr int SHOP_ROWS = 4;
-enum ShopRow { ROW_BUY, ROW_SELL, ROW_MACHETE, ROW_SHOP_LEAVE };
+constexpr int SHOP_ROWS = 5;
+enum ShopRow { ROW_BUY, ROW_SELL, ROW_MACHETE, ROW_SHOP_TALK, ROW_SHOP_LEAVE };
 
 // The machete tree without its root, which is always there.
 constexpr int SKILL_ROWS = MacheteSkill::COUNT - 1;
@@ -618,6 +618,12 @@ void GameMenu::accept_shop()
     close();
     return;
   }
+  if (menu.cursor() == ROW_SHOP_TALK)
+  {
+    close();
+    player->talk_to_merchant();
+    return;
+  }
   const MenuScreen screens[] = {MenuScreen::ShopBuy, MenuScreen::ShopSell, MenuScreen::Machete};
   menu.open(screens[menu.cursor()]);
   UiSounds::play(this, "Accept");
@@ -964,6 +970,7 @@ void GameMenu::show_shop()
   add_row("Comprar", menu.cursor() == ROW_BUY);
   add_row("Vender", menu.cursor() == ROW_SELL);
   add_row("Machete", menu.cursor() == ROW_MACHETE);
+  add_row("Hablar", menu.cursor() == ROW_SHOP_TALK);
   add_row("Salir", menu.cursor() == ROW_SHOP_LEAVE);
   hints->set_text("E  aceptar");
   hint_back->set_text("Esc  salir");

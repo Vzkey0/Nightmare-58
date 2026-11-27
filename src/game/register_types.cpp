@@ -10,6 +10,7 @@
 #include <game/enemies/guino_enemy.hpp>
 #include <game/enemies/rat_enemy.hpp>
 #include <game/enemies/skeleton_enemy.hpp>
+#include <game/ui/dialogue_box.hpp>
 #include <game/ui/facet_plate.hpp>
 #include <game/ui/key_button.hpp>
 #include <game/ui/skill_tree_view.hpp>
@@ -20,7 +21,8 @@
 #include <game/enemies/training_dummy.hpp>
 #include <game/weapons/weapon_trail.hpp>
 #include <game/world/chapel.hpp>
-#include <game/world/merchant.hpp>
+#include <game/npcs/dialogue_npc.hpp>
+#include <game/npcs/merchant.hpp>
 #include <game/world/shortcut_gate.hpp>
 #include <game/weapons/thrown_machete.hpp>
 #include <game/world/loot_pickup.hpp>
@@ -45,12 +47,14 @@ static void initialize(ModuleInitializationLevel level)
     GDREGISTER_RUNTIME_CLASS(TrainingDummy);
     GDREGISTER_RUNTIME_CLASS(WeaponTrail);
     GDREGISTER_RUNTIME_CLASS(GameMenu);
+    GDREGISTER_RUNTIME_CLASS(DialogueBox);
     GDREGISTER_RUNTIME_CLASS(ItemSlot);
     GDREGISTER_RUNTIME_CLASS(FacetPlate);
     GDREGISTER_RUNTIME_CLASS(KeyButton);
     GDREGISTER_RUNTIME_CLASS(SkillTreeView);
     GDREGISTER_RUNTIME_CLASS(TitleScreen);
     GDREGISTER_RUNTIME_CLASS(Chapel);
+    GDREGISTER_RUNTIME_CLASS(DialogueNpc);
     GDREGISTER_RUNTIME_CLASS(Merchant);
     GDREGISTER_RUNTIME_CLASS(ShortcutGate);
     GDREGISTER_RUNTIME_CLASS(ThrownMachete);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/area3d.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 
@@ -20,10 +21,12 @@ public:
   int get_zone() const { return zone; }
   void set_zone(int value) { zone = value; }
   Zone zone_kind() const { return static_cast<Zone>(zone); }
+  void set_talking(bool talking);
 
 private:
   void on_body_entered(godot::Node3D * body);
   void on_body_exited(godot::Node3D * body);
 
   int zone = 0;
+  godot::AnimationPlayer * animator = nullptr;
 };
